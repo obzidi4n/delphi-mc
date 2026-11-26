@@ -48,7 +48,7 @@ a real consumer from the start. Nothing is cancelled — only ordered. The schem
 | # | Milestone | Phase | Exit criteria |
 |---|---|---|---|
 | 0 | Monorepo (Go), single binary, embedded UI, Postgres + migrations, config | Alpha | `delphi panel` serves a hello page; `delphi agent` connects; docs tree committed |
-| 1 | Fleet spine: enrollment + per-node identity (CSR → signed cert), the single mTLS WebSocket channel (handshake, heartbeat, console and metric streams), capacity, `fs_capability`, node UI | Alpha | Two agents visible over one channel; a revoked node cannot reconnect |
+| 1 | Fleet spine: enrollment + per-node identity (CSR → signed cert), the single mTLS WebSocket channel (hello/heartbeat, revocation), node registry with health transitions, `GET /api/v1/nodes` + `delphi nodes` | Alpha | Two agents healthy over one channel; a revoked node's channel closes and reconnect is refused |
 | 2 | Container lifecycle: create/start/stop/kill, ports, limits, per-server subvolume/dataset, log capture + crash artifacts, a pinned jar URL + sha256 fetch | Alpha | A Paper 1.20.5+ server boots from a hardcoded spec and is playable from the API |
 | 3a | Capability layer + spec-first OpenAPI (hand-written spec → generated Go/TS clients + DTOs) + auth + RBAC + audit (write and read) + server CRUD + groups + `server_summary` + first CLI commands | Alpha | Create a server from a hardcoded spec; the CLI lists and powers it; the audit API shows both |
 | 3b | Templates: schema, built-ins, **version resolution** (`mc/versions`), instantiation, import/export; template bundles and jars stored as sha256 blobs | Alpha | Create a server from the Survival template |
@@ -110,6 +110,13 @@ S3/dev-env/database tail.
 
 ## Changelog
 
+- **M1 (2026-11-26)** — Fleet spine landed: org CA + panel TLS certificate, single-use
+  enrollment tokens (SHA-256 at rest), CSR-signed node certificates, one mTLS WebSocket per
+  node (`hello`, `heartbeat`, `hello.ack`), a node registry with
+  healthy/unhealthy/disconnected/revoked transitions, revocation enforced on heartbeat and
+  reconnect, and bearer-gated `delphi nodes list|token|revoke`. Verified by unit and mTLS
+  integration tests plus a live run: two agents healthy, revoking one closed its channel with a
+  policy violation, reconnect got 403, the other node stayed healthy.
 - **M0.1 (2026-11-26)** — Apache-2.0 adopted (`LICENSE`, ADR 0020, D22), closing the last open
   project decision. M0's database gap is closed: against a live Postgres 19, `init` created a
   0600 config, applied the baseline, and a second run applied nothing; `/readyz` returned 200

@@ -5,22 +5,34 @@ automated updates, templates, backups, scheduled automation, a first-party Paper
 plugin, and an AI operator — behind a web UI and a scriptable CLI, in one binary plus
 Postgres.
 
-**Status: M0 scaffold.** One binary with `panel`, `agent`, `init`, and `version`;
-configuration; an embedded page; health and readiness; forward-only migrations. No server
-management yet — that starts at M1. The architecture lives in [`docs/`](docs/README.md); the
-sequence lives in [`docs/plan/roadmap.md`](docs/plan/roadmap.md).
+**Status: M1 fleet spine.** One binary with `panel`, `agent`, `nodes`, `init`, and `version`;
+an org CA with node certificates; a mutually authenticated WebSocket per node carrying hello
+and heartbeat; a node registry with health transitions and revocation; TLS, migrations, and an
+embedded page. Server management starts at M2.
 
-## Try the scaffold
+## Try it
 
 ```sh
 make build
-./bin/delphi panel --config panel.example.toml
+./bin/delphi init --config ./panel.toml \
+  --database-url 'postgres://delphi:delphi@127.0.0.1:5432/delphi?sslmode=disable' \
+  --data-dir ./.delphi
+./bin/delphi panel --config ./panel.toml
 ```
 
-The page is at `http://127.0.0.1:8080/` (or your `base_path`), `/healthz` is liveness, and
-`/readyz` reports Postgres — without a database the panel still serves and reports unready.
-`./bin/delphi agent --panel http://127.0.0.1:8080 --once` runs a single readiness probe.
-Postgres is only required for `delphi init` and readiness.
+`init` prints the admin token once and writes the panel CA to `.delphi/pki/ca.crt`. Then:
+
+```sh
+./bin/delphi nodes token  --panel https://127.0.0.1:8080 --ca ./.delphi/pki/ca.crt   # admin token via DELPHI_ADMIN_TOKEN
+./bin/delphi agent enroll --panel https://127.0.0.1:8080 --ca ./.delphi/pki/ca.crt \
+  --name node-a --state-dir ./.delphi/node-a                                        # token via DELPHI_ENROLL_TOKEN
+./bin/delphi agent run    --config agent.example.toml
+./bin/delphi nodes list   --panel https://127.0.0.1:8080 --ca ./.delphi/pki/ca.crt
+```
+
+The page is at `https://127.0.0.1:8080/` (or your `base_path`), `/healthz` is liveness, and
+`/readyz` reports Postgres. See [`docs/contributing/dev-setup.md`](docs/contributing/dev-setup.md)
+for the full local flow.
 
 ## What v1.0 is
 

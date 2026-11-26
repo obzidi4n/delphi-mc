@@ -1,0 +1,286 @@
+package api
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/coder/websocket"
+
+	"delphi.dev/delphi/internal/pki"
+	"delphi.dev/delphi/internal/store"
+)
+
+const (
+	// enrollmentTTL is the lifetime of a node certificate. Rotation arrives
+	// with self-update at v1.1.
+	enrollmentTTL = 30 * 24 * time.Hour
+	// defaultOrgID backs the single-org UX (ADR 0011); the migration seeds it.
+	defaultOrgID = "default"
+)
+
+type enrollRequest struct {
+	Token string `json:"token"`
+	CSR   string `json:"csr"`
+	Name  string `json:"name"`
+}
+
+type enrollResponse struct {
+	NodeID      string    `json:"node_id"`
+	Certificate string    `json:"certificate"`
+	NotAfter    time.Time `json:"not_after"`
+}
+
+func (s *server) enroll(w http.ResponseWriter, r *http.Request) {
+	if s.opts.CA == nil || s.opts.Nodes == nil {
+		writeProblem(w, http.StatusNotImplemented, "enrollment_disabled", "enrollment is not configured")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
+	var req enrollRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" || len(req.Name) > 64 || strings.ContainsAny(req.Name, "\r\n\t") {
+		writeProblem(w, http.StatusBadRequest, "invalid_name", "name must be 1-64 characters on one line")
+		return
+	}
+
+	certPEM, serial, notAfter, err := pki.SignCSR(s.opts.CA, []byte(req.CSR), enrollmentTTL)
+	if err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid_csr", err.Error())
+		return
+	}
+
+	node, err := s.opts.Nodes.EnrollNode(r.Context(), req.Token, store.Node{
+		ID:            newNodeID(),
+		Name:          req.Name,
+		FSCapability:  "copy",
+		CertSerial:    serial,
+		CertExpiresAt: notAfter,
+	})
+	switch {
+	case errors.Is(err, store.ErrInvalidToken):
+		writeProblem(w, http.StatusUnauthorized, "invalid_token", "the enrollment token is not valid")
+		return
+	case errors.Is(err, store.ErrTokenUsed):
+		writeProblem(w, http.StatusConflict, "token_used", "the enrollment token was already used")
+		return
+	case errors.Is(err, store.ErrTokenExpired):
+		writeProblem(w, http.StatusGone, "token_expired", "the enrollment token has expired")
+		return
+	case err != nil:
+		writeProblem(w, http.StatusInternalServerError, "enrollment_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, enrollResponse{
+		NodeID:      node.ID,
+		Certificate: string(certPEM),
+		NotAfter:    node.CertExpiresAt,
+	})
+}
+
+type nodeDTO struct {
+	ID            string          `json:"id"`
+	Name          string          `json:"name"`
+	Status        string          `json:"status"`
+	AgentVersion  string          `json:"agent_version"`
+	FSCapability  string          `json:"fs_capability"`
+	Capacity      json.RawMessage `json:"capacity"`
+	CertExpiresAt time.Time       `json:"cert_expires_at"`
+	LastSeen      *time.Time      `json:"last_seen"`
+	RevokedAt     *time.Time      `json:"revoked_at"`
+}
+
+func (s *server) listNodes(w http.ResponseWriter, r *http.Request) {
+	if !s.authorized(r) {
+		writeProblem(w, http.StatusUnauthorized, "unauthorized", "admin token required")
+		return
+	}
+	if s.opts.Nodes == nil {
+		writeProblem(w, http.StatusNotImplemented, "nodes_disabled", "the node registry is not configured")
+		return
+	}
+
+	nodes, err := s.opts.Nodes.ListNodes(r.Context())
+	if err != nil {
+		writeProblem(w, http.StatusInternalServerError, "list_failed", err.Error())
+		return
+	}
+	items := make([]nodeDTO, 0, len(nodes))
+	for _, n := range nodes {
+		capacity := n.Capacity
+		if len(capacity) == 0 {
+			capacity = []byte(`{}`)
+		}
+		items = append(items, nodeDTO{
+			ID:            n.ID,
+			Name:          n.Name,
+			Status:        n.Status,
+			AgentVersion:  n.AgentVersion,
+			FSCapability:  n.FSCapability,
+			Capacity:      capacity,
+			CertExpiresAt: n.CertExpiresAt,
+			LastSeen:      n.LastSeen,
+			RevokedAt:     n.RevokedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (s *server) revokeNode(w http.ResponseWriter, r *http.Request) {
+	if !s.authorized(r) {
+		writeProblem(w, http.StatusUnauthorized, "unauthorized", "admin token required")
+		return
+	}
+	if s.opts.Nodes == nil {
+		writeProblem(w, http.StatusNotImplemented, "nodes_disabled", "the node registry is not configured")
+		return
+	}
+
+	err := s.opts.Nodes.RevokeNode(r.Context(), r.PathValue("id"))
+	switch {
+	case errors.Is(err, store.ErrNoNode):
+		writeProblem(w, http.StatusNotFound, "node_not_found", "no such node")
+		return
+	case err != nil:
+		writeProblem(w, http.StatusInternalServerError, "revoke_failed", err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) createToken(w http.ResponseWriter, r *http.Request) {
+	if !s.authorized(r) {
+		writeProblem(w, http.StatusUnauthorized, "unauthorized", "admin token required")
+		return
+	}
+	if s.opts.Nodes == nil {
+		writeProblem(w, http.StatusNotImplemented, "nodes_disabled", "the node registry is not configured")
+		return
+	}
+
+	var body struct {
+		TTLSeconds int `json:"ttl_seconds"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if body.TTLSeconds == 0 {
+		body.TTLSeconds = 900
+	}
+	if body.TTLSeconds < 60 || body.TTLSeconds > 86400 {
+		writeProblem(w, http.StatusBadRequest, "invalid_ttl", "ttl_seconds must be between 60 and 86400")
+		return
+	}
+
+	token, expires, err := s.opts.Nodes.CreateEnrollmentToken(r.Context(), defaultOrgID, time.Duration(body.TTLSeconds)*time.Second)
+	if err != nil {
+		writeProblem(w, http.StatusInternalServerError, "token_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"token": token, "expires_at": expires})
+}
+
+func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
+	if s.opts.Nodes == nil {
+		writeProblem(w, http.StatusNotImplemented, "nodes_disabled", "the node registry is not configured")
+		return
+	}
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 || len(r.TLS.VerifiedChains) == 0 {
+		writeProblem(w, http.StatusForbidden, "client_cert_required", "a node certificate is required")
+		return
+	}
+
+	leaf := r.TLS.PeerCertificates[0]
+	node, err := s.opts.Nodes.NodeBySerial(r.Context(), leaf.SerialNumber.String())
+	if err != nil || node.RevokedAt != nil {
+		writeProblem(w, http.StatusForbidden, "node_unknown", "unknown or revoked node certificate")
+		return
+	}
+
+	conn, err := websocket.Accept(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.CloseNow()
+
+	if err := s.writeFrame(r.Context(), conn, map[string]any{
+		"type":        "hello.ack",
+		"server_time": s.opts.Now().UTC(),
+	}); err != nil {
+		return
+	}
+	_ = s.opts.Nodes.SetNodeStatus(r.Context(), node.ID, "healthy")
+
+	revoked := false
+	for {
+		readCtx, cancel := context.WithTimeout(r.Context(), 3*s.opts.Heartbeat)
+		_, data, err := conn.Read(readCtx)
+		cancel()
+		if err != nil {
+			break
+		}
+
+		var frame struct {
+			Type         string          `json:"type"`
+			AgentVersion string          `json:"agent_version"`
+			FSCapability string          `json:"fs_capability"`
+			Capacity     json.RawMessage `json:"capacity"`
+		}
+		if err := json.Unmarshal(data, &frame); err != nil {
+			continue
+		}
+
+		switch frame.Type {
+		case "hello":
+			if err := s.opts.Nodes.UpdateNodeHello(r.Context(), node.ID,
+				frame.AgentVersion, frame.FSCapability, frame.Capacity); err != nil {
+				revoked = true
+				break
+			}
+			if err := s.opts.Nodes.TouchNode(r.Context(), node.ID, s.opts.Now()); err != nil {
+				revoked = true
+			}
+		case "heartbeat":
+			if err := s.opts.Nodes.TouchNode(r.Context(), node.ID, s.opts.Now()); err != nil {
+				revoked = errors.Is(err, store.ErrNodeRevoked)
+			}
+		}
+		if revoked {
+			_ = conn.Close(websocket.StatusPolicyViolation, "node revoked")
+			return
+		}
+	}
+
+	_ = s.opts.Nodes.SetNodeStatus(context.Background(), node.ID, "disconnected")
+}
+
+func (s *server) writeFrame(ctx context.Context, conn *websocket.Conn, v any) error {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return conn.Write(writeCtx, websocket.MessageText, data)
+}
+
+func newNodeID() string {
+	raw := make([]byte, 8)
+	if _, err := rand.Read(raw); err != nil {
+		panic("api: range of crypto/rand exhausted: " + err.Error())
+	}
+	return "n_" + hex.EncodeToString(raw)
+}

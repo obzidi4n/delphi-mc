@@ -7,6 +7,7 @@
 # LOCAL CONFIG (may contain credentials)
 /panel.toml
 /agent.toml
+/.delphi/
 
 # GO
 # Binaries for programs and plugins

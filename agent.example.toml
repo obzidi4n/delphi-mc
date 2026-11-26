@@ -1,4 +1,7 @@
-# DelphiMC agent configuration (M0: liveness probe only).
+# DelphiMC agent configuration (M1: enrolled identity + mTLS channel).
 
-panel_url = "http://127.0.0.1:8080"
+panel_url = "https://127.0.0.1:8080"
 interval = "30s"
+
+# ca.crt, agent.crt and agent.key are written here by `delphi agent enroll`.
+state_dir = "/etc/delphi"

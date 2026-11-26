@@ -20,6 +20,9 @@ type Panel struct {
 	BasePath    string `toml:"base_path"`
 	DatabaseURL string `toml:"database_url"`
 	LogLevel    string `toml:"log_level"`
+	DataDir     string `toml:"data_dir"`
+	AdminToken  string `toml:"admin_token"`
+	TLS         bool   `toml:"tls"`
 }
 
 // DefaultPanel returns the defaults used when no file exists.
@@ -28,6 +31,8 @@ func DefaultPanel() Panel {
 		Listen:   "127.0.0.1:8080",
 		BasePath: "/",
 		LogLevel: "info",
+		DataDir:  "/var/lib/delphi",
+		TLS:      true,
 	}
 }
 
@@ -50,6 +55,9 @@ func LoadPanel(file string) (Panel, error) {
 func (p Panel) validate() error {
 	if strings.TrimSpace(p.Listen) == "" {
 		return errors.New("listen must not be empty")
+	}
+	if strings.TrimSpace(p.DataDir) == "" {
+		return errors.New("data_dir must not be empty")
 	}
 	if _, err := ParseLevel(p.LogLevel); err != nil {
 		return err
@@ -99,13 +107,15 @@ func NormalizeBasePath(p string) string {
 type Agent struct {
 	PanelURL string   `toml:"panel_url"`
 	Interval Duration `toml:"interval"`
+	StateDir string   `toml:"state_dir"`
 }
 
 // DefaultAgent returns the defaults used when no file exists.
 func DefaultAgent() Agent {
 	return Agent{
-		PanelURL: "http://127.0.0.1:8080",
+		PanelURL: "https://127.0.0.1:8080",
 		Interval: Duration(30 * time.Second),
+		StateDir: "/etc/delphi",
 	}
 }
 
@@ -128,13 +138,16 @@ func LoadAgent(file string) (Agent, error) {
 func (a Agent) Validate() error {
 	u, err := url.Parse(strings.TrimSpace(a.PanelURL))
 	if err != nil || u.Host == "" {
-		return errors.New("panel_url must be an absolute http(s) URL")
+		return errors.New("panel_url must be an absolute https URL")
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("panel_url scheme %q must be http or https", u.Scheme)
+	if u.Scheme != "https" {
+		return fmt.Errorf("panel_url scheme %q must be https: the agent channel requires mutual TLS", u.Scheme)
 	}
 	if a.Interval <= 0 {
 		return errors.New("interval must be positive")
+	}
+	if strings.TrimSpace(a.StateDir) == "" {
+		return errors.New("state_dir must not be empty")
 	}
 	return nil
 }

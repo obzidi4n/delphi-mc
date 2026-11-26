@@ -1,5 +1,5 @@
 # DelphiMC panel configuration.
-# `delphi init --config ./panel.toml` writes this file and applies migrations.
+# `delphi init --config ./panel.toml --database-url … --data-dir ./.delphi` writes this file.
 
 listen = "127.0.0.1:8080"
 
@@ -10,3 +10,12 @@ base_path = "/"
 database_url = "postgres://delphi:delphi@127.0.0.1:5432/delphi?sslmode=disable"
 
 log_level = "info"
+
+# CA, server certificate, and node data live here.
+data_dir = "/var/lib/delphi"
+
+# Bearer token for /api/v1. `delphi init` generates one and prints it once.
+admin_token = ""
+
+# The agent channel requires the panel's own TLS certificate.
+tls = true
