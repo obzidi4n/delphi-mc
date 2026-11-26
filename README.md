@@ -54,8 +54,9 @@ See [`SECURITY.md`](SECURITY.md) for reporting and scope.
 
 ## License
 
-Not yet chosen. Until a `LICENSE` file is committed, the default is all rights reserved — see
-open item 10 in [`docs/plan/decision-log.md`](docs/plan/decision-log.md#still-open).
+Apache License 2.0 — see [`LICENSE`](LICENSE). Third-party assets (Paper, plugins, their docs)
+keep their own licenses. The name and logo are not licensed (Apache-2.0 §6); there is no
+`NOTICE` file yet.
 
 ## Contributing
 

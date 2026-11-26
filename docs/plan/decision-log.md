@@ -26,6 +26,7 @@ decision updates this table and adds an ADR — it never edits the old one.
 | D19 | v1.0 scope | Technical owner-operator, 1–10 servers; TUI/networks/fleet ops at v1.1 | [0015](../decisions/0015-v1-scope-small-operator.md) |
 | D20 | Support floor | Paper 1.20.5+ / Java 21+; two JDK images | [0016](../decisions/0016-paper-1-20-java-21-floor.md) |
 | D21 | Migrations | Forward-only; rollback = snapshot + previous binary | [0019](../decisions/0019-forward-only-migrations.md) |
+| D22 | License | Apache-2.0 (`LICENSE`); no `NOTICE` yet | [0020](../decisions/0020-apache-2-0.md) |
 
 Restart policy ownership (agent-local) is recorded as ADR
 [0017](../decisions/0017-agent-owned-restart-policy.md).
@@ -53,5 +54,3 @@ Deliberately deferred; none block M0. Each has an owner decision, not a default.
 8. **Map render / player map.** A common ask; a whole tile-serving subsystem. Out until asked
    for by a paying user.
 9. **BungeeCord.** Excluded through v1.1 (Velocity only); revisit only if adoption demands.
-10. **License.** Not yet chosen; until a license file is committed the default is all rights
-    reserved. Pick one (and add `LICENSE`) before the repository is published.

@@ -3,7 +3,7 @@
 ADRs are **append-only**: accepted records are never edited. A changed decision gets a new
 number that supersedes the old one, and the old record gains one line pointing forward.
 
-**The index lives in [`../plan/decision-log.md`](../plan/decision-log.md)** — D1–D21, one line
+**The index lives in [`../plan/decision-log.md`](../plan/decision-log.md)** — D1–D22, one line
 each, with links to the reasoning here. This directory holds context and consequences; it does
 not maintain a second table, because two indexes drift.
 

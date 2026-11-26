@@ -4,6 +4,10 @@
 # BUILD OUTPUT
 /bin/
 
+# LOCAL CONFIG (may contain credentials)
+/panel.toml
+/agent.toml
+
 # GO
 # Binaries for programs and plugins
 *.exe

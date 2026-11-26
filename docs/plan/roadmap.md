@@ -110,6 +110,10 @@ S3/dev-env/database tail.
 
 ## Changelog
 
+- **M0.1 (2026-11-26)** — Apache-2.0 adopted (`LICENSE`, ADR 0020, D22), closing the last open
+  project decision. M0's database gap is closed: against a live Postgres 19, `init` created a
+  0600 config, applied the baseline, and a second run applied nothing; `/readyz` returned 200
+  and the agent probe exited 0.
 - **M0 (2026-11-26)** — Scaffold landed. One binary with `panel`, `agent`, `init`, `version`;
   TOML config with explicit defaults; embedded hello page at a configurable base path;
   `/healthz` and `/readyz` (Postgres-aware, lazy pool); forward-only migration runner with a

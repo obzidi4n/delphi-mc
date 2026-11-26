@@ -24,7 +24,7 @@ behavior it describes.
 
 ## Decisions
 
-[`plan/decision-log.md`](plan/decision-log.md) is the single index — D1–D21, one line each,
+[`plan/decision-log.md`](plan/decision-log.md) is the single index — D1–D22, one line each,
 with links. ADRs are append-only: [`decisions/README.md`](decisions/README.md) holds the
 numbering rule and format, not a second table.
 
@@ -33,7 +33,7 @@ numbering rule and format, not a second table.
 | Doc | Covers |
 |---|---|
 | [`plan/roadmap.md`](plan/roadmap.md) | Milestones, alpha exit criteria, risks, changelog |
-| [`plan/decision-log.md`](plan/decision-log.md) | D1–D21 and open items |
+| [`plan/decision-log.md`](plan/decision-log.md) | D1–D22 and open items |
 
 The roadmap and the decision log are the only pages expected to churn.
 
