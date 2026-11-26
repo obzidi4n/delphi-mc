@@ -1,6 +1,7 @@
 # Data model
 
-**Status:** design · schema created at M0–M3a. Postgres + `pgx` + `sqlc`; migrations by Atlas.
+**Status:** design · schema created at M0–M3a. Postgres + `pgx` + `sqlc`; embedded
+forward-only SQL migrations applied by the panel at startup ([ADR 0019](../decisions/0019-forward-only-migrations.md)).
 
 ```
 users, sessions, api_keys, orgs, role_bindings (global, per-group, per-server)

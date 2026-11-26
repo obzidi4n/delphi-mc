@@ -5,9 +5,22 @@ automated updates, templates, backups, scheduled automation, a first-party Paper
 plugin, and an AI operator — behind a web UI and a scriptable CLI, in one binary plus
 Postgres.
 
-**Status: design drafted, implementation not started (M0).** There is no code to run yet.
-The architecture lives in [`docs/`](docs/README.md); the sequence lives in
-[`docs/plan/roadmap.md`](docs/plan/roadmap.md).
+**Status: M0 scaffold.** One binary with `panel`, `agent`, `init`, and `version`;
+configuration; an embedded page; health and readiness; forward-only migrations. No server
+management yet — that starts at M1. The architecture lives in [`docs/`](docs/README.md); the
+sequence lives in [`docs/plan/roadmap.md`](docs/plan/roadmap.md).
+
+## Try the scaffold
+
+```sh
+make build
+./bin/delphi panel --config panel.example.toml
+```
+
+The page is at `http://127.0.0.1:8080/` (or your `base_path`), `/healthz` is liveness, and
+`/readyz` reports Postgres — without a database the panel still serves and reports unready.
+`./bin/delphi agent --panel http://127.0.0.1:8080 --once` runs a single readiness probe.
+Postgres is only required for `delphi init` and readiness.
 
 ## What v1.0 is
 

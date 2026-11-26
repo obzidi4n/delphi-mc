@@ -33,7 +33,7 @@ internal/
     plugins/             # Modrinth, Hangar, GitHub
     java/                # 21/25 images
     template/            # built-ins, instantiation
-  store/                 # pgx + sqlc, Atlas migrations
+  store/                 # pgx + sqlc; embedded forward-only SQL migrations
   wire/                  # frames, envelope, console batching (Go; spec in docs)
 web/                     # React + Vite SPA (embedded)
 plugin/                  # Java bridge plugin (Gradle, Paper API)
@@ -81,7 +81,7 @@ created there before its milestone.
 ## M0 bootstrap checklist
 
 1. `go.mod`, layout above, `cmd/delphi` with `panel` and `agent` subcommands.
-2. Postgres connection, Atlas baseline migration, `sqlc` config.
+2. Postgres connection, baseline migration applied at startup, sqlc config.
 3. Config file (`/etc/delphi/panel.toml`) parsing with explicit defaults.
 4. `embed.FS` wired for `web/`, producing a real hello page.
 5. This docs tree in the repo, with the roadmap and decision log as the only churning pages.

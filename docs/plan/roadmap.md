@@ -110,6 +110,11 @@ S3/dev-env/database tail.
 
 ## Changelog
 
+- **M0 (2026-11-26)** — Scaffold landed. One binary with `panel`, `agent`, `init`, `version`;
+  TOML config with explicit defaults; embedded hello page at a configurable base path;
+  `/healthz` and `/readyz` (Postgres-aware, lazy pool); forward-only migration runner with a
+  baseline (`orgs`, `users`); agent readiness probe. Verified with unit tests, `go vet`, a
+  clean build, and a live smoke (200/503/404 and the agent probe).
 - **docs v1.0** — Final documentation patch before implementation. Fixed: log-bearing tools
   require `:logs`; Paper resolution moved to M3b (M2 uses a pinned jar); mount/offload honesty
   for node-loss backups; artifact upload (`POST /artifacts`) and template/file transfer via

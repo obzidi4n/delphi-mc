@@ -1,0 +1,4 @@
+# DelphiMC agent configuration (M0: liveness probe only).
+
+panel_url = "http://127.0.0.1:8080"
+interval = "30s"

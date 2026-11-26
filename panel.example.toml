@@ -1,0 +1,12 @@
+# DelphiMC panel configuration.
+# `delphi init --config ./panel.toml` writes this file and applies migrations.
+
+listen = "127.0.0.1:8080"
+
+# Serve the UI at /delphi/ behind an existing reverse proxy, or "/" to own the host.
+base_path = "/"
+
+# Postgres DSN. Empty means the panel starts but /readyz reports unready.
+database_url = "postgres://delphi:delphi@127.0.0.1:5432/delphi?sslmode=disable"
+
+log_level = "info"

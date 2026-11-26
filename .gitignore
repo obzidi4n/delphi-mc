@@ -1,6 +1,9 @@
 # MAC
 .DS_Store
 
+# BUILD OUTPUT
+/bin/
+
 # GO
 # Binaries for programs and plugins
 *.exe

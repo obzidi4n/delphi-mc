@@ -3,7 +3,7 @@
 The map. Every page here is versioned with the code and changes in the same PR as the
 behavior it describes.
 
-**Status:** design drafted; M0 (scaffold) not started. See
+**Status:** M0 scaffold landed (panel, agent, config, migrations); M1 is next. See
 [`plan/roadmap.md`](plan/roadmap.md).
 
 ## Architecture — what and how
@@ -46,6 +46,7 @@ The roadmap and the decision log are the only pages expected to churn.
 | [`reference/template-schema.md`](reference/template-schema.md) | Template format |
 | [`reference/wire-protocol.md`](reference/wire-protocol.md) | Agent/browser frames and endpoints |
 | [`reference/api-conventions.md`](reference/api-conventions.md) | Pagination, errors, idempotency, preconditions |
+| [`reference/configuration.md`](reference/configuration.md) | Panel and agent config keys and defaults |
 
 ## Operations
 
@@ -60,14 +61,14 @@ The roadmap and the decision log are the only pages expected to churn.
 
 | Doc | Covers |
 |---|---|
+| [`contributing/dev-setup.md`](contributing/dev-setup.md) | Toolchain, build, run, test |
 | [`contributing/conventions.md`](contributing/conventions.md) | Repo layout, code and doc rules |
 | [`contributing/testing.md`](contributing/testing.md) | Test layers, e2e host, AI evals |
 
 ## Deliberately not written yet
 
-- `reference/configuration.md` — written at M0, together with the config file it documents.
 - `reference/tui-keybindings.md` — written with the TUI at v1.1.
-- `contributing/dev-setup.md` — written at M0, when there is something to set up.
+- `contributing/testing.md` exists; its e2e harness is written with M2.
 
 ## Rules
 
