@@ -41,6 +41,30 @@ panel over a single mTLS WebSocket, and keeps serving when the panel is unreacha
   The agent never writes Postgres; a binding it did not expect is a drift report, not an
   assignment.
 
+### Server lifecycle (M2)
+
+The panel sends the node's full desired server set; the agent converges it
+(`internal/agent/supervisor.go`):
+
+- Creates `<data_dir>/servers/<id>` as its own btrfs subvolume when the filesystem and `btrfs`
+  tooling allow, otherwise a plain directory; the node reports `reflink`, `zfs` or `copy` in
+  `hello`.
+- Prepares the directory: `eula.txt` only when the operator accepted the EULA, a default
+  `server.properties` only when absent, and the pinned `paper.jar` verified by sha256 and
+  installed with an atomic rename.
+- Runs one container per server with its own published port, memory and CPU limits, read-only
+  rootfs, `tmpfs /tmp`, `--cap-drop=ALL`, `no-new-privileges`, and the server directory at
+  `/data`. The JVM heap is `memory_mb − 512` (minimum 256 MiB): a 1 GiB limit OOM-kills Paper
+  during world gen because metaspace and native memory sit above the heap.
+- On Linux it adds `--userns=keep-id` and the invoking UID so host files stay owned by the
+  agent's user; on macOS the machine's virtiofs share already maps ownership.
+- Records the applied revision in `.delphi-state.json` and in the `delphi.revision` container
+  label, so an agent restart neither restarts running servers nor re-downloads jars.
+- On `exited`, captures `logs` and any `hs_err_pid*.log` under `crash/rev-<n>/`, once per
+  revision, so a crash loop cannot fill the disk.
+- Power is declarative: start/stop/restart/kill mutate desired state; kill is a flag consumed
+  by the next reconcile, and revision bumps trigger a restart of an already-running container.
+
 ## Console pipeline
 
 - Tail `logs/latest.log` via inotify, handling rotation, partial lines and truncation —

@@ -33,6 +33,8 @@ Postgres is down, and becomes ready when it comes back.
 | `panel_url` | `https://127.0.0.1:8080` | Must be `https`: the channel is mutually authenticated. |
 | `interval` | `30s` | Heartbeat period; any Go duration string. |
 | `state_dir` | `/etc/delphi` | Holds `ca.crt`, `agent.crt`, `agent.key` written by enrollment. |
+| `data_dir` | `/var/lib/delphi` | Server directories, jars, crash artifacts; resolved to an absolute path. |
+| `container_runtime` | `auto` | `auto` picks podman, then docker; or force one. |
 
 Enrollment is one-time and happens before `agent run`:
 
@@ -44,6 +46,12 @@ DELPHI_ENROLL_TOKEN=… delphi agent enroll --panel https://127.0.0.1:8080 \
 The agent then dials `wss://<panel>/agent/ws` with its certificate, sends `hello`, and sends a
 heartbeat every `interval`. The panel marks it healthy on connect, unhealthy after 90 s without
 a heartbeat, and closes the channel within one heartbeat of revocation.
+
+On connect, and after every server mutation, the panel sends the node's full desired server set.
+The agent converges it: writes `eula.txt` (only when the operator accepted), a default
+`server.properties`, downloads the pinned `paper.jar` (sha256 verified), and starts/stops/restarts
+the container. Observed state is reported back per server. An agent restart adopts running
+containers instead of restarting them.
 
 ## First run
 

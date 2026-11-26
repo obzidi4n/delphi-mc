@@ -6,6 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/coder/websocket v1.8.15
 	github.com/jackc/pgx/v5 v5.13.0
+	golang.org/x/sys v0.50.0
 )
 
 require (

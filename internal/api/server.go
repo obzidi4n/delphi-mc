@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/config"
 	"delphi.dev/delphi/internal/pki"
 	"delphi.dev/delphi/internal/store"
@@ -41,6 +42,10 @@ type Options struct {
 	AdminToken string
 	// CA signs node certificates; required for enrollment.
 	CA *pki.CA
+	// Servers is the server-lifecycle capability; nil disables server routes.
+	Servers *capability.Servers
+	// Hub pushes desired state to connected nodes.
+	Hub *Hub
 	// Heartbeat is the expected agent interval; channel timeouts derive from it.
 	Heartbeat time.Duration
 	// Now is the clock; tests override it.
@@ -110,6 +115,10 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("GET /api/v1/nodes", s.listNodes)
 	mux.HandleFunc("POST /api/v1/nodes/{id}/revoke", s.revokeNode)
 	mux.HandleFunc("POST /api/v1/enrollment-tokens", s.createToken)
+	mux.HandleFunc("POST /api/v1/servers", s.createServer)
+	mux.HandleFunc("GET /api/v1/servers", s.listServers)
+	mux.HandleFunc("GET /api/v1/servers/{id}", s.getServer)
+	mux.HandleFunc("POST /api/v1/servers/{id}/power", s.powerServer)
 
 	return mux, nil
 }

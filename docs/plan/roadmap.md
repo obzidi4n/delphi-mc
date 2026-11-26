@@ -110,6 +110,15 @@ S3/dev-env/database tail.
 
 ## Changelog
 
+- **M2 (2026-11-26)** — Container lifecycle landed. Servers are created through the capability
+  layer (pinned jar URL + sha256, EULA gate, port allocation), pushed to their node as desired
+  state, and reconciled: btrfs subvolume when available (plain dir fallback), `eula.txt` and
+  `server.properties`, sha256-verified `paper.jar`, a hardened container with limits, periodic
+  observed-state reporting, and crash artifacts only for unexpected exits. Verified live on
+  Podman: Paper 1.21.4 booted to `Done (28.140s)` with port 25565 open; start, stop, restart and
+  kill all converged in seconds; an external SIGKILL surfaced as `exited` within one heartbeat.
+  The run found a real limit: a 1 GiB container OOM-killed the JVM during world gen, so the heap
+  is now `memory − 512 MiB` and 2 GiB boots cleanly.
 - **M1 (2026-11-26)** — Fleet spine landed: org CA + panel TLS certificate, single-use
   enrollment tokens (SHA-256 at rest), CSR-signed node certificates, one mTLS WebSocket per
   node (`hello`, `heartbeat`, `hello.ack`), a node registry with

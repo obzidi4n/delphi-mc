@@ -15,6 +15,7 @@ import (
 
 	"delphi.dev/delphi/internal/pki"
 	"delphi.dev/delphi/internal/store"
+	"delphi.dev/delphi/internal/wire"
 )
 
 const (
@@ -217,12 +218,20 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 	defer conn.CloseNow()
 
 	if err := s.writeFrame(r.Context(), conn, map[string]any{
-		"type":        "hello.ack",
+		"type":        wire.TypeHelloAck,
 		"server_time": s.opts.Now().UTC(),
 	}); err != nil {
 		return
 	}
 	_ = s.opts.Nodes.SetNodeStatus(r.Context(), node.ID, "healthy")
+
+	var live *sink
+	if s.opts.Hub != nil {
+		live = s.opts.Hub.Register(node.ID, conn)
+		defer s.opts.Hub.Unregister(node.ID, live)
+		// A failed initial sync is not fatal: the next mutation re-syncs.
+		_ = s.opts.Hub.Sync(r.Context(), node.ID)
+	}
 
 	revoked := false
 	for {
@@ -233,29 +242,38 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		var frame struct {
-			Type         string          `json:"type"`
-			AgentVersion string          `json:"agent_version"`
-			FSCapability string          `json:"fs_capability"`
-			Capacity     json.RawMessage `json:"capacity"`
+		var envelope struct {
+			Type string `json:"type"`
 		}
-		if err := json.Unmarshal(data, &frame); err != nil {
+		if err := json.Unmarshal(data, &envelope); err != nil {
 			continue
 		}
 
-		switch frame.Type {
-		case "hello":
-			if err := s.opts.Nodes.UpdateNodeHello(r.Context(), node.ID,
-				frame.AgentVersion, frame.FSCapability, frame.Capacity); err != nil {
-				revoked = true
-				break
+		switch envelope.Type {
+		case wire.TypeHello:
+			var hello struct {
+				AgentVersion string          `json:"agent_version"`
+				FSCapability string          `json:"fs_capability"`
+				Capacity     json.RawMessage `json:"capacity"`
+			}
+			if json.Unmarshal(data, &hello) == nil {
+				if err := s.opts.Nodes.UpdateNodeHello(r.Context(), node.ID,
+					hello.AgentVersion, hello.FSCapability, hello.Capacity); err != nil {
+					revoked = true
+					break
+				}
 			}
 			if err := s.opts.Nodes.TouchNode(r.Context(), node.ID, s.opts.Now()); err != nil {
 				revoked = true
 			}
-		case "heartbeat":
+		case wire.TypeHeartbeat:
 			if err := s.opts.Nodes.TouchNode(r.Context(), node.ID, s.opts.Now()); err != nil {
 				revoked = errors.Is(err, store.ErrNodeRevoked)
+			}
+		case wire.TypeServerState:
+			var frame wire.ServerStateFrame
+			if json.Unmarshal(data, &frame) == nil && frame.ServerID != "" && s.opts.Servers != nil {
+				_ = s.opts.Servers.ReportState(r.Context(), node.ID, frame)
 			}
 		}
 		if revoked {

@@ -1,7 +1,13 @@
-# DelphiMC agent configuration (M1: enrolled identity + mTLS channel).
+# DelphiMC agent configuration.
 
 panel_url = "https://127.0.0.1:8080"
 interval = "30s"
 
 # ca.crt, agent.crt and agent.key are written here by `delphi agent enroll`.
 state_dir = "/etc/delphi"
+
+# Server directories, jars and crash artifacts.
+data_dir = "/var/lib/delphi"
+
+# auto picks podman, then docker.
+container_runtime = "auto"

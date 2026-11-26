@@ -8,8 +8,9 @@ users, sessions, api_keys, orgs, role_bindings (global, per-group, per-server)
 nodes            (id, org_id, labels, capacity, agent_version, status, last_seen,
                   fs_capability: reflink|zfs|copy,
                   cert_serial, cert_expires_at, revoked_at)
-servers          (id, org_id, node_id, name, image, java_version, mem/cpu limits,
-                  ports, desired_state, desired_revision, observed_state, applied_revision,
+servers          (id, org_id, node_id, name, image, java_version, memory_mb, cpu_cores,
+                  port, desired_state, desired_revision, observed_state, applied_revision,
+                  kill_requested, accept_eula, jar_url, jar_sha256, last_error,
                   template_id, template_version, network_id, network_role, tags[],
                   deleted_at, purge_after)
 server_groups    (id, org_id, name, description)          # targeting (many-to-many)

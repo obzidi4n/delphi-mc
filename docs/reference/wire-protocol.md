@@ -47,8 +47,9 @@ Text frames carry a JSON envelope; console payloads are binary frames with a fix
 | `subscribe` | browser → panel | topics |
 | `error` | either | code, message, `reply_to` |
 
-**Implemented at M1:** `hello`, `heartbeat` and `hello.ack`. Console, metrics, claim and job
-frames remain the contract for M2/M4; none of them are reserved differently.
+**Implemented:** `hello`, `heartbeat`, `hello.ack` (M1); `servers` and `server.state` (M2).
+Console, metrics, claim and job frames remain the contract for M4/M3a; none of them are
+reserved differently.
 
 ## Console framing
 

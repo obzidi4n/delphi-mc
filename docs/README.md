@@ -3,8 +3,8 @@
 The map. Every page here is versioned with the code and changes in the same PR as the
 behavior it describes.
 
-**Status:** M1 fleet spine landed (enrollment, mTLS channel, node registry, revocation); M2 is
-next. See [`plan/roadmap.md`](plan/roadmap.md).
+**Status:** M2 container lifecycle landed (servers create/start/stop/kill, pinned jar, crash
+artifacts); M3a is next. See [`plan/roadmap.md`](plan/roadmap.md).
 
 ## Architecture — what and how
 

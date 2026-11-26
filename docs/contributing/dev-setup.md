@@ -35,6 +35,29 @@ DELPHI_ENROLL_TOKEN=… ./bin/delphi agent enroll --panel https://127.0.0.1:8080
 ./bin/delphi nodes list --panel https://127.0.0.1:8080 --ca "$CA"
 ```
 
+## Run a server
+
+Build the runtime image once, then create a server with a pinned jar. Resolve the URL and
+sha256 from `fill.papermc.io` (its v3 response carries both):
+
+```sh
+podman build -t delphi/java:21-temurin images/java21
+
+curl --cacert .delphi/pki/ca.crt -H "Authorization: Bearer $DELPHI_ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"survival-1","node_id":"<node-id>","image":"delphi/java:21-temurin",
+       "memory_mb":2048,"jar_url":"https://fill-data.papermc.io/…/paper-1.21.4-232.jar",
+       "jar_sha256":"…","accept_eula":true}' \
+  https://127.0.0.1:8080/api/v1/servers
+
+curl --cacert .delphi/pki/ca.crt -H "Authorization: Bearer $DELPHI_ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"action":"start"}' \
+  https://127.0.0.1:8080/api/v1/servers/<server-id>/power
+```
+
+The agent downloads the jar, writes `eula.txt`/`server.properties`, and starts the container.
+Watch `servers/<id>/logs/latest.log` for `Done (…)` and connect on the allocated port.
+
 ## Check
 
 ```sh

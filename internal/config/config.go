@@ -108,6 +108,8 @@ type Agent struct {
 	PanelURL string   `toml:"panel_url"`
 	Interval Duration `toml:"interval"`
 	StateDir string   `toml:"state_dir"`
+	DataDir  string   `toml:"data_dir"`
+	Runtime  string   `toml:"container_runtime"`
 }
 
 // DefaultAgent returns the defaults used when no file exists.
@@ -116,6 +118,8 @@ func DefaultAgent() Agent {
 		PanelURL: "https://127.0.0.1:8080",
 		Interval: Duration(30 * time.Second),
 		StateDir: "/etc/delphi",
+		DataDir:  "/var/lib/delphi",
+		Runtime:  "auto",
 	}
 }
 
@@ -148,6 +152,14 @@ func (a Agent) Validate() error {
 	}
 	if strings.TrimSpace(a.StateDir) == "" {
 		return errors.New("state_dir must not be empty")
+	}
+	if strings.TrimSpace(a.DataDir) == "" {
+		return errors.New("data_dir must not be empty")
+	}
+	switch a.Runtime {
+	case "", "auto", "podman", "docker":
+	default:
+		return fmt.Errorf("container_runtime must be auto, podman or docker (got %q)", a.Runtime)
 	}
 	return nil
 }

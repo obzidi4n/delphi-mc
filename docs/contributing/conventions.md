@@ -37,6 +37,7 @@ internal/
   wire/                  # frames, envelope, console batching (Go; spec in docs)
 web/                     # React + Vite SPA (embedded)
 plugin/                  # Java bridge plugin (Gradle, Paper API)
+images/                  # per-JDK runtime images (Dockerfile per Java version)
 docs/                    # this tree; also the AI RAG corpus
 ```
 

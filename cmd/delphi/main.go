@@ -28,6 +28,7 @@ import (
 
 	"delphi.dev/delphi/internal/agent"
 	"delphi.dev/delphi/internal/api"
+	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/config"
 	"delphi.dev/delphi/internal/pki"
 	"delphi.dev/delphi/internal/store"
@@ -116,10 +117,11 @@ func runPanel(ctx context.Context, args []string) error {
 
 	ready := func(context.Context) error { return errors.New("database not configured") }
 	var nodes api.NodeStore
+	var db *store.DB
 	if cfg.DatabaseURL == "" {
 		log.Warn("no database configured; /readyz will report unready")
 	} else {
-		db, err := store.Open(ctx, cfg.DatabaseURL)
+		db, err = store.Open(ctx, cfg.DatabaseURL)
 		if err != nil {
 			return err
 		}
@@ -127,6 +129,13 @@ func runPanel(ctx context.Context, args []string) error {
 		ready = db.Ping
 		nodes = db
 		go sweepNodes(ctx, db, log)
+	}
+
+	hub := api.NewHub()
+	var serversCap *capability.Servers
+	if db != nil {
+		serversCap = &capability.Servers{Store: db, Notify: hub}
+		hub.Build = serversCap.SpecsForNode
 	}
 
 	var ca *pki.CA
@@ -161,6 +170,8 @@ func runPanel(ctx context.Context, args []string) error {
 		Nodes:      nodes,
 		AdminToken: cfg.AdminToken,
 		CA:         ca,
+		Servers:    serversCap,
+		Hub:        hub,
 	})
 	if err != nil {
 		return err
@@ -243,6 +254,7 @@ func runAgent(ctx context.Context, args []string) error {
 	configPath := fs.String("config", defaultAgentConfig, "agent config file")
 	panelURL := fs.String("panel", "", "override the panel URL")
 	stateDir := fs.String("state-dir", "", "override the identity state dir")
+	dataDir := fs.String("data-dir", "", "override the server data dir")
 	if err := parseFlags(fs, args); err != nil {
 		return err
 	}
@@ -257,17 +269,38 @@ func runAgent(ctx context.Context, args []string) error {
 	if *stateDir != "" {
 		cfg.StateDir = *stateDir
 	}
+	if *dataDir != "" {
+		cfg.DataDir = *dataDir
+	}
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
 
 	log := newLogger(slog.LevelInfo)
 	slog.SetDefault(log)
+
+	runtime, err := agent.DetectRuntime(cfg.Runtime)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
+		return fmt.Errorf("create data dir: %w", err)
+	}
+	supervisor := agent.NewSupervisor(cfg.DataDir, runtime, log)
+	fsCapability := agent.DetectFSCapability(cfg.DataDir)
+	log.Info("agent supervisor ready",
+		"runtime", runtime.Name(),
+		"data_dir", cfg.DataDir,
+		"fs_capability", fsCapability,
+	)
+
 	return agent.Connect(ctx, agent.ConnectOptions{
 		PanelURL:     cfg.PanelURL,
 		StateDir:     cfg.StateDir,
 		AgentVersion: version.Version,
 		Interval:     cfg.Interval.Std(),
+		Supervisor:   supervisor,
+		FSCapability: fsCapability,
 	}, log)
 }
 
