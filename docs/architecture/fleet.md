@@ -1,6 +1,8 @@
 # Fleet operations
 
-**Status:** deferred to **v1.1** (M15). v1.0 supports multiple nodes but does not schedule
+**Status:** M15 implements placement, drain, signed self-update, and protocol skew; see below.
+
+ deferred to **v1.1** (M15). v1.0 supports multiple nodes but does not schedule
 across them: the node is chosen at server creation and the UI shows per-node capacity.
 
 ## Placement
@@ -46,3 +48,18 @@ trigger shares it.
 - Never assume an unhealthy node's servers are down.
 - Never let two sides believe they own lifecycle: desired state and revision, always.
 - Never require the panel to be up for a crashed server to restart.
+
+
+## Implemented at M15
+
+- **Placement:** an empty/`auto` `node_id` during server creation selects the least-loaded
+  healthy, non-revoked, non-draining node with a free port. Networks still require an explicit
+  node.
+- **Drain:** `POST /api/v1/nodes/{id}/drain` toggles a boolean; drained nodes are excluded from
+  placement but their servers keep running. There is no migration/evacuation.
+- **Self-update:** admin-only `POST /api/v1/fleet/agent-update` stores a signed binary and
+  pushes `agent.update` to every healthy node; `delphi fleet update` signs/uploads in one
+  command. Agents verify ed25519 against `update_public_key`, pre-flight `version`, keep
+  `<exe>.rollback`, and re-exec in place. Manual rollback only.
+- **Skew:** agent hello carries protocol 1; the panel rejects newer protocols (old agents that
+  omit it are accepted). Capabilities still gate tools; version strings are advisory.

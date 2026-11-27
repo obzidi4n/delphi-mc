@@ -54,6 +54,13 @@ criteria can be demonstrated on a clean host.
   Chunky and ViaVersion; two pinned builds updated to current with the server still running;
   unreferenced old artifacts were collected. Staging-clone boot-checks and `auto-*` policies
   remain deferred.
+- **M15** — fleet ops: automatic placement (least-loaded healthy non-draining node with a
+  free port), node drain toggles that exclude placement, and signed agent self-update over the
+  node channel with a one-slot rollback and `delphi fleet update`. Live: enrolled three agents,
+  pushed one signed binary/command, all three re-exec'd and reported `m15-new`, each keeping a
+  `.rollback`; auto-placement chose node-d, then node-e after node-d was drained. Protocol
+  version 1 is enforced for newer agents. Automatic post-update health rollback, image/agent
+  version pinning at build, and node-level capacity accounting remain deferred.
 - **M14** — Velocity networks (legacy forwarding): one container network per network, proxy
   publishes the public port while backends publish nothing, hostname-safe aliases, generated
   `velocity.toml`/`server.properties`/`spigot.yml`, Java 25 proxy template, and

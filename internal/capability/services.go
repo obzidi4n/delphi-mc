@@ -29,6 +29,8 @@ type FleetStore interface {
 	ListNodes(ctx context.Context, limit int, after string) ([]store.Node, string, error)
 	CreateEnrollmentToken(ctx context.Context, orgID string, ttl time.Duration) (string, time.Time, error)
 	RevokeNode(ctx context.Context, id string) error
+	SetNodeDraining(ctx context.Context, id string, draining bool) error
+	PlaceNode(ctx context.Context) (store.Node, error)
 	Audit(ctx context.Context, orgID, actor, via, action, target string, diff any) error
 }
 
@@ -187,4 +189,28 @@ func actor(p Principal) string {
 		return p.UserID
 	}
 	return "bootstrap"
+}
+
+// SetDrain toggles placement eligibility for a node.
+func (f *Fleet) SetDrain(ctx context.Context, p Principal, id string, draining bool) error {
+	if !p.Allows(orgScope(p, "admin")) {
+		return forbidden(orgScope(p, "admin"))
+	}
+	if err := f.Store.SetNodeDraining(ctx, id, draining); err != nil {
+		return err
+	}
+	action := "node.drain"
+	if !draining {
+		action = "node.undrain"
+	}
+	_ = f.Store.Audit(ctx, p.OrgID, p.UserID, p.Via, action, id, map[string]any{"draining": draining})
+	return nil
+}
+
+// Place chooses a node for automatic placement.
+func (f *Fleet) Place(ctx context.Context, p Principal) (store.Node, error) {
+	if !p.Allows(orgScope(p, "server:create")) {
+		return store.Node{}, forbidden(orgScope(p, "server:create"))
+	}
+	return f.Store.PlaceNode(ctx)
 }

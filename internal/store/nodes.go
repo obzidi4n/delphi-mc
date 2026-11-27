@@ -36,6 +36,7 @@ type Node struct {
 	RevokedAt     *time.Time
 	LastSeen      *time.Time
 	CreatedAt     time.Time
+	Draining      bool
 }
 
 // CreateEnrollmentToken issues a single-use token for orgID.
@@ -111,16 +112,42 @@ func (d *DB) EnrollNode(ctx context.Context, token string, node Node) (Node, err
 }
 
 const nodeColumns = `id, org_id, name, status, agent_version, fs_capability, capacity,
-	cert_serial, cert_expires_at, revoked_at, last_seen, created_at`
+	cert_serial, cert_expires_at, revoked_at, last_seen, created_at, draining`
 
 func scanNode(row pgx.Row) (Node, error) {
 	var n Node
 	err := row.Scan(&n.ID, &n.OrgID, &n.Name, &n.Status, &n.AgentVersion, &n.FSCapability,
-		&n.Capacity, &n.CertSerial, &n.CertExpiresAt, &n.RevokedAt, &n.LastSeen, &n.CreatedAt)
+		&n.Capacity, &n.CertSerial, &n.CertExpiresAt, &n.RevokedAt, &n.LastSeen, &n.CreatedAt,
+		&n.Draining)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Node{}, ErrNoNode
 	}
 	return n, err
+}
+
+// SetNodeDraining toggles placement eligibility.
+func (d *DB) SetNodeDraining(ctx context.Context, id string, draining bool) error {
+	tag, err := d.pool.Exec(ctx, `update nodes set draining = $2 where id = $1`, id, draining)
+	if err != nil {
+		return fmt.Errorf("set drain: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNoNode
+	}
+	return nil
+}
+
+// PlaceNode picks the least-loaded healthy, non-draining node with a free port.
+func (d *DB) PlaceNode(ctx context.Context) (Node, error) {
+	return scanNode(d.pool.QueryRow(ctx, `
+		select `+nodeColumns+` from nodes n
+		where n.revoked_at is null and n.status = 'healthy' and not n.draining
+		  and exists (
+		    select 1 from generate_series(25565, 25600) p
+		    where not exists (select 1 from servers s where s.node_id = n.id and s.port = p)
+		  )
+		order by (select count(*) from servers s where s.node_id = n.id and s.deleted_at is null) asc, n.name
+		limit 1`))
 }
 
 // NodeBySerial finds the node that owns a certificate serial.

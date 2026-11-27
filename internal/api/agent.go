@@ -219,10 +219,15 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 		case wire.TypeHello:
 			var hello struct {
 				AgentVersion string          `json:"agent_version"`
+				Protocol     int             `json:"protocol"`
 				FSCapability string          `json:"fs_capability"`
 				Capacity     json.RawMessage `json:"capacity"`
 			}
 			if json.Unmarshal(data, &hello) == nil {
+				if hello.Protocol > 1 {
+					_ = conn.Close(websocket.StatusPolicyViolation, "agent protocol is newer than this panel")
+					return
+				}
 				if err := s.opts.Nodes.UpdateNodeHello(r.Context(), node.ID,
 					hello.AgentVersion, hello.FSCapability, hello.Capacity); err != nil {
 					revoked = true

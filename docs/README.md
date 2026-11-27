@@ -3,13 +3,12 @@
 The map. Every page here is versioned with the code and changes in the same PR as the
 behavior it describes.
 
-**Status:** M14 landed — Velocity networks with legacy forwarding, container-network isolation,
-generated proxy/backend configs, and a working proxy status endpoint, on top of M13 TUI,
-v1.0/M12, M11 automation, M10 backups, M9 plugins/artifacts, M8 files, M7 approvals, M6
-assistant, M5 bridge, M4 console, M3b templates, the M3a spec-first API, identity/RBAC,
-paginated lists, Team/Groups pages, and the CLI. See
-[`plan/roadmap.md`](plan/roadmap.md); network limits are in
-[`architecture/networks.md`](architecture/networks.md).
+**Status:** M15 landed — automatic placement, node drain, and signed one-command agent
+self-update with rollback slots, on top of M14 networks, M13 TUI, v1.0/M12, M11 automation,
+M10 backups, M9 plugins/artifacts, M8 files, M7 approvals, M6 assistant, M5 bridge, M4
+console, M3b templates, the M3a spec-first API, identity/RBAC, paginated lists, Team/Groups
+pages, and the CLI. See [`plan/roadmap.md`](plan/roadmap.md); fleet limits are in
+[`architecture/fleet.md`](architecture/fleet.md).
 
 ## Architecture — what and how
 

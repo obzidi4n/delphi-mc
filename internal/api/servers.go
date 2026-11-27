@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"delphi.dev/delphi/internal/apitypes"
 	"delphi.dev/delphi/internal/capability"
@@ -88,6 +89,13 @@ func (s *server) createServer(w http.ResponseWriter, r *http.Request) {
 		state = *req.DesiredState
 	}
 
+	if strings.TrimSpace(req.NodeID) == "" || strings.EqualFold(req.NodeID, "auto") {
+		nodeID, ok := s.placeNode(w, r, principal)
+		if !ok {
+			return
+		}
+		req.NodeID = nodeID
+	}
 	if req.Template != nil && *req.Template != "" {
 		if s.opts.Services.Templates == nil {
 			writeProblem(w, http.StatusNotImplemented, "templates_disabled", "the template service is not configured")

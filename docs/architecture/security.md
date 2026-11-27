@@ -38,6 +38,12 @@ node identity and downloads a decrypted stream only after ownership is checked; 
 re-hashes the archive. Restore is destructive and requires `server:<id>:update`; it replaces
 the server directory, so the previous tree is kept only until extraction succeeds.
 
+**Agent updates:** binaries are ed25519-signed over the sha256 digest; the agent verifies
+against `update_public_key`, pre-flights `version`, keeps `<exe>.rollback`, and re-execs.
+The panel endpoint is org-admin only and agent downloads require the node certificate. The
+key is configuration, not yet compiled-in; pin it before production and treat the signing
+seed as release infrastructure.
+
 **Networks:** one container network per Velocity network. Only the proxy publishes a host
 port; backends have no published ports and are reachable by alias only from that network.
 Aliases are hostname-safe (`delphi-s-…`) because Velocity rejects underscores in server

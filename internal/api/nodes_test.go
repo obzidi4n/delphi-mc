@@ -327,3 +327,6 @@ func mustJSON(t *testing.T, v any) []byte {
 	}
 	return data
 }
+
+func (f *fakeNodes) SetNodeDraining(context.Context, string, bool) error { return nil }
+func (f *fakeNodes) PlaceNode(context.Context) (store.Node, error)       { return f.node, nil }

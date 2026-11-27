@@ -5,7 +5,7 @@ automated updates, templates, backups, scheduled automation, a first-party Paper
 plugin, and an AI operator — behind a web UI and a scriptable CLI, in one binary plus
 Postgres.
 
-**Status: M14 (Velocity networks).** One binary with `panel`, `agent`, `nodes`, `init`, and `version`.
+**Status: M15 (fleet ops).** One binary with `panel`, `agent`, `nodes`, `init`, and `version`.
 Servers come from templates, boot in hardened containers, stream console/metrics, and run a
 self-installed bridge plugin. Modrinth/Hangar/GitHub plugins are resolved into a sha256
 artifact store, installed on create, updated with a guarded restart and rollback, and
@@ -20,7 +20,8 @@ hiding it: servers and agent-local restarts continue while the panel is down. `d
 offers the fleet, live console, power/backups/plugins, and the AI operator with inline
 approvals from a terminal. Velocity networks put a proxy and backends on one container
 network: the proxy owns the public port, backends publish nothing, and forwarding configs are
-generated.
+generated. Placement picks a healthy non-draining node; drain excludes new servers; and
+`delphi fleet update` signs one agent binary and upgrades every live node without SSH.
 
 ## Try it
 

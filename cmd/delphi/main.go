@@ -4,7 +4,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -89,6 +91,8 @@ func main() {
 		err = runRollback(os.Args[2:])
 	case "tui":
 		err = runTUI(ctx, os.Args[2:])
+	case "fleet":
+		err = runFleet(ctx, os.Args[2:])
 	case "version":
 		fmt.Println(version.String())
 	case "help", "-h", "--help":
@@ -130,10 +134,86 @@ commands:
   upgrade           replace the binary and keep one rollback slot
   rollback          restore the previous binary
   tui               open the terminal UI
+  fleet update      sign and push an agent binary to live nodes
   version           print the build version
 
 flags are per command; run "delphi <command> -h" for details.
 `)
+}
+
+func runFleet(ctx context.Context, args []string) error {
+	if len(args) == 0 || args[0] != "update" {
+		return errors.New("usage: delphi fleet update --binary FILE --key SEED_FILE --panel URL [--token T] [--ca C] [--version V]")
+	}
+	fs := flag.NewFlagSet("fleet update", flag.ContinueOnError)
+	binaryPath := fs.String("binary", "", "agent binary to sign and upload")
+	keyPath := fs.String("key", "", "base64 ed25519 private seed")
+	panel := fs.String("panel", "", "panel base URL")
+	token := fs.String("token", os.Getenv("DELPHI_TOKEN"), "API token")
+	caPath := fs.String("ca", "", "panel CA certificate")
+	versionFlag := fs.String("version", "", "version string (default: ask the binary)")
+	if err := parseFlags(fs, args[1:]); err != nil {
+		return err
+	}
+	if *binaryPath == "" || *keyPath == "" || *panel == "" || *token == "" {
+		return errors.New("--binary, --key, --panel, and --token are required")
+	}
+	seed, err := os.ReadFile(*keyPath)
+	if err != nil {
+		return err
+	}
+	rawSeed, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(seed)))
+	if err != nil || len(rawSeed) != ed25519.SeedSize {
+		return errors.New("key file must contain a base64 ed25519 seed (32 bytes)")
+	}
+	key := ed25519.NewKeyFromSeed(rawSeed)
+	payload, err := os.ReadFile(*binaryPath)
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(payload)
+	sig := base64.StdEncoding.EncodeToString(ed25519.Sign(key, sum[:]))
+	version := strings.TrimSpace(*versionFlag)
+	if version == "" {
+		out, err := exec.Command(*binaryPath, "version").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("binary version check: %w: %s", err, strings.TrimSpace(string(out)))
+		}
+		version = strings.TrimSpace(string(out))
+	}
+	transport := &http.Transport{}
+	if *caPath != "" {
+		pem, err := os.ReadFile(*caPath)
+		if err != nil {
+			return err
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return errors.New("CA file contains no certificates")
+		}
+		transport.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		strings.TrimRight(*panel, "/")+"/api/v1/fleet/agent-update", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+*token)
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("X-Delphi-Version", version)
+	req.Header.Set("X-Delphi-Signature", sig)
+	client := &http.Client{Transport: transport, Timeout: 5 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("agent update: %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+	fmt.Println(strings.TrimSpace(string(body)))
+	return nil
 }
 
 func runTUI(ctx context.Context, args []string) error {
@@ -341,21 +421,22 @@ func runPanel(ctx context.Context, args []string) error {
 	}
 
 	handler, err := api.New(api.Options{
-		BasePath:   cfg.BasePath,
-		Version:    version.Version,
-		Ready:      ready,
-		Nodes:      nodes,
-		Services:   services,
-		Identity:   identity,
-		AdminToken: cfg.AdminToken,
-		Console:    console,
-		AI:         aiService,
-		Files:      files,
-		Artifacts:  artifacts,
-		Backups:    backups,
-		Alerts:     alerts,
-		CA:         ca,
-		Hub:        hub,
+		BasePath:        cfg.BasePath,
+		Version:         version.Version,
+		Ready:           ready,
+		Nodes:           nodes,
+		Services:        services,
+		Identity:        identity,
+		AdminToken:      cfg.AdminToken,
+		Console:         console,
+		AI:              aiService,
+		Files:           files,
+		Artifacts:       artifacts,
+		Backups:         backups,
+		AgentUpdatesDir: filepath.Join(cfg.DataDir, "agent-updates"),
+		Alerts:          alerts,
+		CA:              ca,
+		Hub:             hub,
 		BridgeSender: func(ctx context.Context, nodeID string, frame wire.BridgeCommandFrame) error {
 			return hub.Send(ctx, nodeID, frame)
 		},
@@ -482,12 +563,13 @@ func runAgent(ctx context.Context, args []string) error {
 	)
 
 	return agent.Connect(ctx, agent.ConnectOptions{
-		PanelURL:     cfg.PanelURL,
-		StateDir:     cfg.StateDir,
-		AgentVersion: version.Version,
-		Interval:     cfg.Interval.Std(),
-		Supervisor:   supervisor,
-		FSCapability: fsCapability,
+		PanelURL:        cfg.PanelURL,
+		StateDir:        cfg.StateDir,
+		AgentVersion:    version.Version,
+		Interval:        cfg.Interval.Std(),
+		Supervisor:      supervisor,
+		UpdatePublicKey: cfg.UpdatePublicKey,
+		FSCapability:    fsCapability,
 	}, log)
 }
 

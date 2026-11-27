@@ -1,7 +1,7 @@
 # Upgrades
 
-**Status:** manual panel upgrade/rollback implemented at M12; signed, health-gated agent
-self-update is v1.1 (M15).
+**Status:** panel upgrade/rollback manual (M12); signed agent self-update implemented at M15
+with a one-slot rollback, no automatic post-update health rollback yet.
 
 ## Compatibility window
 
@@ -33,13 +33,19 @@ so the outage is explained rather than silently forgotten.
 
 ## Agents
 
-**v1.0:** manual. Stop the agent unit, replace the binary, start it. Servers keep running
-during the swap (the supervisor re-attaches to existing containers on boot), and the panel
-sees a brief disconnect.
+`delphi fleet update --binary ./delphi-agent --key seed.b64 --panel … --token …` hashes and
+signs the binary (ed25519 over the sha256 digest), uploads it, and sends an `agent.update`
+frame to every healthy node. Each agent downloads it over its node certificate, verifies the
+signature against `update_public_key`, runs `<candidate> version`, copies its current binary
+to `<exe>.rollback`, and `exec`s the new binary in place. Servers keep running; the agent
+reports the new version on reconnect within seconds.
 
-**v1.1:** self-update. Two slots, health-gated, automatic rollback on failure; artifacts are
-signed (ed25519) and verified against a key pinned in the binary. Rollout drains a node,
-updates it, verifies `hello` + a restart-free reconciliation, then un-drains.
+- The signing seed must be handled out of band; agents trust the configured public key. Pin
+  that key at build time before production (open gap).
+- Rollback is manual: restore `<exe>.rollback` and restart. There is no automatic health-check
+  rollback or drain-before-update orchestration yet.
+- Drain a node first when its servers may restart: `POST /api/v1/nodes/<id>/drain`; undrain
+  with `?draining=false`. Drain affects placement only, not running servers.
 
 ## Bridge plugin
 

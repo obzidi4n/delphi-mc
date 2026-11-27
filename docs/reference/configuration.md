@@ -38,6 +38,7 @@ Postgres is down, and becomes ready when it comes back.
 | `state_dir` | `/etc/delphi` | Holds `ca.crt`, `agent.crt`, `agent.key` written by enrollment. |
 | `data_dir` | `/var/lib/delphi` | Server directories, jars, crash artifacts; resolved to an absolute path. |
 | `container_runtime` | `auto` | `auto` picks podman, then docker; or force one. |
+| `update_public_key` | empty | Base64 ed25519 key; agent accepts self-updates only with a valid signature. |
 
 Enrollment is one-time and happens before `agent run`:
 

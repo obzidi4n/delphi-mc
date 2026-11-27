@@ -32,21 +32,22 @@ type NodeStore interface {
 
 // Options configures the handler.
 type Options struct {
-	BasePath   string
-	Version    string
-	Ready      func(context.Context) error
-	Nodes      NodeStore
-	Services   *capability.Services
-	Console    *ConsoleHub
-	AI         *ai.Service
-	Files      *FileService
-	Artifacts  *artifact.Store
-	Backups    *capability.Backups
-	Alerts     *capability.Alerts
-	Identity   IdentityStore
-	AdminToken string
-	CA         *pki.CA
-	Hub        *Hub
+	BasePath        string
+	Version         string
+	Ready           func(context.Context) error
+	Nodes           NodeStore
+	Services        *capability.Services
+	Console         *ConsoleHub
+	AI              *ai.Service
+	Files           *FileService
+	Artifacts       *artifact.Store
+	Backups         *capability.Backups
+	AgentUpdatesDir string
+	Alerts          *capability.Alerts
+	Identity        IdentityStore
+	AdminToken      string
+	CA              *pki.CA
+	Hub             *Hub
 	// BridgeSender writes a bridge command to a node's agent channel.
 	BridgeSender func(ctx context.Context, nodeID string, frame wire.BridgeCommandFrame) error
 	Heartbeat    time.Duration
@@ -127,6 +128,9 @@ func New(opts Options) (http.Handler, error) {
 
 	mux.HandleFunc("GET "+s.base+"api/v1/nodes", s.listNodes)
 	mux.HandleFunc("POST "+s.base+"api/v1/nodes/{id}/revoke", s.revokeNode)
+	mux.HandleFunc("POST "+s.base+"api/v1/nodes/{id}/drain", s.drainNode)
+	mux.HandleFunc("POST "+s.base+"api/v1/fleet/agent-update", s.uploadAgentUpdate)
+	mux.HandleFunc("GET "+s.base+"agent/updates/{sha}", s.downloadAgentUpdate)
 	mux.HandleFunc("POST "+s.base+"api/v1/enrollment-tokens", s.createToken)
 
 	mux.HandleFunc("POST "+s.base+"api/v1/servers", s.createServer)

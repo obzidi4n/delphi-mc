@@ -22,11 +22,12 @@ import (
 
 // ConnectOptions configures the channel.
 type ConnectOptions struct {
-	PanelURL     string
-	StateDir     string
-	AgentVersion string
-	Interval     time.Duration
-	Supervisor   *Supervisor
+	PanelURL        string
+	StateDir        string
+	AgentVersion    string
+	Interval        time.Duration
+	Supervisor      *Supervisor
+	UpdatePublicKey string
 	// FSCapability advertises reflink, zfs, or copy for this node.
 	FSCapability string
 }
@@ -106,6 +107,7 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 	hello := map[string]any{
 		"type":          wire.TypeHello,
 		"agent_version": opts.AgentVersion,
+		"protocol":      1,
 		"fs_capability": fsCapability,
 		"capacity":      map[string]any{},
 	}
@@ -169,6 +171,11 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 				var req wire.FileRequest
 				if json.Unmarshal(data, &req) == nil {
 					_ = writer.write(sctx, HandleFileRequest(opts.Supervisor, req))
+				}
+			case wire.TypeAgentUpdate:
+				var frame wire.AgentUpdateFrame
+				if json.Unmarshal(data, &frame) == nil && frame.SHA256 != "" {
+					go HandleAgentUpdate(sctx, client, opts.PanelURL, opts.UpdatePublicKey, frame, log)
 				}
 			case wire.TypeBackupCreate, wire.TypeBackupRestore:
 				var req wire.BackupRequest

@@ -125,11 +125,12 @@ func NormalizeBasePath(p string) string {
 
 // Agent is the node-daemon configuration.
 type Agent struct {
-	PanelURL string   `toml:"panel_url"`
-	Interval Duration `toml:"interval"`
-	StateDir string   `toml:"state_dir"`
-	DataDir  string   `toml:"data_dir"`
-	Runtime  string   `toml:"container_runtime"`
+	PanelURL        string   `toml:"panel_url"`
+	Interval        Duration `toml:"interval"`
+	StateDir        string   `toml:"state_dir"`
+	DataDir         string   `toml:"data_dir"`
+	Runtime         string   `toml:"container_runtime"`
+	UpdatePublicKey string   `toml:"update_public_key"`
 }
 
 // DefaultAgent returns the defaults used when no file exists.
