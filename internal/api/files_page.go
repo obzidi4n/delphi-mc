@@ -70,12 +70,9 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
  .status{color:#8b949e;font-size:.8rem}
  .status.ok{color:#3fb950}
  .status.err{color:#f85149}
- .lint{display:none;font-size:.75rem;border:1px solid #30363d;border-radius:999px;padding:.1rem .45rem}
- .lint.checking{display:inline-block;color:#8b949e}
- .lint.ok{display:inline-block;color:#3fb950;border-color:#238636}
- .lint.err{display:inline-block;color:#f85149;border-color:#6e2c2c}
- .lintmsg{display:none;padding:.4rem .8rem;border-bottom:1px solid #6e2c2c;background:#2d0f10;color:#ff7b72;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}
- .lintmsg.show{display:block}
+ .lintbar{height:2.1rem;box-sizing:border-box;display:flex;align-items:center;padding:0 .8rem;border-bottom:1px solid #21262d;background:#010409;color:#8b949e;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .lintbar.ok{color:#3fb950;background:#0d1b12;border-bottom-color:#238636}
+ .lintbar.err{color:#ff7b72;background:#2d0f10;border-bottom-color:#6e2c2c}
 </style></head><body data-id="{{.ID}}" data-base="{{.BasePath}}">
 <header>
   <a href="{{.BasePath}}">&larr; Fleet</a>
@@ -95,10 +92,9 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
       <button id="open">Open</button>
       <button id="save" disabled>Save</button>
       <button id="diffBtn" disabled>Diff latest</button>
-      <span class="lint" id="lint"></span>
       <span class="status" id="status"></span>
     </div>
-    <div class="lintmsg" id="lintmsg"></div>
+    <div class="lintbar" id="lintbar">Open a .json, .yaml, .yml, or .toml file to lint.</div>
     <textarea id="editor" spellcheck="false" placeholder="Open a file from the list, or type a path and press Open."></textarea>
     <pre id="diff"></pre>
   </section>
@@ -122,8 +118,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   var statusEl = document.getElementById('status');
   var revisionsEl = document.getElementById('revisions');
   var diffEl = document.getElementById('diff');
-  var lintEl = document.getElementById('lint');
-  var lintMsg = document.getElementById('lintmsg');
+  var lintbar = document.getElementById('lintbar');
   var dir = '';
   var currentPath = '';
   var currentSHA = '';
@@ -147,22 +142,18 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     return ext === 'yaml' || ext === 'json' || ext === 'toml' ? ext : '';
   }
   function clearLint() {
-    lintEl.textContent = '';
-    lintEl.className = 'lint';
-    lintEl.title = '';
-    lintMsg.textContent = '';
-    lintMsg.className = 'lintmsg';
+    lintbar.textContent = currentPath ? 'Not a config file.' : 'Open a .json, .yaml, .yml, or .toml file to lint.';
+    lintbar.className = 'lintbar';
+    lintbar.title = '';
     if (currentPath) { saveBtn.disabled = false; }
   }
   function applyLint(result) {
     if (!result) { clearLint(); return; }
     var valid = !!result.valid;
     var kind = (result.format || configKind(currentPath) || 'config').toUpperCase();
-    lintEl.textContent = kind + (valid ? ' valid' : ' error');
-    lintEl.className = 'lint ' + (valid ? 'ok' : 'err');
-    lintEl.title = result.error || '';
-    lintMsg.textContent = valid ? '' : (result.error || 'invalid ' + kind);
-    lintMsg.className = 'lintmsg' + (valid ? '' : ' show');
+    lintbar.textContent = valid ? kind + ' valid' : kind + ' error: ' + (result.error || 'invalid ' + kind);
+    lintbar.className = 'lintbar ' + (valid ? 'ok' : 'err');
+    lintbar.title = lintbar.textContent;
     saveBtn.disabled = !valid;
   }
   async function checkConfig(path, content) {
@@ -184,11 +175,9 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     if (lintTimer) { clearTimeout(lintTimer); lintTimer = null; }
     var kind = configKind(currentPath);
     if (!kind) { clearLint(); return; }
-    lintEl.textContent = 'checking ' + kind.toUpperCase() + '…';
-    lintEl.className = 'lint checking';
-    lintEl.title = '';
-    lintMsg.textContent = '';
-    lintMsg.className = 'lintmsg';
+    lintbar.textContent = 'Checking ' + kind.toUpperCase() + '…';
+    lintbar.className = 'lintbar';
+    lintbar.title = '';
     saveBtn.disabled = true;
     lintTimer = setTimeout(lintCurrent, 300);
   }
