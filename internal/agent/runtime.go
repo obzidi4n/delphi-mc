@@ -24,6 +24,7 @@ type Runtime interface {
 	Kill(ctx context.Context, id string) error
 	Restart(ctx context.Context, id string) error
 	State(ctx context.Context, id string) (string, error)
+	Remove(ctx context.Context, id string) error
 	AppliedRevision(ctx context.Context, id string) (int64, error)
 	Logs(ctx context.Context, id string, tail int) (string, error)
 }
@@ -123,6 +124,11 @@ func (r *execRuntime) AppliedRevision(ctx context.Context, id string) (int64, er
 	}
 	revision, _ := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
 	return revision, nil
+}
+
+func (r *execRuntime) Remove(ctx context.Context, id string) error {
+	_, err := r.run(ctx, "rm", "-f", containerName(id))
+	return ignoreStateError(err)
 }
 
 func (r *execRuntime) Logs(ctx context.Context, id string, tail int) (string, error) {

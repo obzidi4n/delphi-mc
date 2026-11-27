@@ -1,0 +1,359 @@
+package store
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"delphi.dev/delphi/internal/auth"
+)
+
+// Identity errors.
+var (
+	ErrEmailInUse = errors.New("email already registered in this org")
+	ErrNoUser     = errors.New("user not found")
+	ErrNoSession  = errors.New("session not found or expired")
+	ErrNoAPIKey   = errors.New("api key not found or revoked")
+	ErrGroupInUse = errors.New("group name already used")
+	ErrNoGroup    = errors.New("group not found")
+)
+
+// User is a panel account.
+type User struct {
+	ID           string
+	OrgID        string
+	Email        string
+	PasswordHash string
+	CreatedAt    time.Time
+}
+
+// APIKey is a bearer credential for the CLI.
+type APIKey struct {
+	ID         string
+	OrgID      string
+	UserID     string
+	Name       string
+	Scopes     []string
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
+	RevokedAt  *time.Time
+}
+
+// AuditEntry is one recorded mutation.
+type AuditEntry struct {
+	Seq       int64           `json:"seq"`
+	OrgID     string          `json:"org_id"`
+	Actor     string          `json:"actor"`
+	Via       string          `json:"via"`
+	Action    string          `json:"action"`
+	Target    string          `json:"target"`
+	Diff      json.RawMessage `json:"diff"`
+	CreatedAt time.Time       `json:"created_at"`
+}
+
+// Group is a targeting set of servers.
+type Group struct {
+	ID          string    `json:"id"`
+	OrgID       string    `json:"org_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// CreateUser inserts an account, reporting duplicate emails.
+func (d *DB) CreateUser(ctx context.Context, orgID, email, passwordHash string) (User, error) {
+	var u User
+	err := d.pool.QueryRow(ctx, `
+		insert into users (id, org_id, email, password_hash)
+		values ($1, $2, $3, $4)
+		returning id, org_id, email, password_hash, created_at`,
+		newID("u"), orgID, email, passwordHash).
+		Scan(&u.ID, &u.OrgID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return User{}, ErrEmailInUse
+		}
+		return User{}, fmt.Errorf("create user: %w", err)
+	}
+	return u, nil
+}
+
+// UserByEmail looks up an account inside an org.
+func (d *DB) UserByEmail(ctx context.Context, orgID, email string) (User, error) {
+	var u User
+	err := d.pool.QueryRow(ctx, `
+		select id, org_id, email, password_hash, created_at
+		from users where org_id = $1 and email = $2`, orgID, email).
+		Scan(&u.ID, &u.OrgID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, ErrNoUser
+	}
+	return u, err
+}
+
+// CreateSession returns the bearer cookie value and its expiry.
+func (d *DB) CreateSession(ctx context.Context, userID string, ttl time.Duration) (string, time.Time, error) {
+	token := auth.NewSecret()
+	expires := time.Now().Add(ttl).Truncate(time.Second)
+	if _, err := d.pool.Exec(ctx, `
+		insert into sessions (id, user_id, expires_at) values ($1, $2, $3)`,
+		hex.EncodeToString(auth.HashSecret(token)), userID, expires); err != nil {
+		return "", time.Time{}, fmt.Errorf("create session: %w", err)
+	}
+	return token, expires, nil
+}
+
+// UserBySession resolves a session token.
+func (d *DB) UserBySession(ctx context.Context, token string) (User, error) {
+	var u User
+	err := d.pool.QueryRow(ctx, `
+		select u.id, u.org_id, u.email, u.password_hash, u.created_at
+		from sessions s join users u on u.id = s.user_id
+		where s.id = $1 and s.expires_at > now()`,
+		hex.EncodeToString(auth.HashSecret(token))).
+		Scan(&u.ID, &u.OrgID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, ErrNoSession
+	}
+	return u, err
+}
+
+// DeleteSession removes a session token.
+func (d *DB) DeleteSession(ctx context.Context, token string) error {
+	_, err := d.pool.Exec(ctx, `delete from sessions where id = $1`,
+		hex.EncodeToString(auth.HashSecret(token)))
+	return err
+}
+
+// CreateAPIKey mints a bearer token and stores only its hash.
+func (d *DB) CreateAPIKey(ctx context.Context, orgID, userID, name string, scopes []string) (string, APIKey, error) {
+	token := auth.NewSecret()
+	key := APIKey{
+		ID:        newID("k"),
+		OrgID:     orgID,
+		UserID:    userID,
+		Name:      name,
+		Scopes:    scopes,
+		CreatedAt: time.Now(),
+	}
+	if _, err := d.pool.Exec(ctx, `
+		insert into api_keys (id, org_id, user_id, name, key_hash, scopes)
+		values ($1, $2, nullif($3, ''), $4, $5, $6)`,
+		key.ID, orgID, userID, name, auth.HashSecret(token), scopes); err != nil {
+		return "", APIKey{}, fmt.Errorf("create api key: %w", err)
+	}
+	return token, key, nil
+}
+
+// PrincipalByAPIKey resolves a bearer token to its owner and scopes.
+func (d *DB) PrincipalByAPIKey(ctx context.Context, token string) (userID, orgID string, scopes []string, err error) {
+	var keyID string
+	err = d.pool.QueryRow(ctx, `
+		select id, coalesce(user_id, ''), org_id, scopes
+		from api_keys
+		where key_hash = $1 and revoked_at is null`,
+		auth.HashSecret(token)).Scan(&keyID, &userID, &orgID, &scopes)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", nil, ErrNoAPIKey
+	}
+	if err != nil {
+		return "", "", nil, fmt.Errorf("lookup api key: %w", err)
+	}
+	_, _ = d.pool.Exec(ctx, `update api_keys set last_used_at = now() where id = $1`, keyID)
+	return userID, orgID, scopes, nil
+}
+
+// SetOrgRole upserts a user's role binding for the org.
+func (d *DB) SetOrgRole(ctx context.Context, userID, orgID, role string) error {
+	_, err := d.pool.Exec(ctx, `
+		insert into role_bindings (id, user_id, org_id, scope_kind, scope_id, role)
+		values ($1, $2, $3, 'org', '', $4)
+		on conflict (user_id, scope_kind, scope_id)
+		do update set role = excluded.role`,
+		newID("rb"), userID, orgID, role)
+	if err != nil {
+		return fmt.Errorf("set role: %w", err)
+	}
+	return nil
+}
+
+// ScopesForUser unions the scopes of all of a user's role bindings.
+func (d *DB) ScopesForUser(ctx context.Context, userID string) ([]string, error) {
+	rows, err := d.pool.Query(ctx, `select role from role_bindings where user_id = $1`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("read roles: %w", err)
+	}
+	defer rows.Close()
+
+	seen := map[string]bool{}
+	var scopes []string
+	add := func(values []string) {
+		for _, s := range values {
+			if !seen[s] {
+				seen[s] = true
+				scopes = append(scopes, s)
+			}
+		}
+	}
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			return nil, err
+		}
+		add(auth.ScopesForRole(role))
+	}
+	return scopes, rows.Err()
+}
+
+// Audit appends a mutation record.
+func (d *DB) Audit(ctx context.Context, orgID, actor, via, action, target string, diff any) error {
+	payload := []byte(`{}`)
+	if diff != nil {
+		if data, err := json.Marshal(diff); err == nil {
+			payload = data
+		}
+	}
+	_, err := d.pool.Exec(ctx, `
+		insert into audit_log (org_id, actor, via, action, target, diff)
+		values ($1, $2, $3, $4, $5, $6)`,
+		orgID, actor, via, action, target, payload)
+	if err != nil {
+		return fmt.Errorf("audit: %w", err)
+	}
+	return nil
+}
+
+// ListAudit returns the newest entries first, before seq when non-zero.
+func (d *DB) ListAudit(ctx context.Context, orgID string, limit, beforeSeq int64) ([]AuditEntry, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := d.pool.Query(ctx, `
+		select seq, org_id, actor, via, action, target, diff, created_at
+		from audit_log
+		where org_id = $1 and ($2 = 0 or seq < $2)
+		order by seq desc limit $3`, orgID, beforeSeq, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list audit: %w", err)
+	}
+	defer rows.Close()
+
+	var out []AuditEntry
+	for rows.Next() {
+		var e AuditEntry
+		if err := rows.Scan(&e.Seq, &e.OrgID, &e.Actor, &e.Via, &e.Action, &e.Target, &e.Diff, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// CreateGroup inserts a targeting group.
+func (d *DB) CreateGroup(ctx context.Context, orgID, name, description string) (Group, error) {
+	var g Group
+	err := d.pool.QueryRow(ctx, `
+		insert into server_groups (id, org_id, name, description)
+		values ($1, $2, $3, $4)
+		returning id, org_id, name, description, created_at`,
+		newID("g"), orgID, name, description).
+		Scan(&g.ID, &g.OrgID, &g.Name, &g.Description, &g.CreatedAt)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return Group{}, ErrGroupInUse
+		}
+		return Group{}, fmt.Errorf("create group: %w", err)
+	}
+	return g, nil
+}
+
+// ListGroups returns the org's groups.
+func (d *DB) ListGroups(ctx context.Context, orgID string) ([]Group, error) {
+	rows, err := d.pool.Query(ctx, `
+		select id, org_id, name, description, created_at
+		from server_groups where org_id = $1 order by name`, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list groups: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Group
+	for rows.Next() {
+		var g Group
+		if err := rows.Scan(&g.ID, &g.OrgID, &g.Name, &g.Description, &g.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+// AddGroupMember is idempotent and scoped to the org.
+func (d *DB) AddGroupMember(ctx context.Context, orgID, groupID, serverID string) error {
+	tag, err := d.pool.Exec(ctx, `
+		insert into server_group_members (group_id, server_id)
+		select g.id, s.id from server_groups g, servers s
+		where g.id = $1 and g.org_id = $2 and s.id = $3 and s.org_id = $2
+		on conflict do nothing`, groupID, orgID, serverID)
+	if err != nil {
+		return fmt.Errorf("add group member: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		// Either already a member or one of the ids does not belong to the org.
+		var exists int
+		err := d.pool.QueryRow(ctx, `select 1 from server_groups where id = $1 and org_id = $2`, groupID, orgID).Scan(&exists)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNoGroup
+		}
+	}
+	return nil
+}
+
+// RemoveGroupMember detaches a server from a group.
+func (d *DB) RemoveGroupMember(ctx context.Context, orgID, groupID, serverID string) error {
+	_, err := d.pool.Exec(ctx, `
+		delete from server_group_members m
+		using server_groups g
+		where m.group_id = g.id and g.org_id = $1 and g.id = $2 and m.server_id = $3`,
+		orgID, groupID, serverID)
+	return err
+}
+
+// ListGroupMembers returns server ids in a group.
+func (d *DB) ListGroupMembers(ctx context.Context, orgID, groupID string) ([]string, error) {
+	rows, err := d.pool.Query(ctx, `
+		select m.server_id
+		from server_group_members m join server_groups g on g.id = m.group_id
+		where g.org_id = $1 and g.id = $2 order by m.server_id`, orgID, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+func newID(prefix string) string {
+	raw := make([]byte, 8)
+	if _, err := rand.Read(raw); err != nil {
+		panic("store: crypto/rand failed: " + err.Error())
+	}
+	return prefix + "_" + hex.EncodeToString(raw)
+}

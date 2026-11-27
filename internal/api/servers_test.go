@@ -77,6 +77,37 @@ func (f *fakeServerStore) ReportServerState(context.Context, string, string, str
 	return nil
 }
 
+func (f *fakeServerStore) RenameServer(_ context.Context, id, name string) (store.Server, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.servers {
+		if f.servers[i].ID == id {
+			f.servers[i].Name = name
+			return f.servers[i], nil
+		}
+	}
+	return store.Server{}, store.ErrNoServer
+}
+
+func (f *fakeServerStore) SoftDeleteServer(_ context.Context, id string) (store.Server, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.servers {
+		if f.servers[i].ID == id {
+			now := time.Now()
+			f.servers[i].DeletedAt = &now
+			f.servers[i].DesiredState = "stopped"
+			f.servers[i].DesiredRevision++
+			return f.servers[i], nil
+		}
+	}
+	return store.Server{}, store.ErrNoServer
+}
+
+func (f *fakeServerStore) Audit(context.Context, string, string, string, string, string, any) error {
+	return nil
+}
+
 func newServerAPI(t *testing.T) (http.Handler, *fakeServerStore) {
 	t.Helper()
 	fs := &fakeServerStore{}
@@ -85,7 +116,7 @@ func newServerAPI(t *testing.T) (http.Handler, *fakeServerStore) {
 		BasePath:   "/",
 		Version:    "test",
 		AdminToken: "secret",
-		Servers:    svc,
+		Services:   &capability.Services{Servers: svc},
 		Now:        time.Now,
 	})
 	if err != nil {

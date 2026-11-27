@@ -20,7 +20,7 @@ Examples live at [`panel.example.toml`](../../panel.example.toml) and
 | `database_url` | empty | Postgres DSN. Empty starts the panel but `/readyz` reports unready. |
 | `log_level` | `info` | `debug`, `info`, `warn`, `error`. |
 | `data_dir` | `/var/lib/delphi` | Holds `pki/` (CA, server certificate) and node data. |
-| `admin_token` | empty | Bearer token for `/api/v1`; `init` generates one. Temporary until sessions land at M3a. |
+| `admin_token` | empty | Break-glass bearer token for `/api/v1`. Optional: API keys minted for a user are the normal credential. |
 | `tls` | `true` | Serve TLS with the org CA's server certificate. The agent channel requires TLS. |
 
 The pool connects lazily, so the panel starts (and serves `/healthz` and the page) while
@@ -62,10 +62,14 @@ delphi init --config ./panel.toml \
 ```
 
 `init` writes the config when it does not exist (refusing to overwrite one), creates the org CA
-and the panel's TLS certificate, generates the admin token, and applies every pending migration
-in version order. Migrations are embedded SQL, forward-only, recorded in `schema_migrations`;
-running `init` again is a no-op ([ADR 0019](../decisions/0019-forward-only-migrations.md)).
-The admin token is printed once — copy it, or read it from the 0600 config.
+and the panel's TLS certificate, and applies every pending migration in version order. Migrations
+are embedded SQL, forward-only, recorded in `schema_migrations`; running `init` again is a no-op
+([ADR 0019](../decisions/0019-forward-only-migrations.md)).
+
+On a database without an owner, `init` also seeds `owner@delphi.local`, prints its generated
+password once, and mints a bootstrap API key with `*`. Both are printed once; sign in at `/` to
+create named users and keys. The CLI reads `DELPHI_API_TOKEN` (or the legacy
+`DELPHI_ADMIN_TOKEN`) when `--token` is absent.
 
 ## Health endpoints
 

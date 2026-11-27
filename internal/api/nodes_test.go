@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"delphi.dev/delphi/internal/api"
+	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/pki"
 	"delphi.dev/delphi/internal/store"
 )
@@ -95,6 +96,10 @@ func (f *fakeNodes) ListNodes(context.Context) ([]store.Node, error) {
 	return []store.Node{f.node}, nil
 }
 
+func (f *fakeNodes) Audit(context.Context, string, string, string, string, string, any) error {
+	return nil
+}
+
 func (f *fakeNodes) RevokeNode(_ context.Context, id string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -149,6 +154,7 @@ func newNodesHandler(t *testing.T, nodes *fakeNodes, ca *pki.CA) http.Handler {
 		BasePath:   "/",
 		Version:    "test",
 		Nodes:      nodes,
+		Services:   &capability.Services{Fleet: &capability.Fleet{Store: nodes}},
 		AdminToken: "secret",
 		CA:         ca,
 		Now:        time.Now,

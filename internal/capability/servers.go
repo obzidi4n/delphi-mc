@@ -1,5 +1,5 @@
 // Package capability is the only mutation surface. Handlers are thin adapters;
-// this package validates, authorizes (scopes arrive at M3a), and notifies.
+// this package authorizes, validates, audits, and notifies.
 package capability
 
 import (
@@ -12,33 +12,49 @@ import (
 	"regexp"
 	"strings"
 
+	"delphi.dev/delphi/internal/auth"
 	"delphi.dev/delphi/internal/store"
 	"delphi.dev/delphi/internal/wire"
 )
 
-// Principal identifies the actor. Scopes land at M3a; the struct exists now so
-// no caller learns to mutate without one.
+// Principal identifies the actor and what it may do.
 type Principal struct {
 	UserID string
 	OrgID  string
-	Via    string // "api" | "ui" | "cli" | "ai:<conversation-id>"
+	Via    string // "ui" | "cli" | "api" | "ai:<conversation-id>"
+	Model  string
+	Scopes []string
 }
 
-// ErrInvalid marks a validation failure (HTTP 400).
-var ErrInvalid = errors.New("invalid request")
+// Allows reports whether the principal holds a scope.
+func (p Principal) Allows(scope string) bool { return auth.Allows(p.Scopes, scope) }
+
+// Capability errors.
+var (
+	ErrInvalid      = errors.New("invalid request")
+	ErrForbidden    = errors.New("forbidden")
+	ErrUnauthorized = errors.New("unauthenticated")
+)
 
 func invalid(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrInvalid, fmt.Sprintf(format, args...))
 }
 
-// ServerStore is the persistence the capability needs.
+func forbidden(scope string) error {
+	return fmt.Errorf("%w: missing scope %q", ErrForbidden, scope)
+}
+
+// ServerStore is the persistence the server capability needs.
 type ServerStore interface {
 	CreateServer(ctx context.Context, s store.Server) (store.Server, error)
 	GetServer(ctx context.Context, id string) (store.Server, error)
 	ListServers(ctx context.Context) ([]store.Server, error)
 	ListServersByNode(ctx context.Context, nodeID string) ([]store.Server, error)
 	SetDesiredState(ctx context.Context, id, desired string, kill bool) (store.Server, error)
+	RenameServer(ctx context.Context, id, name string) (store.Server, error)
+	SoftDeleteServer(ctx context.Context, id string) (store.Server, error)
 	ReportServerState(ctx context.Context, nodeID, id, state string, revision int64, detail string) error
+	Audit(ctx context.Context, orgID, actor, via, action, target string, diff any) error
 }
 
 // Notifier pushes a node's desired set over its live channel.
@@ -54,28 +70,36 @@ type Servers struct {
 
 // CreateRequest is a server creation request.
 type CreateRequest struct {
-	Name       string
-	NodeID     string
-	Image      string
-	MemoryMB   int
-	CPUCores   float64
-	Port       int
-	JarURL     string
-	JarSHA256  string
-	AcceptEULA bool
+	Name         string
+	NodeID       string
+	Image        string
+	MemoryMB     int
+	CPUCores     float64
+	Port         int
+	JarURL       string
+	JarSHA256    string
+	AcceptEULA   bool
+	GroupID      string
+	DesiredState string
 }
 
 var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // Create validates and persists a server, then syncs its node.
 func (c *Servers) Create(ctx context.Context, p Principal, req CreateRequest) (store.Server, error) {
-	if p.Via == "" {
-		return store.Server{}, errors.New("capability: principal is missing Via")
+	if err := c.require(p, orgScope(p, "server:create")); err != nil {
+		return store.Server{}, err
 	}
 
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" || len(req.Name) > 64 {
 		return store.Server{}, invalid("name must be 1-64 characters")
+	}
+	if req.DesiredState == "" {
+		req.DesiredState = "stopped"
+	}
+	if req.DesiredState != "stopped" && req.DesiredState != "running" {
+		return store.Server{}, invalid("desired_state must be stopped or running")
 	}
 	if req.NodeID == "" {
 		return store.Server{}, invalid("node_id is required")
@@ -105,16 +129,15 @@ func (c *Servers) Create(ctx context.Context, p Principal, req CreateRequest) (s
 	if !req.AcceptEULA {
 		return store.Server{}, invalid("accept_eula must be true: the operator accepts the Minecraft EULA")
 	}
-	javaVersion := 21
 
 	created, err := c.Store.CreateServer(ctx, store.Server{
 		ID:           newServerID(),
 		NodeID:       req.NodeID,
 		Name:         req.Name,
-		DesiredState: "stopped",
+		DesiredState: req.DesiredState,
 		AcceptEULA:   req.AcceptEULA,
 		Image:        req.Image,
-		JavaVersion:  javaVersion,
+		JavaVersion:  21,
 		MemoryMB:     req.MemoryMB,
 		CPUCores:     req.CPUCores,
 		Port:         req.Port,
@@ -124,6 +147,11 @@ func (c *Servers) Create(ctx context.Context, p Principal, req CreateRequest) (s
 	if err != nil {
 		return store.Server{}, err
 	}
+	if err := c.audit(ctx, p, "server.create", created.ID, map[string]any{
+		"name": created.Name, "node_id": created.NodeID, "port": created.Port,
+	}); err != nil {
+		return store.Server{}, err
+	}
 
 	c.sync(ctx, created.NodeID)
 	return created, nil
@@ -131,8 +159,11 @@ func (c *Servers) Create(ctx context.Context, p Principal, req CreateRequest) (s
 
 // Power applies start/stop/restart/kill as a desired-state transition.
 func (c *Servers) Power(ctx context.Context, p Principal, id, action string) (store.Server, error) {
-	if p.Via == "" {
-		return store.Server{}, errors.New("capability: principal is missing Via")
+	if _, err := c.Store.GetServer(ctx, id); err != nil {
+		return store.Server{}, err
+	}
+	if err := c.require(p, serverScope(id, "power")); err != nil {
+		return store.Server{}, err
 	}
 
 	var desired string
@@ -152,21 +183,75 @@ func (c *Servers) Power(ctx context.Context, p Principal, id, action string) (st
 	if err != nil {
 		return store.Server{}, err
 	}
+	if err := c.audit(ctx, p, "server.power", id, map[string]any{"action": action}); err != nil {
+		return store.Server{}, err
+	}
+	c.sync(ctx, updated.NodeID)
+	return updated, nil
+}
+
+// Rename changes a server's display name.
+func (c *Servers) Rename(ctx context.Context, p Principal, id, name string) (store.Server, error) {
+	if _, err := c.Store.GetServer(ctx, id); err != nil {
+		return store.Server{}, err
+	}
+	if err := c.require(p, serverScope(id, "update")); err != nil {
+		return store.Server{}, err
+	}
+	name = strings.TrimSpace(name)
+	if name == "" || len(name) > 64 {
+		return store.Server{}, invalid("name must be 1-64 characters")
+	}
+
+	updated, err := c.Store.RenameServer(ctx, id, name)
+	if err != nil {
+		return store.Server{}, err
+	}
+	if err := c.audit(ctx, p, "server.rename", id, map[string]any{"name": name}); err != nil {
+		return store.Server{}, err
+	}
+	return updated, nil
+}
+
+// Delete stops the server, tombstones it, and lets the node remove the container.
+func (c *Servers) Delete(ctx context.Context, p Principal, id string) (store.Server, error) {
+	srv, err := c.Store.GetServer(ctx, id)
+	if err != nil {
+		return store.Server{}, err
+	}
+	if err := c.require(p, serverScope(id, "update")); err != nil {
+		return store.Server{}, err
+	}
+
+	updated, err := c.Store.SoftDeleteServer(ctx, id)
+	if err != nil {
+		return store.Server{}, err
+	}
+	if err := c.audit(ctx, p, "server.delete", id, map[string]any{"name": srv.Name}); err != nil {
+		return store.Server{}, err
+	}
 	c.sync(ctx, updated.NodeID)
 	return updated, nil
 }
 
 // List returns the fleet.
-func (c *Servers) List(ctx context.Context, _ Principal) ([]store.Server, error) {
+func (c *Servers) List(ctx context.Context, p Principal) ([]store.Server, error) {
+	if err := c.require(p, orgScope(p, "read")); err != nil {
+		return nil, err
+	}
 	return c.Store.ListServers(ctx)
 }
 
 // Get returns one server.
-func (c *Servers) Get(ctx context.Context, _ Principal, id string) (store.Server, error) {
+func (c *Servers) Get(ctx context.Context, p Principal, id string) (store.Server, error) {
+	if err := c.require(p, serverScope(id, "read")); err != nil {
+		return store.Server{}, err
+	}
 	return c.Store.GetServer(ctx, id)
 }
 
-// SpecsForNode builds the desired frame for a node.
+// SpecsForNode builds the desired frame for a node. It is internal: the hub
+// calls it for the node's own authenticated channel, not on a user's behalf.
 func (c *Servers) SpecsForNode(ctx context.Context, nodeID string) ([]wire.ServerSpec, error) {
 	servers, err := c.Store.ListServersByNode(ctx, nodeID)
 	if err != nil {
@@ -188,6 +273,7 @@ func (c *Servers) SpecsForNode(ctx context.Context, nodeID string) ([]wire.Serve
 			Port:          s.Port,
 			JarURL:        s.JarURL,
 			JarSHA256:     s.JarSHA256,
+			Deleted:       s.DeletedAt != nil,
 		})
 	}
 	return out, nil
@@ -198,10 +284,39 @@ func (c *Servers) ReportState(ctx context.Context, nodeID string, frame wire.Ser
 	return c.Store.ReportServerState(ctx, nodeID, frame.ServerID, frame.State, frame.Revision, frame.Detail)
 }
 
+func (c *Servers) require(p Principal, scope string) error {
+	if p.Via == "" {
+		return fmt.Errorf("%w: principal is missing Via", ErrUnauthorized)
+	}
+	if p.UserID == "" && p.Via != "api" {
+		return fmt.Errorf("%w: principal is missing a user", ErrUnauthorized)
+	}
+	if !p.Allows(scope) {
+		return forbidden(scope)
+	}
+	return nil
+}
+
+func (c *Servers) audit(ctx context.Context, p Principal, action, target string, diff any) error {
+	actor := p.UserID
+	if actor == "" {
+		actor = "bootstrap"
+	}
+	return c.Store.Audit(ctx, p.OrgID, actor, p.Via, action, target, diff)
+}
+
 func (c *Servers) sync(ctx context.Context, nodeID string) {
 	if c.Notify != nil {
 		_ = c.Notify.Sync(ctx, nodeID)
 	}
+}
+
+func orgScope(p Principal, verb string) string {
+	return "org:" + p.OrgID + ":" + verb
+}
+
+func serverScope(id, verb string) string {
+	return "server:" + id + ":" + verb
 }
 
 func newServerID() string {

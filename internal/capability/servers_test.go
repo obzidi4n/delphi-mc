@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"delphi.dev/delphi/internal/store"
 )
@@ -16,6 +17,7 @@ type fakeStore struct {
 	desired  string
 	kill     bool
 	syncNode string
+	audits   []string
 }
 
 func (f *fakeStore) CreateServer(_ context.Context, s store.Server) (store.Server, error) {
@@ -67,6 +69,36 @@ func (f *fakeStore) ReportServerState(context.Context, string, string, string, i
 	return nil
 }
 
+func (f *fakeStore) RenameServer(_ context.Context, id, name string) (store.Server, error) {
+	for i := range f.servers {
+		if f.servers[i].ID == id {
+			f.servers[i].Name = name
+			return f.servers[i], nil
+		}
+	}
+	return store.Server{}, store.ErrNoServer
+}
+
+func (f *fakeStore) SoftDeleteServer(_ context.Context, id string) (store.Server, error) {
+	for i := range f.servers {
+		if f.servers[i].ID == id {
+			now := time.Now()
+			f.servers[i].DeletedAt = &now
+			f.servers[i].DesiredState = "stopped"
+			f.servers[i].DesiredRevision++
+			return f.servers[i], nil
+		}
+	}
+	return store.Server{}, store.ErrNoServer
+}
+
+func (f *fakeStore) Audit(_ context.Context, _, _, _, action, target string, _ any) error {
+	f.audits = append(f.audits, action+" "+target)
+	return nil
+}
+
+var testPrincipal = Principal{UserID: "u_1", OrgID: "default", Via: "api", Scopes: []string{"*"}}
+
 type fakeNotifier struct{ synced []string }
 
 func (f *fakeNotifier) Sync(_ context.Context, nodeID string) error {
@@ -92,7 +124,7 @@ func TestCreateValidatesAndSyncs(t *testing.T) {
 	fn := &fakeNotifier{}
 	svc := &Servers{Store: fs, Notify: fn}
 
-	created, err := svc.Create(context.Background(), Principal{Via: "api"}, validRequest())
+	created, err := svc.Create(context.Background(), testPrincipal, validRequest())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +154,7 @@ func TestCreateRejectsInvalid(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			req := validRequest()
 			mutate(&req)
-			_, err := svc.Create(context.Background(), Principal{Via: "api"}, req)
+			_, err := svc.Create(context.Background(), testPrincipal, req)
 			if !errors.Is(err, ErrInvalid) {
 				t.Fatalf("err = %v, want ErrInvalid", err)
 			}
@@ -133,6 +165,30 @@ func TestCreateRejectsInvalid(t *testing.T) {
 func TestCreateRequiresPrincipalVia(t *testing.T) {
 	if _, err := (&Servers{Store: &fakeStore{}}).Create(context.Background(), Principal{}, validRequest()); err == nil {
 		t.Fatal("expected an error without Via")
+	}
+}
+
+func TestCreateRequiresScope(t *testing.T) {
+	reader := Principal{UserID: "u_1", OrgID: "default", Via: "api", Scopes: []string{"org:default:read"}}
+	if _, err := (&Servers{Store: &fakeStore{}}).Create(context.Background(), reader, validRequest()); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("err = %v, want ErrForbidden", err)
+	}
+}
+
+func TestAuditRecordsMutations(t *testing.T) {
+	fs := &fakeStore{}
+	svc := &Servers{Store: fs}
+	created, err := svc.Create(context.Background(), testPrincipal, validRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Power(context.Background(), testPrincipal, created.ID, "start"); err != nil {
+		t.Fatal(err)
+	}
+	if len(fs.audits) != 2 ||
+		fs.audits[0] != "server.create "+created.ID ||
+		fs.audits[1] != "server.power "+created.ID {
+		t.Fatalf("audits = %v", fs.audits)
 	}
 }
 
@@ -150,7 +206,7 @@ func TestPowerMapping(t *testing.T) {
 		t.Run(tc.action, func(t *testing.T) {
 			fs := &fakeStore{servers: []store.Server{{ID: "s_1", NodeID: "n_1"}}}
 			svc := &Servers{Store: fs}
-			if _, err := svc.Power(context.Background(), Principal{Via: "api"}, "s_1", tc.action); err != nil {
+			if _, err := svc.Power(context.Background(), testPrincipal, "s_1", tc.action); err != nil {
 				t.Fatal(err)
 			}
 			if fs.desired != tc.want || fs.kill != tc.kill {
@@ -162,7 +218,7 @@ func TestPowerMapping(t *testing.T) {
 
 func TestPowerRejectsUnknownAction(t *testing.T) {
 	svc := &Servers{Store: &fakeStore{servers: []store.Server{{ID: "s_1", NodeID: "n_1"}}}}
-	if _, err := svc.Power(context.Background(), Principal{Via: "api"}, "s_1", "explode"); !errors.Is(err, ErrInvalid) {
+	if _, err := svc.Power(context.Background(), testPrincipal, "s_1", "explode"); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("err = %v, want ErrInvalid", err)
 	}
 }

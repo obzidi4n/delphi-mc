@@ -18,13 +18,9 @@ import (
 	"delphi.dev/delphi/internal/wire"
 )
 
-const (
-	// enrollmentTTL is the lifetime of a node certificate. Rotation arrives
-	// with self-update at v1.1.
-	enrollmentTTL = 30 * 24 * time.Hour
-	// defaultOrgID backs the single-org UX (ADR 0011); the migration seeds it.
-	defaultOrgID = "default"
-)
+// enrollmentTTL is the lifetime of a node certificate. Rotation arrives with
+// self-update at v1.1.
+const enrollmentTTL = 30 * 24 * time.Hour
 
 type enrollRequest struct {
 	Token string `json:"token"`
@@ -44,9 +40,8 @@ func (s *server) enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
 	var req enrollRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
@@ -63,11 +58,8 @@ func (s *server) enroll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	node, err := s.opts.Nodes.EnrollNode(r.Context(), req.Token, store.Node{
-		ID:            newNodeID(),
-		Name:          req.Name,
-		FSCapability:  "copy",
-		CertSerial:    serial,
-		CertExpiresAt: notAfter,
+		ID: newNodeID(), Name: req.Name, FSCapability: "copy",
+		CertSerial: serial, CertExpiresAt: notAfter,
 	})
 	switch {
 	case errors.Is(err, store.ErrInvalidToken):
@@ -85,9 +77,7 @@ func (s *server) enroll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, enrollResponse{
-		NodeID:      node.ID,
-		Certificate: string(certPEM),
-		NotAfter:    node.CertExpiresAt,
+		NodeID: node.ID, Certificate: string(certPEM), NotAfter: node.CertExpiresAt,
 	})
 }
 
@@ -103,71 +93,63 @@ type nodeDTO struct {
 	RevokedAt     *time.Time      `json:"revoked_at"`
 }
 
-func (s *server) listNodes(w http.ResponseWriter, r *http.Request) {
-	if !s.authorized(r) {
-		writeProblem(w, http.StatusUnauthorized, "unauthorized", "admin token required")
-		return
+func toNodeDTO(n store.Node) nodeDTO {
+	capacity := n.Capacity
+	if len(capacity) == 0 {
+		capacity = []byte(`{}`)
 	}
-	if s.opts.Nodes == nil {
-		writeProblem(w, http.StatusNotImplemented, "nodes_disabled", "the node registry is not configured")
-		return
+	return nodeDTO{
+		ID: n.ID, Name: n.Name, Status: n.Status, AgentVersion: n.AgentVersion,
+		FSCapability: n.FSCapability, Capacity: capacity,
+		CertExpiresAt: n.CertExpiresAt, LastSeen: n.LastSeen, RevokedAt: n.RevokedAt,
 	}
+}
 
-	nodes, err := s.opts.Nodes.ListNodes(r.Context())
+func (s *server) fleet(w http.ResponseWriter) bool {
+	if s.opts.Services == nil || s.opts.Services.Fleet == nil {
+		writeProblem(w, http.StatusNotImplemented, "fleet_disabled", "the fleet service is not configured")
+		return false
+	}
+	return true
+}
+
+func (s *server) listNodes(w http.ResponseWriter, r *http.Request) {
+	principal, ok := s.authenticate(w, r)
+	if !ok || !s.fleet(w) {
+		return
+	}
+	nodes, err := s.opts.Services.Fleet.ListNodes(r.Context(), principal)
 	if err != nil {
-		writeProblem(w, http.StatusInternalServerError, "list_failed", err.Error())
+		writeCapabilityError(w, err)
 		return
 	}
 	items := make([]nodeDTO, 0, len(nodes))
 	for _, n := range nodes {
-		capacity := n.Capacity
-		if len(capacity) == 0 {
-			capacity = []byte(`{}`)
-		}
-		items = append(items, nodeDTO{
-			ID:            n.ID,
-			Name:          n.Name,
-			Status:        n.Status,
-			AgentVersion:  n.AgentVersion,
-			FSCapability:  n.FSCapability,
-			Capacity:      capacity,
-			CertExpiresAt: n.CertExpiresAt,
-			LastSeen:      n.LastSeen,
-			RevokedAt:     n.RevokedAt,
-		})
+		items = append(items, toNodeDTO(n))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
 func (s *server) revokeNode(w http.ResponseWriter, r *http.Request) {
-	if !s.authorized(r) {
-		writeProblem(w, http.StatusUnauthorized, "unauthorized", "admin token required")
+	principal, ok := s.authenticate(w, r)
+	if !ok || !s.fleet(w) {
 		return
 	}
-	if s.opts.Nodes == nil {
-		writeProblem(w, http.StatusNotImplemented, "nodes_disabled", "the node registry is not configured")
-		return
-	}
-
-	err := s.opts.Nodes.RevokeNode(r.Context(), r.PathValue("id"))
+	err := s.opts.Services.Fleet.RevokeNode(r.Context(), principal, r.PathValue("id"))
 	switch {
 	case errors.Is(err, store.ErrNoNode):
 		writeProblem(w, http.StatusNotFound, "node_not_found", "no such node")
 		return
 	case err != nil:
-		writeProblem(w, http.StatusInternalServerError, "revoke_failed", err.Error())
+		writeCapabilityError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *server) createToken(w http.ResponseWriter, r *http.Request) {
-	if !s.authorized(r) {
-		writeProblem(w, http.StatusUnauthorized, "unauthorized", "admin token required")
-		return
-	}
-	if s.opts.Nodes == nil {
-		writeProblem(w, http.StatusNotImplemented, "nodes_disabled", "the node registry is not configured")
+	principal, ok := s.authenticate(w, r)
+	if !ok || !s.fleet(w) {
 		return
 	}
 
@@ -186,9 +168,10 @@ func (s *server) createToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, expires, err := s.opts.Nodes.CreateEnrollmentToken(r.Context(), defaultOrgID, time.Duration(body.TTLSeconds)*time.Second)
+	token, expires, err := s.opts.Services.Fleet.CreateToken(r.Context(), principal,
+		time.Duration(body.TTLSeconds)*time.Second)
 	if err != nil {
-		writeProblem(w, http.StatusInternalServerError, "token_failed", err.Error())
+		writeCapabilityError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"token": token, "expires_at": expires})
@@ -218,8 +201,7 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 	defer conn.CloseNow()
 
 	if err := s.writeFrame(r.Context(), conn, map[string]any{
-		"type":        wire.TypeHelloAck,
-		"server_time": s.opts.Now().UTC(),
+		"type": wire.TypeHelloAck, "server_time": s.opts.Now().UTC(),
 	}); err != nil {
 		return
 	}
@@ -272,8 +254,9 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 			}
 		case wire.TypeServerState:
 			var frame wire.ServerStateFrame
-			if json.Unmarshal(data, &frame) == nil && frame.ServerID != "" && s.opts.Servers != nil {
-				_ = s.opts.Servers.ReportState(r.Context(), node.ID, frame)
+			if json.Unmarshal(data, &frame) == nil && frame.ServerID != "" &&
+				s.opts.Services != nil && s.opts.Services.Servers != nil {
+				_ = s.opts.Services.Servers.ReportState(r.Context(), node.ID, frame)
 			}
 		}
 		if revoked {
@@ -298,7 +281,7 @@ func (s *server) writeFrame(ctx context.Context, conn *websocket.Conn, v any) er
 func newNodeID() string {
 	raw := make([]byte, 8)
 	if _, err := rand.Read(raw); err != nil {
-		panic("api: range of crypto/rand exhausted: " + err.Error())
+		panic("api: crypto/rand failed: " + err.Error())
 	}
 	return "n_" + hex.EncodeToString(raw)
 }

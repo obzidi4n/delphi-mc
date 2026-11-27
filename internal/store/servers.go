@@ -40,18 +40,23 @@ type Server struct {
 	JarSHA256       string
 	LastError       string
 	CreatedAt       time.Time
+	DeletedAt       *time.Time
+	PurgeAfter      *time.Time
+	SummaryState    string
 }
 
-const serverColumns = `id, org_id, node_id, name, desired_state, desired_revision,
-	observed_state, applied_revision, kill_requested, accept_eula, image, java_version,
-	memory_mb, cpu_cores, port, jar_url, jar_sha256, last_error, created_at`
+const serverColumns = `s.id, s.org_id, s.node_id, s.name, s.desired_state, s.desired_revision,
+	s.observed_state, s.applied_revision, s.kill_requested, s.accept_eula, s.image, s.java_version,
+	s.memory_mb, s.cpu_cores, s.port, s.jar_url, s.jar_sha256, s.last_error, s.created_at,
+	s.deleted_at, s.purge_after,
+	coalesce((select state from server_summary where server_id = s.id), s.observed_state)`
 
 func scanServer(row pgx.Row) (Server, error) {
 	var s Server
 	err := row.Scan(&s.ID, &s.OrgID, &s.NodeID, &s.Name, &s.DesiredState, &s.DesiredRevision,
 		&s.ObservedState, &s.AppliedRevision, &s.KillRequested, &s.AcceptEULA, &s.Image,
 		&s.JavaVersion, &s.MemoryMB, &s.CPUCores, &s.Port, &s.JarURL, &s.JarSHA256,
-		&s.LastError, &s.CreatedAt)
+		&s.LastError, &s.CreatedAt, &s.DeletedAt, &s.PurgeAfter, &s.SummaryState)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Server{}, ErrNoServer
 	}
@@ -77,18 +82,14 @@ func (d *DB) CreateServer(ctx context.Context, s Server) (Server, error) {
 	if s.DesiredState == "" {
 		s.DesiredState = "stopped"
 	}
-	inserted, err := scanServer(d.pool.QueryRow(ctx, `
+	tag, err := d.pool.Exec(ctx, `
 		insert into servers (id, org_id, node_id, name, desired_state, desired_revision,
 			observed_state, applied_revision, kill_requested, accept_eula, image, java_version,
 			memory_mb, cpu_cores, port, jar_url, jar_sha256)
 		select $1, n.org_id, n.id, $3, $4, 1, 'unknown', 0, false, $5, $6, $7, $8, $9, $10, $11, $12
-		from nodes n where n.id = $2
-		returning `+serverColumns,
+		from nodes n where n.id = $2`,
 		s.ID, s.NodeID, s.Name, s.DesiredState, s.AcceptEULA, s.Image, s.JavaVersion,
-		s.MemoryMB, s.CPUCores, s.Port, s.JarURL, s.JarSHA256))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Server{}, ErrNoNode
-	}
+		s.MemoryMB, s.CPUCores, s.Port, s.JarURL, s.JarSHA256)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -101,23 +102,36 @@ func (d *DB) CreateServer(ctx context.Context, s Server) (Server, error) {
 		}
 		return Server{}, fmt.Errorf("insert server: %w", err)
 	}
-	return inserted, nil
+	if tag.RowsAffected() == 0 {
+		return Server{}, ErrNoNode
+	}
+
+	if _, err := d.pool.Exec(ctx,
+		`insert into server_summary (server_id, state) values ($1, 'unknown') on conflict do nothing`,
+		s.ID); err != nil {
+		return Server{}, fmt.Errorf("insert summary: %w", err)
+	}
+	return d.GetServer(ctx, s.ID)
 }
 
 // GetServer returns one server.
 func (d *DB) GetServer(ctx context.Context, id string) (Server, error) {
-	return scanServer(d.pool.QueryRow(ctx, `select `+serverColumns+` from servers where id = $1`, id))
+	return scanServer(d.pool.QueryRow(ctx, `select `+serverColumns+` from servers s where s.id = $1 and s.deleted_at is null`, id))
 }
 
-// ListServers returns all servers, ordered by name.
+// ListServers returns all live servers, ordered by name.
 func (d *DB) ListServers(ctx context.Context) ([]Server, error) {
-	return d.queryServers(ctx, `select `+serverColumns+` from servers order by name, id`)
+	return d.queryServers(ctx,
+		`select `+serverColumns+` from servers s where s.deleted_at is null order by s.name, s.id`)
 }
 
-// ListServersByNode returns the desired set for one node.
+// ListServersByNode returns the desired set for one node, including tombstones
+// the node has not acknowledged yet.
 func (d *DB) ListServersByNode(ctx context.Context, nodeID string) ([]Server, error) {
 	return d.queryServers(ctx,
-		`select `+serverColumns+` from servers where node_id = $1 order by name, id`, nodeID)
+		`select `+serverColumns+` from servers s
+		 where s.node_id = $1 and s.observed_state <> 'deleted'
+		 order by s.name, s.id`, nodeID)
 }
 
 func (d *DB) queryServers(ctx context.Context, query string, args ...any) ([]Server, error) {
@@ -141,11 +155,52 @@ func (d *DB) queryServers(ctx context.Context, query string, args ...any) ([]Ser
 // SetDesiredState changes the desired lifecycle and bumps the revision.
 // Restart is expressed as desired running with a new revision.
 func (d *DB) SetDesiredState(ctx context.Context, id, desired string, kill bool) (Server, error) {
-	return scanServer(d.pool.QueryRow(ctx, `
+	tag, err := d.pool.Exec(ctx, `
 		update servers
 		set desired_state = $2, kill_requested = $3, desired_revision = desired_revision + 1
-		where id = $1
-		returning `+serverColumns, id, desired, kill))
+		where id = $1 and deleted_at is null`, id, desired, kill)
+	if err != nil {
+		return Server{}, fmt.Errorf("set desired state: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return Server{}, ErrNoServer
+	}
+	return d.GetServer(ctx, id)
+}
+
+// RenameServer changes a server's display name.
+func (d *DB) RenameServer(ctx context.Context, id, name string) (Server, error) {
+	tag, err := d.pool.Exec(ctx,
+		`update servers set name = $2 where id = $1 and deleted_at is null`, id, name)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return Server{}, ErrNameInUse
+		}
+		return Server{}, fmt.Errorf("rename server: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return Server{}, ErrNoServer
+	}
+	return d.GetServer(ctx, id)
+}
+
+// SoftDeleteServer stops the server, marks it deleted, and schedules its data
+// for purge after seven days. The node removes the container on next sync.
+func (d *DB) SoftDeleteServer(ctx context.Context, id string) (Server, error) {
+	tag, err := d.pool.Exec(ctx, `
+		update servers
+		set desired_state = 'stopped', kill_requested = false,
+		    desired_revision = desired_revision + 1,
+		    deleted_at = now(), purge_after = now() + interval '7 days'
+		where id = $1 and deleted_at is null`, id)
+	if err != nil {
+		return Server{}, fmt.Errorf("delete server: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return Server{}, ErrNoServer
+	}
+	return d.GetServer(ctx, id)
 }
 
 // ReportServerState records what the node observed. The report is scoped to the
@@ -163,6 +218,14 @@ func (d *DB) ReportServerState(ctx context.Context, nodeID, id, state string, re
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrNoServer
+	}
+
+	if _, err := d.pool.Exec(ctx, `
+		insert into server_summary (server_id, state, updated_at)
+		values ($1, $2, now())
+		on conflict (server_id) do update set state = excluded.state, updated_at = now()`,
+		id, state); err != nil {
+		return fmt.Errorf("update summary: %w", err)
 	}
 	return nil
 }

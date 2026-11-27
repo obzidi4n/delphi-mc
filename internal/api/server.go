@@ -1,22 +1,20 @@
-// Package api is the panel's HTTP surface: health, the embedded page, agent
-// enrollment and channel, and the node registry API.
+// Package api is the panel's HTTP surface: pages, the JSON API, agent
+// enrollment and the node channel.
 package api
 
 import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/config"
 	"delphi.dev/delphi/internal/pki"
 	"delphi.dev/delphi/internal/store"
-	"delphi.dev/delphi/web"
 )
 
-// NodeStore is the subset of the registry the API needs.
+// NodeStore is the subset of the registry the agent channel needs.
 type NodeStore interface {
 	CreateEnrollmentToken(ctx context.Context, orgID string, ttl time.Duration) (string, time.Time, error)
 	EnrollNode(ctx context.Context, token string, n store.Node) (store.Node, error)
@@ -30,47 +28,33 @@ type NodeStore interface {
 
 // Options configures the handler.
 type Options struct {
-	// BasePath is the prefix the UI is served under; normalized on use.
-	BasePath string
-	// Version is reported by health and readiness.
-	Version string
-	// Ready is called by /readyz; nil means always ready.
-	Ready func(context.Context) error
-	// Nodes is the registry; nil disables the agent and node surfaces.
-	Nodes NodeStore
-	// AdminToken authenticates /api/v1 until sessions land at M3a.
+	BasePath   string
+	Version    string
+	Ready      func(context.Context) error
+	Nodes      NodeStore
+	Services   *capability.Services
+	Identity   IdentityStore
 	AdminToken string
-	// CA signs node certificates; required for enrollment.
-	CA *pki.CA
-	// Servers is the server-lifecycle capability; nil disables server routes.
-	Servers *capability.Servers
-	// Hub pushes desired state to connected nodes.
-	Hub *Hub
-	// Heartbeat is the expected agent interval; channel timeouts derive from it.
-	Heartbeat time.Duration
-	// Now is the clock; tests override it.
-	Now func() time.Time
+	CA         *pki.CA
+	Hub        *Hub
+	Heartbeat  time.Duration
+	Now        func() time.Time
 }
 
 type server struct {
-	opts  Options
-	base  string
-	index []byte
+	opts Options
+	base string
 }
 
 // New builds the panel handler.
 func New(opts Options) (http.Handler, error) {
-	index, err := web.Index()
-	if err != nil {
-		return nil, err
-	}
 	if opts.Heartbeat <= 0 {
 		opts.Heartbeat = 30 * time.Second
 	}
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
-	s := &server{opts: opts, base: config.NormalizeBasePath(opts.BasePath), index: index}
+	s := &server{opts: opts, base: config.NormalizeBasePath(opts.BasePath)}
 
 	ready := opts.Ready
 	if ready == nil {
@@ -82,7 +66,6 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, statusBody{Status: "ok", Version: opts.Version})
 	})
-
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
@@ -97,42 +80,41 @@ func New(opts Options) (http.Handler, error) {
 		})
 	})
 
-	// A pattern ending in "/" matches the subtree, so guard the exact path.
-	// ServeMux already redirects "/delphi" to "/delphi/" for a subpath base.
+	// Pages. A pattern ending in "/" matches the subtree, so guard exactness.
 	mux.HandleFunc("GET "+s.base, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != s.base {
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		_, _ = w.Write(s.index)
+		s.renderHome(w, r)
 	})
+	mux.HandleFunc("POST "+s.base+"login", s.login)
+	mux.HandleFunc("POST "+s.base+"logout", s.logout)
 
 	mux.HandleFunc("POST /agent/enroll", s.enroll)
 	mux.HandleFunc("GET /agent/ws", s.agentSocket)
+
 	mux.HandleFunc("GET /api/v1/nodes", s.listNodes)
 	mux.HandleFunc("POST /api/v1/nodes/{id}/revoke", s.revokeNode)
 	mux.HandleFunc("POST /api/v1/enrollment-tokens", s.createToken)
+
 	mux.HandleFunc("POST /api/v1/servers", s.createServer)
 	mux.HandleFunc("GET /api/v1/servers", s.listServers)
 	mux.HandleFunc("GET /api/v1/servers/{id}", s.getServer)
+	mux.HandleFunc("PATCH /api/v1/servers/{id}", s.renameServer)
+	mux.HandleFunc("DELETE /api/v1/servers/{id}", s.deleteServer)
 	mux.HandleFunc("POST /api/v1/servers/{id}/power", s.powerServer)
 
-	return mux, nil
-}
+	mux.HandleFunc("GET /api/v1/groups", s.listGroups)
+	mux.HandleFunc("POST /api/v1/groups", s.createGroup)
+	mux.HandleFunc("GET /api/v1/groups/{id}/members", s.listGroupMembers)
+	mux.HandleFunc("POST /api/v1/groups/{id}/members", s.addGroupMember)
+	mux.HandleFunc("DELETE /api/v1/groups/{id}/members/{server_id}", s.removeGroupMember)
 
-func (s *server) authorized(r *http.Request) bool {
-	if s.opts.AdminToken == "" {
-		return false
-	}
-	const prefix = "Bearer "
-	h := r.Header.Get("Authorization")
-	if !strings.HasPrefix(h, prefix) {
-		return false
-	}
-	return constantTimeEqual(strings.TrimPrefix(h, prefix), s.opts.AdminToken)
+	mux.HandleFunc("GET /api/v1/audit", s.listAudit)
+	mux.HandleFunc("POST /api/v1/api-keys", s.createAPIKey)
+
+	return mux, nil
 }
 
 func constantTimeEqual(a, b string) bool {

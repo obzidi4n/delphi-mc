@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 
 	"delphi.dev/delphi/internal/agent"
 	"delphi.dev/delphi/internal/api"
+	"delphi.dev/delphi/internal/auth"
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/config"
 	"delphi.dev/delphi/internal/pki"
@@ -58,6 +60,10 @@ func main() {
 		err = runAgent(ctx, os.Args[2:])
 	case "nodes":
 		err = runNodes(ctx, os.Args[2:])
+	case "servers":
+		err = runServers(ctx, os.Args[2:])
+	case "audit":
+		err = runAudit(ctx, os.Args[2:])
 	case "init":
 		err = runInit(ctx, os.Args[2:])
 	case "version":
@@ -86,10 +92,14 @@ commands:
   panel             run the control plane
   agent enroll      enroll this node with a token and CA certificate
   agent run         keep the agent channel open
-  nodes list        list nodes (admin token)
-  nodes token       issue an enrollment token (admin token)
-  nodes revoke ID   revoke a node certificate (admin token)
-  init              write config, create the CA, apply migrations
+  nodes list        list nodes
+  nodes token       issue an enrollment token
+  nodes revoke ID   revoke a node certificate
+  servers list      list servers
+  servers start ID  start / stop / restart / kill a server
+  servers delete ID delete a server (data kept 7 days)
+  audit list        recent mutations
+  init              write config, create the CA and owner, apply migrations
   version           print the build version
 
 flags are per command; run "delphi <command> -h" for details.
@@ -132,10 +142,19 @@ func runPanel(ctx context.Context, args []string) error {
 	}
 
 	hub := api.NewHub()
-	var serversCap *capability.Servers
+	var services *capability.Services
+	var identity api.IdentityStore
 	if db != nil {
-		serversCap = &capability.Servers{Store: db, Notify: hub}
-		hub.Build = serversCap.SpecsForNode
+		identity = db
+		servers := &capability.Servers{Store: db, Notify: hub}
+		services = &capability.Services{
+			Servers: servers,
+			Fleet:   &capability.Fleet{Store: db},
+			Groups:  &capability.Groups{Store: db},
+			Audit:   &capability.Audit{Store: db},
+			Keys:    &capability.Keys{Store: db},
+		}
+		hub.Build = servers.SpecsForNode
 	}
 
 	var ca *pki.CA
@@ -168,9 +187,10 @@ func runPanel(ctx context.Context, args []string) error {
 		Version:    version.Version,
 		Ready:      ready,
 		Nodes:      nodes,
+		Services:   services,
+		Identity:   identity,
 		AdminToken: cfg.AdminToken,
 		CA:         ca,
-		Servers:    serversCap,
 		Hub:        hub,
 	})
 	if err != nil {
@@ -362,6 +382,9 @@ func addAdminFlags(fs *flag.FlagSet, a *adminConfig) {
 
 func (a *adminConfig) resolve() error {
 	if a.token == "" {
+		a.token = os.Getenv("DELPHI_API_TOKEN")
+	}
+	if a.token == "" {
 		a.token = os.Getenv("DELPHI_ADMIN_TOKEN")
 	}
 	if a.panel == "" || a.ca == "" || a.token == "" {
@@ -510,6 +533,184 @@ func runNodes(ctx context.Context, args []string) error {
 	}
 }
 
+type serverRow struct {
+	ID              string     `json:"id"`
+	Name            string     `json:"name"`
+	NodeID          string     `json:"node_id"`
+	DesiredState    string     `json:"desired_state"`
+	ObservedState   string     `json:"observed_state"`
+	SummaryState    string     `json:"summary_state"`
+	DesiredRevision int64      `json:"desired_revision"`
+	AppliedRevision int64      `json:"applied_revision"`
+	Port            int        `json:"port"`
+	DeletedAt       *time.Time `json:"deleted_at"`
+}
+
+func runServers(ctx context.Context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: delphi servers <list|get|start|stop|restart|kill|delete|rename> [flags]")
+	}
+	sub, rest := args[0], args[1:]
+	valueFlags := map[string]bool{"panel": true, "token": true, "ca": true}
+
+	var id, name string
+	switch sub {
+	case "get", "start", "stop", "restart", "kill", "delete":
+		id, rest = extractPositional(rest, valueFlags)
+	case "rename":
+		id, rest = extractPositional(rest, valueFlags)
+		name, rest = extractPositional(rest, valueFlags)
+	}
+
+	fs := flag.NewFlagSet("servers "+sub, flag.ContinueOnError)
+	var admin adminConfig
+	addAdminFlags(fs, &admin)
+	jsonOut := fs.Bool("json", false, "print JSON")
+	if err := parseFlags(fs, rest); err != nil {
+		return err
+	}
+	if err := admin.resolve(); err != nil {
+		return err
+	}
+
+	switch sub {
+	case "list":
+		payload, _, err := admin.request(ctx, http.MethodGet, "/api/v1/servers", nil)
+		if err != nil {
+			return err
+		}
+		if *jsonOut {
+			fmt.Println(strings.TrimSpace(string(payload)))
+			return nil
+		}
+		var out struct {
+			Items []serverRow `json:"items"`
+		}
+		if err := json.Unmarshal(payload, &out); err != nil {
+			return err
+		}
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tDESIRED\tOBSERVED\tPORT\tID")
+		for _, srv := range out.Items {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n",
+				srv.Name, srv.DesiredState, srv.ObservedState, srv.Port, srv.ID)
+		}
+		return w.Flush()
+
+	case "get":
+		if id == "" {
+			return errors.New("usage: delphi servers get <id> [flags]")
+		}
+		payload, _, err := admin.request(ctx, http.MethodGet, "/api/v1/servers/"+id, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Println(strings.TrimSpace(string(payload)))
+		return nil
+
+	case "start", "stop", "restart", "kill":
+		if id == "" {
+			return fmt.Errorf("usage: delphi servers %s <id> [flags]", sub)
+		}
+		payload, _, err := admin.request(ctx, http.MethodPost, "/api/v1/servers/"+id+"/power",
+			map[string]string{"action": sub})
+		if err != nil {
+			return err
+		}
+		var srv serverRow
+		_ = json.Unmarshal(payload, &srv)
+		fmt.Printf("%s: desired=%s revision=%d\n", srv.Name, srv.DesiredState, srv.DesiredRevision)
+		return nil
+
+	case "delete":
+		if id == "" {
+			return errors.New("usage: delphi servers delete <id> [flags]")
+		}
+		payload, _, err := admin.request(ctx, http.MethodGet, "/api/v1/servers/"+id, nil)
+		if err != nil {
+			return err
+		}
+		var existing serverRow
+		if err := json.Unmarshal(payload, &existing); err != nil {
+			return err
+		}
+		if _, _, err := admin.request(ctx, http.MethodDelete,
+			"/api/v1/servers/"+id+"?confirm="+url.QueryEscape(existing.Name), nil); err != nil {
+			return err
+		}
+		fmt.Printf("deleted: %s (data kept for 7 days)\n", existing.Name)
+		return nil
+
+	case "rename":
+		if id == "" || name == "" {
+			return errors.New("usage: delphi servers rename <id> <name> [flags]")
+		}
+		payload, _, err := admin.request(ctx, http.MethodPatch, "/api/v1/servers/"+id,
+			map[string]string{"name": name})
+		if err != nil {
+			return err
+		}
+		var srv serverRow
+		_ = json.Unmarshal(payload, &srv)
+		fmt.Printf("%s: renamed to %s\n", srv.ID, srv.Name)
+		return nil
+
+	default:
+		return fmt.Errorf("unknown servers command %q", sub)
+	}
+}
+
+func runAudit(ctx context.Context, args []string) error {
+	if len(args) > 0 && args[0] == "list" {
+		args = args[1:]
+	}
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		return fmt.Errorf("unknown audit command %q (want: list)", args[0])
+	}
+	fs := flag.NewFlagSet("audit list", flag.ContinueOnError)
+	var admin adminConfig
+	addAdminFlags(fs, &admin)
+	limit := fs.Int("limit", 50, "entries to show")
+	jsonOut := fs.Bool("json", false, "print JSON")
+	if err := parseFlags(fs, args); err != nil {
+		return err
+	}
+	if err := admin.resolve(); err != nil {
+		return err
+	}
+
+	payload, _, err := admin.request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v1/audit?limit=%d", *limit), nil)
+	if err != nil {
+		return err
+	}
+	if *jsonOut {
+		fmt.Println(strings.TrimSpace(string(payload)))
+		return nil
+	}
+
+	var out struct {
+		Items []struct {
+			Seq       int64     `json:"seq"`
+			Actor     string    `json:"actor"`
+			Via       string    `json:"via"`
+			Action    string    `json:"action"`
+			Target    string    `json:"target"`
+			CreatedAt time.Time `json:"created_at"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(payload, &out); err != nil {
+		return err
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "SEQ\tWHEN\tACTOR\tVIA\tACTION\tTARGET")
+	for _, e := range out.Items {
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\n",
+			e.Seq, e.CreatedAt.Local().Format("15:04:05"), e.Actor, e.Via, e.Action, e.Target)
+	}
+	return w.Flush()
+}
+
 func runInit(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	configPath := fs.String("config", defaultPanelConfig, "panel config file to create or read")
@@ -538,18 +739,11 @@ func runInit(ctx context.Context, args []string) error {
 	}
 
 	created := false
-	adminToken := ""
 	if _, err := os.Stat(*configPath); errors.Is(err, os.ErrNotExist) {
-		if cfg.AdminToken == "" {
-			cfg.AdminToken = randomToken()
-			adminToken = cfg.AdminToken
-		}
 		if err := writePanelConfig(*configPath, cfg); err != nil {
 			return err
 		}
 		created = true
-	} else if cfg.AdminToken == "" {
-		fmt.Fprintln(os.Stderr, "warning: admin_token is empty; set it to use /api/v1 (delphi nodes ...)")
 	}
 
 	ca, err := pki.LoadOrCreateCA(pki.Dir(cfg.DataDir))
@@ -578,9 +772,39 @@ func runInit(ctx context.Context, args []string) error {
 	for _, name := range applied {
 		fmt.Printf("  %s\n", name)
 	}
-	if adminToken != "" {
-		fmt.Printf("admin token (store it now, not shown again): %s\n", adminToken)
+	if err := ensureOwner(ctx, db); err != nil {
+		return err
 	}
+	return nil
+}
+
+// ensureOwner creates the single owner account and its bootstrap API key once.
+func ensureOwner(ctx context.Context, db *store.DB) error {
+	const email = "owner@delphi.local"
+	if _, err := db.UserByEmail(ctx, "default", email); err == nil {
+		fmt.Printf("owner: %s (exists)\n", email)
+		return nil
+	} else if !errors.Is(err, store.ErrNoUser) {
+		return err
+	}
+
+	password := auth.NewSecret()
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		return err
+	}
+	user, err := db.CreateUser(ctx, "default", email, hash)
+	if err != nil {
+		return err
+	}
+	if err := db.SetOrgRole(ctx, user.ID, "default", "owner"); err != nil {
+		return err
+	}
+	token, _, err := db.CreateAPIKey(ctx, "default", user.ID, "bootstrap", []string{"*"})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("owner: %s\npassword: %s\napi token: %s\n", email, password, token)
 	return nil
 }
 

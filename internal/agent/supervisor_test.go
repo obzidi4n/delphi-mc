@@ -74,6 +74,12 @@ func (f *fakeRuntime) AppliedRevision(_ context.Context, id string) (int64, erro
 	return f.revision[id], nil
 }
 
+func (f *fakeRuntime) Remove(_ context.Context, id string) error {
+	delete(f.state, id)
+	delete(f.revision, id)
+	return nil
+}
+
 func (f *fakeRuntime) Logs(context.Context, string, int) (string, error) { return f.logs, nil }
 
 func jarServer(t *testing.T, payload []byte) (*httptest.Server, string) {

@@ -53,6 +53,17 @@ func (s *Supervisor) Apply(ctx context.Context, spec wire.ServerSpec) (string, s
 		return "error", err.Error()
 	}
 
+	if spec.Deleted {
+		if state, err := s.Runtime.State(ctx, spec.ID); err == nil && state != "missing" {
+			if state == "running" || state == "paused" {
+				_ = s.Runtime.Stop(ctx, spec.ID)
+			}
+			_ = s.Runtime.Remove(ctx, spec.ID)
+		}
+		s.recordApplied(dir, spec.Revision, "deleted")
+		return "deleted", ""
+	}
+
 	applied := s.appliedRevision(ctx, spec.ID, dir)
 
 	if spec.DesiredState == "running" {

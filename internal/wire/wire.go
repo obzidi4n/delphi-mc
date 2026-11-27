@@ -17,6 +17,9 @@ type ServerSpec struct {
 	Port          int     `json:"port"`
 	JarURL        string  `json:"jar_url"`
 	JarSHA256     string  `json:"jar_sha256"`
+	// Deleted asks the node to stop and remove the container; files stay for
+	// the retention window.
+	Deleted bool `json:"deleted,omitempty"`
 }
 
 // ServersFrame replaces the node's full desired set. Reconciliation is
