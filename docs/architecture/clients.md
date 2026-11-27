@@ -96,7 +96,11 @@ for later update checks. It has a manual Spigot jar upload form for resources wi
 API. Uploaded jars are pinned and marked manual, so they are not checked for
 remote updates. The page checks provider-backed plugins for updates on load and
 every five minutes, shows current vs available versions, and applies all updates
-through the guarded boot-check path.
+through the guarded boot-check path. Its **Test in a dev server** panel is always
+available and is highlighted when plugins or config files are staged but not
+loaded; the dev clone copies the current on-disk state and whitelists only the
+owner's Minecraft account. It calls `POST /api/v1/servers/{id}/dev` with
+`{owner_username, fresh_world?}`; the clone expires after 24 hours.
 For unattended operation, the page's cron form creates a schedule with action
 `updates.apply`; the scheduler performs detection and download on each run.
 

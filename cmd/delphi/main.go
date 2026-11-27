@@ -358,6 +358,9 @@ func runPanel(ctx context.Context, args []string) error {
 		templates := &capability.Templates{
 			Store: db, Servers: servers, Ports: db, Resolver: mc.NewClient(nil), Plugins: updates,
 		}
+		dev := &capability.Dev{
+			Store: db, Servers: servers, Hub: hub, Log: log,
+		}
 		services = &capability.Services{
 			Servers:   servers,
 			Fleet:     &capability.Fleet{Store: db},
@@ -371,8 +374,10 @@ func runPanel(ctx context.Context, args []string) error {
 			Schedules: schedules,
 			Alerts:    alerts,
 			Networks:  &capability.Networks{Store: db, Templates: templates, Servers: servers},
+			Dev:       dev,
 		}
 		go runSchedules(ctx, schedules, log)
+		go runDevCleanup(ctx, dev, log)
 		if err := seedBuiltinTemplates(ctx, db); err != nil {
 			log.Warn("could not seed built-in templates", "err", err)
 		}
@@ -1057,6 +1062,21 @@ func runInit(ctx context.Context, args []string) error {
 
 // buildToolbox wires the assistant's read-only tools to the capability layer
 // and the live console/metrics hub.
+func runDevCleanup(ctx context.Context, dev *capability.Dev, log *slog.Logger) {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			if n := dev.Cleanup(ctx, now); n > 0 {
+				log.Info("expired dev servers removed", "count", n)
+			}
+		}
+	}
+}
+
 func runSchedules(ctx context.Context, schedules *capability.Schedules, log *slog.Logger) {
 	if schedules == nil {
 		return

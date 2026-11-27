@@ -476,6 +476,29 @@ paths:
               schema: { $ref: "#/components/schemas/PluginCatalogDTO" }
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/servers/{id}/dev:
+    post:
+      operationId: createDevServer
+      summary: Clone a server into a temporary whitelisted dev server
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DevCreateRequest" }
+      responses:
+        "201":
+          description: Dev server
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServerDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
   /api/v1/servers/{id}/plugins:
     get:
       operationId: listServerPlugins
@@ -1345,6 +1368,12 @@ components:
         status: { type: integer }
         detail: { type: string }
         code: { type: string }
+    DevCreateRequest:
+      type: object
+      required: [owner_username]
+      properties:
+        owner_username: { type: string }
+        fresh_world: { type: boolean }
     ServerDTO:
       type: object
       required:
@@ -1377,6 +1406,16 @@ components:
         mc_version: { type: string }
         network_id: { type: string }
         network_role: { type: string }
+        pending_plugins: { type: boolean }
+        pending_files:
+          type: array
+          items: { type: string }
+        pending_since: { type: string, format: date-time, nullable: true }
+        dev_of: { type: string }
+        dev_whitelist:
+          type: array
+          items: { type: string }
+        dev_expires_at: { type: string, format: date-time, nullable: true }
         plugins:
           type: array
           items: { $ref: "#/components/schemas/ServerPlugin" }

@@ -240,6 +240,12 @@ type CreatedUserDTO struct {
 	User     UserDTO `json:"user"`
 }
 
+// DevCreateRequest is generated from the spec.
+type DevCreateRequest struct {
+	FreshWorld    *bool  `json:"fresh_world,omitempty"`
+	OwnerUsername string `json:"owner_username"`
+}
+
 // EnrollRequest is generated from the spec.
 type EnrollRequest struct {
 	CSR   string `json:"csr"`
@@ -620,6 +626,9 @@ type ServerDTO struct {
 	DeletedAt       *time.Time     `json:"deleted_at,omitempty"`
 	DesiredRevision int64          `json:"desired_revision"`
 	DesiredState    string         `json:"desired_state"`
+	DevExpiresAt    *time.Time     `json:"dev_expires_at,omitempty"`
+	DevOf           *string        `json:"dev_of,omitempty"`
+	DevWhitelist    []string       `json:"dev_whitelist,omitempty"`
 	ID              string         `json:"id"`
 	Image           string         `json:"image"`
 	JavaVersion     int            `json:"java_version"`
@@ -632,6 +641,9 @@ type ServerDTO struct {
 	NetworkRole     *string        `json:"network_role,omitempty"`
 	NodeID          string         `json:"node_id"`
 	ObservedState   string         `json:"observed_state"`
+	PendingFiles    []string       `json:"pending_files,omitempty"`
+	PendingPlugins  *bool          `json:"pending_plugins,omitempty"`
+	PendingSince    *time.Time     `json:"pending_since,omitempty"`
 	Plugins         []ServerPlugin `json:"plugins,omitempty"`
 	Port            int            `json:"port"`
 	PurgeAfter      *time.Time     `json:"purge_after,omitempty"`

@@ -175,15 +175,17 @@ The panel sends the node's full desired server set; the agent converges it
 - Retention keeps the newest 7 backups per server; older files and rows are pruned after each
   successful create.
 
-## Dev environments (v1.1)
+## Dev environments
 
-- Clone a server directory using the detected capability: reflink or ZFS clone is instant and
-  near-zero bytes; on a `copy` node it still works, but the UI warns that cloning takes minutes
-  and duplicates disk.
-- Boot the clone on a scratch port with a dev jar, watch the build output directory, copy the
-  jar in and restart on change. An idle timeout tears the environment down.
-- A dev environment never joins a network or the proxy, and never receives the production
-  server's port. It is a sandbox, not a backend.
+- The current implementation clones the server directory through a local tar archive on the
+  agent, preserving plugins, configs, and the world while excluding logs/caches/backups. The
+  reflink/ZFS acceleration and hot-swap jar watching from the original M17 design remain
+  future work.
+- The clone gets a scratch port, `white-list=true`, `enforce-whitelist=true`, and a
+  `whitelist.json` containing only the owner. It never joins a network or the proxy and never
+  receives the production server's port.
+- A dev clone is marked with `dev_of`, expires after 24 hours, and is removed by the panel
+  cleanup loop through the normal server delete path.
 
 ## Bridge plugin
 

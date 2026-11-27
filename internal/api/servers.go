@@ -28,6 +28,9 @@ func toServerDTO(sv store.Server) apitypes.ServerDTO {
 		DeletedAt: sv.DeletedAt, PurgeAfter: sv.PurgeAfter,
 		MCVersion: strPtr(sv.MCVersion), Plugins: pluginDTOs(sv.Plugins),
 		NetworkID: strPtr(sv.NetworkID), NetworkRole: strPtr(sv.NetworkRole),
+		PendingPlugins: boolPtr(sv.PendingPlugins), PendingFiles: sv.PendingFiles,
+		PendingSince: sv.PendingSince, DevOf: strPtr(sv.DevOf),
+		DevWhitelist: sv.DevWhitelist, DevExpiresAt: sv.DevExpiresAt,
 	}
 }
 

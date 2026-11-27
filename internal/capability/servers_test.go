@@ -31,6 +31,10 @@ func (f *fakeStore) CreateServer(_ context.Context, s store.Server) (store.Serve
 	return s, nil
 }
 
+func (f *fakeStore) ExpiredDevServers(context.Context, time.Time) ([]store.Server, error) {
+	return nil, nil
+}
+
 func (f *fakeStore) GetServer(_ context.Context, id string) (store.Server, error) {
 	for _, s := range f.servers {
 		if s.ID == id {
@@ -70,6 +74,8 @@ func (f *fakeStore) SetDesiredState(_ context.Context, id, desired string, kill 
 func (f *fakeStore) ReportServerState(context.Context, string, string, string, int64, string) error {
 	return nil
 }
+
+func (f *fakeStore) ClearPending(context.Context, string) error { return nil }
 
 func (f *fakeStore) RenameServer(_ context.Context, id, name string) (store.Server, error) {
 	for i := range f.servers {

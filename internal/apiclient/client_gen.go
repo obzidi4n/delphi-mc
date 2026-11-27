@@ -768,6 +768,20 @@ func (c *Client) RunServerCommand(ctx context.Context, id string, body apitypes.
 	return &out, nil
 }
 
+// POST /api/v1/servers/{id}/dev
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) CreateDevServer(ctx context.Context, id string, body apitypes.DevCreateRequest) (*apitypes.ServerDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/dev"
+	var q url.Values
+
+	var out apitypes.ServerDTO
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GET /api/v1/servers/{id}/files
 //
 // Requires a bearer token configured on the Client.

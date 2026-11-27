@@ -113,6 +113,9 @@ func (f *FileService) Write(ctx context.Context, p capability.Principal, srv sto
 		_ = f.audit(ctx, srv.OrgID, actorName(p), "ui", auditAction, srv.ID,
 			map[string]any{"path": path, "revision": rev.Revision, "sha256": res.SHA256})
 	}
+	if err := f.store.MarkPendingFiles(ctx, srv.ID, path); err != nil {
+		return "", 0, err
+	}
 	return res.SHA256, rev.Revision, nil
 }
 

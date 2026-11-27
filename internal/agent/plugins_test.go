@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -105,5 +106,44 @@ func TestEnsurePluginsUsesPreviousNamesWithoutManifest(t *testing.T) {
 	}
 	if _, err := os.Stat(target); !os.IsNotExist(err) {
 		t.Fatal("previous managed plugin was not removed")
+	}
+}
+
+func TestHandleDevCloneCopiesAndRewritesSettings(t *testing.T) {
+	dir := t.TempDir()
+	sup := &Supervisor{DataDir: dir, Runtime: newFakeRuntime(), Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	source := filepath.Join(dir, "servers", "s_prod")
+	if err := os.MkdirAll(filepath.Join(source, "plugins"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "server.properties"), []byte("server-port=25565\nmotd=Production\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "plugins", "kept.jar"), []byte("PK\x03\x04kept"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res := HandleDevClone(context.Background(), sup, nil, wire.DevCloneRequest{
+		RequestID: "req_1", SourceServerID: "s_prod", TargetServerID: "s_dev", Port: 25999,
+		Whitelist: []wire.WhitelistEntry{{Name: "owner", UUID: "11111111-1111-1111-1111-111111111111"}},
+	})
+	if !res.OK {
+		t.Fatal(res.Error)
+	}
+	target := filepath.Join(dir, "servers", "s_dev")
+	props, err := os.ReadFile(filepath.Join(target, "server.properties"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"server-port=25999", "white-list=true", "enforce-whitelist=true", "motd=Production"} {
+		if !strings.Contains(string(props), want) {
+			t.Fatalf("properties missing %q: %s", want, props)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(target, "plugins", "kept.jar")); err != nil {
+		t.Fatalf("plugin not copied: %v", err)
+	}
+	whitelist, err := os.ReadFile(filepath.Join(target, "whitelist.json"))
+	if err != nil || !strings.Contains(string(whitelist), `"name":"owner"`) {
+		t.Fatalf("whitelist = %s (%v)", whitelist, err)
 	}
 }

@@ -81,6 +81,8 @@ func (f *fakeServerStore) ReportServerState(context.Context, string, string, str
 	return nil
 }
 
+func (f *fakeServerStore) ClearPending(context.Context, string) error { return nil }
+
 func (f *fakeServerStore) RenameServer(_ context.Context, id, name string) (store.Server, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -7,13 +7,16 @@ import (
 )
 
 type pluginsPage struct {
-	BasePath  string
-	Email     string
-	ID        string
-	Name      string
-	Base      string
-	State     string
-	MCVersion string
+	BasePath       string
+	Email          string
+	ID             string
+	Name           string
+	Base           string
+	State          string
+	MCVersion      string
+	PendingPlugins bool
+	PendingFiles   []string
+	DevOf          string
 }
 
 func (s *server) renderPluginsPage(w http.ResponseWriter, r *http.Request) {
@@ -37,6 +40,8 @@ func (s *server) renderPluginsPage(w http.ResponseWriter, r *http.Request) {
 	data := pluginsPage{
 		BasePath: s.base, Email: user.Email, ID: srv.ID, Name: srv.Name,
 		Base: srv.Base, State: srv.SummaryState, MCVersion: srv.MCVersion,
+		PendingPlugins: srv.PendingPlugins, PendingFiles: srv.PendingFiles,
+		DevOf: srv.DevOf,
 	}
 	if data.State == "" {
 		data.State = srv.ObservedState
@@ -90,6 +95,10 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
  .badge{display:inline-block;border:1px solid #9e6a03;background:#3d2c00;color:#d29922;border-radius:.3rem;padding:.02rem .3rem;font-size:.7rem}
  .badge.ok{color:#3fb950;border-color:#238636;background:#0d2818}
  .hint{color:#6e7681;font-size:.75rem;margin:.5rem 0 0}
+ .devbox{border:1px solid #30363d;border-radius:.5rem;background:#161b22;padding:.8rem;margin-bottom:1rem}
+ .devbox.pending{border-color:#1f6feb;box-shadow:0 0 0 1px #1f6feb inset}
+ .devpending{color:#79c0ff;font-size:.8rem;margin:.2rem 0 .5rem}
+ #dev-status{margin-top:.5rem;color:#8b949e;font-size:.8rem;word-break:break-word}
  #toast{position:fixed;right:1rem;bottom:1rem;max-width:34rem;background:#161b22;border:1px solid #30363d;border-radius:.4rem;padding:.55rem .7rem;color:#e6edf3;display:none;white-space:pre-wrap}
  #toast.err{border-color:#f85149;color:#ff7b72}
  .loading{opacity:.55}
@@ -105,6 +114,24 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
   <span class="meta">Minecraft {{.MCVersion}}</span>
 </header>
 <main>
+ <section id="devbox" class="devbox{{if or .PendingPlugins .PendingFiles}} pending{{end}}">
+  <div class="row" style="justify-content:space-between">
+   <h2>Test in a dev server</h2>
+   {{if or .PendingPlugins .PendingFiles}}<span class="badge">changes staged</span>{{end}}
+  </div>
+  {{if or .PendingPlugins .PendingFiles}}
+  <p class="devpending">Production has staged changes: {{if .PendingPlugins}}plugin set{{end}}{{if and .PendingPlugins .PendingFiles}} and {{end}}{{if .PendingFiles}}{{len .PendingFiles}} file(s){{end}}. A dev clone copies the current on-disk files, not the old loaded state.</p>
+  {{else}}
+  <p class="meta">Creates a temporary same-node copy for testing. Available even when production has no pending changes.</p>
+  {{end}}
+  <div class="row">
+   <input id="dev-owner" style="flex:1;min-width:12rem" placeholder="Your Minecraft username" maxlength="32">
+   <label class="check" style="color:#8b949e"><input id="dev-fresh" type="checkbox"> fresh world</label>
+   <button id="dev-create" class="{{if or .PendingPlugins .PendingFiles}}primary{{end}}" type="button">Create dev server</button>
+  </div>
+  <p class="hint">The dev server gets a random port, 1 GB / 1 CPU, no proxy network, and a whitelist containing only this Minecraft user. It expires after 24 hours; restart it manually after testing plugin changes.</p>
+  <div id="dev-status"></div>
+ </section>
  <div class="grid">
   <div>
    <section>
@@ -195,6 +222,11 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
   var schedulesEl = document.getElementById('schedules');
   var serverName = body.dataset.name || id;
   var searchBtn = document.getElementById('search');
+  var devbox = document.getElementById('devbox');
+  var devOwner = document.getElementById('dev-owner');
+  var devFresh = document.getElementById('dev-fresh');
+  var devCreate = document.getElementById('dev-create');
+  var devStatus = document.getElementById('dev-status');
   var githubName = document.getElementById('github-name');
   var githubRepo = document.getElementById('github-repo');
   var githubInstall = document.getElementById('github-install');
@@ -269,7 +301,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
       actions.appendChild(button('Remove', 'danger', function () {
         if (!window.confirm('Remove ' + item.project + ' from this server?')) { return; }
         request(api + '/plugins?project=' + encodeURIComponent(item.project), {method: 'DELETE'})
-          .then(function () { toast('Removed ' + item.project + ' — restart the server to unload it'); return refreshAll(); })
+          .then(function () { markStaged(); toast('Removed ' + item.project + ' — restart the server to unload it'); return refreshAll(); })
           .catch(function (err) { toast(err.message, true); });
       }));
       tr.appendChild(actions);
@@ -375,6 +407,12 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
   function refreshAll() {
     return loadInstalled().then(function () { return loadSchedules(); }).then(function () { return checkUpdates(true); });
   }
+  function markStaged() {
+    if (!devbox) { return; }
+    devbox.classList.add('pending');
+    if (devCreate) { devCreate.classList.add('primary'); }
+    if (devStatus) { devStatus.textContent = 'Changes staged; create a dev clone to test them.'; }
+  }
   function install(entry) {
     if (installing) { return Promise.resolve(); }
     installing = true;
@@ -384,6 +422,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({provider: entry.provider, project: entry.project, name: entry.name})
     }).then(function (result) {
+      markStaged();
       toast('Installed ' + result.plugin.project + ' ' + result.plugin.version + ' — restart the server to load it');
       return refreshAll();
     }).catch(function (err) {
@@ -447,6 +486,28 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
       resultsEl.textContent = err.message;
     });
   }
+  devCreate.addEventListener('click', function () {
+    var owner = devOwner.value.trim();
+    if (!owner) { toast('Enter your Minecraft username', true); return; }
+    devCreate.disabled = true;
+    devStatus.textContent = 'Cloning the current server files…';
+    request(api + '/dev', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({owner_username: owner, fresh_world: devFresh.checked})
+    }).then(function (server) {
+      devStatus.innerHTML = '';
+      devStatus.appendChild(document.createTextNode('Dev server created: '));
+      var link = document.createElement('a');
+      link.href = base + 'servers/' + encodeURIComponent(server.id);
+      link.textContent = server.name;
+      devStatus.appendChild(link);
+      toast('Dev server created; only ' + owner + ' is whitelisted');
+    }).catch(function (err) {
+      devStatus.textContent = '';
+      toast(err.message, true);
+    }).finally(function () { devCreate.disabled = false; });
+  });
   jenkinsInstall.addEventListener('click', function () {
     var job = jenkinsURL.value.trim();
     if (!job) { toast('Enter a Jenkins job URL', true); return; }
@@ -474,6 +535,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
     submit.disabled = true;
     request(api + '/plugins/upload', {method: 'POST', body: form})
       .then(function (result) {
+        markStaged();
         toast('Installed ' + result.plugin.project + ' ' + result.plugin.version + ' — restart the server to load it');
         uploadForm.reset();
         return refreshAll();

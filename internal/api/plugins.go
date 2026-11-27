@@ -20,6 +20,8 @@ func strPtr(s string) *string {
 	return &s
 }
 
+func boolPtr(v bool) *bool { return &v }
+
 func (s *server) updatesService(w http.ResponseWriter) *capability.Updates {
 	if s.opts.Services == nil || s.opts.Services.Updates == nil {
 		writeProblem(w, http.StatusNotImplemented, "updates_disabled", "the update service is not configured")

@@ -116,6 +116,7 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
   <a href="{{.BasePath}}chat">AI</a>
   <a href="{{.BasePath}}servers/{{.ID}}/files">Files</a>
   <a href="{{.BasePath}}servers/{{.ID}}/plugins">Plugins</a>
+  <a href="{{.BasePath}}servers/{{.ID}}/plugins" title="Create a temporary whitelisted copy">Test in dev</a>
   <h1>{{.Name}}</h1>
   <span class="pill off" id="status">connecting</span>
   <span class="pill" id="state">{{.State}}</span>

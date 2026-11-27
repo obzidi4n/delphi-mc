@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"delphi.dev/delphi/internal/auth"
 	"delphi.dev/delphi/internal/store"
@@ -52,6 +53,7 @@ type ServerStore interface {
 	AllocatePort(ctx context.Context, nodeID string) (int, error)
 	ListServersByNode(ctx context.Context, nodeID string) ([]store.Server, error)
 	SetDesiredState(ctx context.Context, id, desired string, kill bool) (store.Server, error)
+	ClearPending(ctx context.Context, id string) error
 	RenameServer(ctx context.Context, id, name string) (store.Server, error)
 	SoftDeleteServer(ctx context.Context, id string) (store.Server, error)
 	ReportServerState(ctx context.Context, nodeID, id, state string, revision int64, detail string) error
@@ -90,6 +92,10 @@ type CreateRequest struct {
 	Files           map[string]string
 	MCVersion       string
 	Plugins         []store.ServerPlugin
+
+	DevOf        string
+	DevWhitelist []string
+	DevExpiresAt *time.Time
 }
 
 var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -174,6 +180,9 @@ func (c *Servers) Create(ctx context.Context, p Principal, req CreateRequest) (s
 		Files:           req.Files,
 		MCVersion:       req.MCVersion,
 		Plugins:         req.Plugins,
+		DevOf:           req.DevOf,
+		DevWhitelist:    req.DevWhitelist,
+		DevExpiresAt:    req.DevExpiresAt,
 	})
 	if err != nil {
 		return store.Server{}, err
@@ -252,6 +261,17 @@ func (c *Servers) Power(ctx context.Context, p Principal, id, action string) (st
 	updated, err := c.Store.SetDesiredState(ctx, id, desired, kill)
 	if err != nil {
 		return store.Server{}, err
+	}
+	if action == "start" || action == "restart" {
+		// A start/restart is the deployment action for staged plugin and file
+		// changes. The node observes the new revision; pending state is cleared
+		// once the operator has asked for that deployment.
+		if err := c.Store.ClearPending(ctx, id); err != nil {
+			return store.Server{}, err
+		}
+		updated.PendingPlugins = false
+		updated.PendingFiles = nil
+		updated.PendingSince = nil
 	}
 	if err := c.audit(ctx, p, "server.power", id, map[string]any{"action": action}); err != nil {
 		return store.Server{}, err

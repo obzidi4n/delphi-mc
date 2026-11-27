@@ -53,6 +53,13 @@ visible name. Both are scoped and audited (`server.plugin.add`,
 `server.plugin.update`, `server.plugin.remove`). GitHub remains a resolver-only provider because it has
 no public project search API.
 
+Plugin staging sets a pending flag on the production server. It clears when the
+owner starts or restarts the server (or when the agent reports a non-running to
+running transition), because that is when the staged jars are loaded. File edits
+from the file manager record the changed path in `pending_files` for the same
+reason. The server page shows a highlighted **Test in a dev server** action while
+anything is staged; the action is always present even when production is clean.
+
 SpigotMC has no public API and its downloads normally require an authenticated
 browser session, so DelphiMC does not scrape it. Instead,
 `POST /api/v1/servers/{id}/plugins/upload` accepts a multipart form with a

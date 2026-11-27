@@ -22,6 +22,7 @@ type Services struct {
 	Schedules *Schedules
 	Alerts    *Alerts
 	Networks  *Networks
+	Dev       *Dev
 }
 
 // FleetStore is node and enrollment persistence.

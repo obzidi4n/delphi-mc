@@ -16,6 +16,8 @@ DelphiMC is under active development. The steps below are for the current build.
   networks, with a sensible set of files, then adjust memory, ports, and settings.
 - **Live console and controls.** Start, stop, restart, kill, read the console, issue server
   commands, edit files, and see CPU/memory for each server.
+- **Test changes in a dev clone.** Create a temporary whitelisted copy of a server with its
+  current plugins, configs, and world to try staged changes before restarting production.
 - **Install and update plugins.** Browse Modrinth and Hangar, pull from GitHub or a Jenkins
   build, or upload a SpigotMC jar manually; update with a restart and automatic rollback if the
   server fails to boot.

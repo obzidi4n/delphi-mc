@@ -318,7 +318,7 @@ func excluded(rel string, info os.FileInfo) bool {
 		return true
 	}
 	switch rel {
-	case "logs", "cache", "crash", "backups", ".delphi-state.json", "plugins/.paper-remapped":
+	case "logs", "cache", "crash", "backups", ".delphi-state.json", ".delphi-restart.json", "plugins/.paper-remapped":
 		return true
 	}
 	return false

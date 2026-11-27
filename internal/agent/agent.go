@@ -202,6 +202,13 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 						_ = writer.write(sctx, res)
 					}(req)
 				}
+			case wire.TypeDevClone:
+				var req wire.DevCloneRequest
+				if json.Unmarshal(data, &req) == nil && req.RequestID != "" {
+					go func(req wire.DevCloneRequest) {
+						_ = writer.write(sctx, HandleDevClone(sctx, opts.Supervisor, bridge, req))
+					}(req)
+				}
 			case wire.TypeBridgeCommand:
 				var frame wire.BridgeCommandFrame
 				if json.Unmarshal(data, &frame) == nil {
