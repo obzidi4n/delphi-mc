@@ -54,6 +54,12 @@ criteria can be demonstrated on a clean host.
   Chunky and ViaVersion; two pinned builds updated to current with the server still running;
   unreferenced old artifacts were collected. Staging-clone boot-checks and `auto-*` policies
   remain deferred.
+- **M13** — TUI: `delphi tui` on Bubble Tea/lipgloss with token-authenticated console WebSocket,
+  fleet → server navigation, live console replay, power/backups/plugins/updates, and an AI
+  pane that streams deltas/tools/citations and prompts for approval. Keys documented in
+  `docs/reference/tui-keybindings.md`. Live: started a server, watched the console, created a
+  backup, asked the operator, and stopped it from the terminal. Inline file editing, log
+  search, sparklines, multi-server panes, and the React portal remain deferred.
 - **M12** — v1.0 exit: base-path routing covers pages, WebSockets, API, and agent endpoints (verified
   through a Go reverse proxy at `/delphi`), a degraded-status banner and node table explain
   offline nodes and recent panel restarts, an audit viewer page, and `delphi upgrade`/

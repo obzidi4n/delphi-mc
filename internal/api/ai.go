@@ -86,6 +86,11 @@ func (s *server) aiChat(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusServiceUnavailable, "ai_disabled", "no model provider is configured")
 		return
 	}
+	if principal.UserID == "" {
+		writeProblem(w, http.StatusBadRequest, "user_token_required",
+			"AI chat needs a user-scoped API key or a session; the admin token has no conversation owner")
+		return
+	}
 	var body apitypes.ChatRequestDTO
 	if err := decodeJSON(w, r, &body); err != nil {
 		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())

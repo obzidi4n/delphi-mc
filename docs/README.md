@@ -3,11 +3,12 @@
 The map. Every page here is versioned with the code and changes in the same PR as the
 behavior it describes.
 
-**Status:** v1.0 exit (M12) landed — degraded-mode UI, base-path routing through a reverse
-proxy, audit viewer, and manual binary upgrade/rollback, on top of M11 automation, M10
-backups, M9 plugins/artifacts, M8 files, M7 approvals, M6 assistant, M5 bridge, M4 console,
-M3b templates, the M3a spec-first API, identity/RBAC, paginated lists, Team/Groups pages,
-and the CLI. See [`plan/roadmap.md`](plan/roadmap.md).
+**Status:** M13 landed — a native terminal UI with live console, power/backups/plugins, and a
+streaming AI pane with inline approvals, on top of v1.0/M12, M11 automation, M10 backups, M9
+plugins/artifacts, M8 files, M7 approvals, M6 assistant, M5 bridge, M4 console, M3b templates,
+the M3a spec-first API, identity/RBAC, paginated lists, Team/Groups pages, and the CLI. See
+[`plan/roadmap.md`](plan/roadmap.md). TUI keys are in
+[`reference/tui-keybindings.md`](reference/tui-keybindings.md).
 
 ## Architecture — what and how
 
@@ -46,6 +47,7 @@ The roadmap and the decision log are the only pages expected to churn.
 |---|---|
 | [`reference/data-model.md`](reference/data-model.md) | Tables and ownership |
 | [`reference/ai-tools.md`](reference/ai-tools.md) | Tool catalog, scopes, unlock milestones |
+| [`reference/tui-keybindings.md`](reference/tui-keybindings.md) | TUI keys, scopes, and implemented surface |
 | [`reference/template-schema.md`](reference/template-schema.md) | Template format |
 | [`reference/wire-protocol.md`](reference/wire-protocol.md) | Agent/browser frames and endpoints |
 | [`reference/api-conventions.md`](reference/api-conventions.md) | Pagination, errors, idempotency, preconditions |
@@ -70,7 +72,6 @@ The roadmap and the decision log are the only pages expected to churn.
 
 ## Deliberately not written yet
 
-- `reference/tui-keybindings.md` — written with the TUI at v1.1.
 - `contributing/testing.md` exists; its e2e harness is written with M2.
 
 ## Rules

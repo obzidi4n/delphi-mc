@@ -1,9 +1,9 @@
 # Clients
 
-**Status:** M4 ships the console page as a server-rendered HTML shell with a small vanilla
-JavaScript client (no build step yet). The React/Vite portal below remains the target; the
-API, WS route, and frame shapes are the ones it will consume. CLI is current; TUI is v1.1
-(ADR [0008](../decisions/0008-native-tui-as-api-client.md)).
+**Status:** M13 ships a Bubble Tea TUI (`delphi tui`) alongside the server-rendered web
+console and CLI. The React/Vite portal below remains the target; the API, WS route, and frame
+shapes are the ones it will consume (ADR
+[0008](../decisions/0008-native-tui-as-api-client.md)).
 
 All three are consumers of the public API. If a client needs a private endpoint, the API is
 wrong. The **spec is the source**: `internal/api/openapi.yaml` is hand-written and reviewed;
@@ -76,7 +76,10 @@ spec as the SDK, so parity is enforced, not promised.
 
 ## TUI (v1.1)
 
-`delphi tui` — Bubble Tea + lipgloss, k9s-class keys, no mouse required.
+`delphi tui` — Bubble Tea + lipgloss, k9s-class keys, no mouse required. Implemented at M13:
+token auth (including the console WebSocket), fleet → server navigation, live console replay,
+power/backups/plugins/updates, and an AI pane with streaming and inline approvals. Keys are in
+[`../reference/tui-keybindings.md`](../reference/tui-keybindings.md).
 
 - Fleet → node → server → console navigation; live console pane with the same ring-buffer
   replay as the web UI.

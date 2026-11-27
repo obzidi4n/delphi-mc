@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	tea "github.com/charmbracelet/bubbletea"
 	"gopkg.in/yaml.v3"
 
 	"delphi.dev/delphi/docs"
@@ -45,6 +46,7 @@ import (
 	"delphi.dev/delphi/internal/secret"
 	"delphi.dev/delphi/internal/store"
 	"delphi.dev/delphi/internal/template"
+	"delphi.dev/delphi/internal/tui"
 	"delphi.dev/delphi/internal/upgrade"
 	"delphi.dev/delphi/internal/version"
 	"delphi.dev/delphi/internal/wire"
@@ -85,6 +87,8 @@ func main() {
 		err = runUpgrade(ctx, os.Args[2:])
 	case "rollback":
 		err = runRollback(os.Args[2:])
+	case "tui":
+		err = runTUI(ctx, os.Args[2:])
 	case "version":
 		fmt.Println(version.String())
 	case "help", "-h", "--help":
@@ -125,10 +129,28 @@ commands:
   init              write config, create the CA and owner, apply migrations
   upgrade           replace the binary and keep one rollback slot
   rollback          restore the previous binary
+  tui               open the terminal UI
   version           print the build version
 
 flags are per command; run "delphi <command> -h" for details.
 `)
+}
+
+func runTUI(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("tui", flag.ContinueOnError)
+	panel := fs.String("panel", "", "panel base URL")
+	token := fs.String("token", os.Getenv("DELPHI_TOKEN"), "API token (default: DELPHI_TOKEN)")
+	ca := fs.String("ca", "", "panel CA certificate (for a private CA)")
+	if err := parseFlags(fs, args); err != nil {
+		return err
+	}
+	client, err := tui.New(*panel, *ca, *token)
+	if err != nil {
+		return err
+	}
+	program := tea.NewProgram(tui.NewModel(client), tea.WithAltScreen(), tea.WithContext(ctx))
+	_, err = program.Run()
+	return err
 }
 
 func runUpgrade(ctx context.Context, args []string) error {
