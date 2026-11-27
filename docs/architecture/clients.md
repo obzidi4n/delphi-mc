@@ -87,7 +87,8 @@ catalog search. Installing resolves the newest Paper-compatible build for the
 server's Minecraft version, downloads it into the artifact store, and syncs the
 node; removing a plugin does the same in reverse. A running server restarts.
 
-The page also has a manual Spigot jar upload form for resources without a public
+The page also accepts a GitHub repository or release URL and installs the latest
+release asset. It has a manual Spigot jar upload form for resources without a public
 API. Uploaded jars are pinned and marked manual, so they are not checked for
 remote updates. The page checks provider-backed plugins for updates on load and
 every five minutes, shows current vs available versions, and applies all updates

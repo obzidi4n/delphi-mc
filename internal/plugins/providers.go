@@ -48,9 +48,52 @@ func NewResolver(client *http.Client) *Resolver {
 	}
 }
 
+// NormalizeProject turns a provider's user-facing project reference into its
+// canonical form. GitHub accepts a repository URL as well as owner/repo.
+func NormalizeProject(provider, project string) (string, error) {
+	switch provider {
+	case "github":
+		return githubProject(project)
+	default:
+		return strings.TrimSpace(project), nil
+	}
+}
+
+func githubProject(project string) (string, error) {
+	raw := strings.TrimSpace(project)
+	if raw == "" {
+		return "", errors.New("plugins: github repository is required")
+	}
+	if strings.HasPrefix(raw, "git@github.com:") {
+		raw = strings.TrimPrefix(raw, "git@github.com:")
+	}
+	viaURL := false
+	if strings.Contains(raw, "://") || strings.HasPrefix(raw, "github.com/") || strings.HasPrefix(raw, "www.github.com/") {
+		viaURL = true
+		if !strings.Contains(raw, "://") {
+			raw = "https://" + raw
+		}
+		u, err := url.Parse(raw)
+		if err != nil || (u.Host != "github.com" && u.Host != "www.github.com") {
+			return "", errors.New("plugins: github URL must point at github.com")
+		}
+		raw = strings.Trim(u.Path, "/")
+	}
+	raw = strings.TrimSuffix(strings.Trim(raw, "/"), ".git")
+	parts := strings.Split(raw, "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" || (len(parts) > 2 && !viaURL) {
+		return "", fmt.Errorf("plugins: github repository %q must be owner/repo or a github.com URL", project)
+	}
+	return parts[0] + "/" + parts[1], nil
+}
+
 // Resolve selects the newest compatible version, honoring an exact pin or a
 // version-prefix range.
 func (r *Resolver) Resolve(ctx context.Context, provider, project, mcVersion, pin, rng string) (Resolved, error) {
+	project, err := NormalizeProject(provider, project)
+	if err != nil {
+		return Resolved{}, err
+	}
 	switch provider {
 	case "modrinth":
 		return r.modrinth(ctx, project, mcVersion, pin, rng)
@@ -435,10 +478,11 @@ type githubRelease struct {
 }
 
 func (r *Resolver) github(ctx context.Context, project, pin string) (Resolved, error) {
-	parts := strings.Split(strings.Trim(project, "/"), "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return Resolved{}, fmt.Errorf("plugins: github project %q must be owner/repo", project)
+	project, err := githubProject(project)
+	if err != nil {
+		return Resolved{}, err
 	}
+	parts := strings.Split(project, "/")
 	base := strings.TrimRight(r.GitHubBase, "/")
 	endpoint := fmt.Sprintf("%s/repos/%s/%s/releases/latest", base, url.PathEscape(parts[0]), url.PathEscape(parts[1]))
 	if pin != "" {

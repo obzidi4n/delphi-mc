@@ -99,6 +99,13 @@ func TestGitHubPrefersPaperAsset(t *testing.T) {
 	if got.URL != "https://gh/paper.jar" || got.Version != "5.12.3" {
 		t.Fatalf("github = %+v", got)
 	}
+	got, err = r.Resolve(context.Background(), "github", "https://github.com/ViaVersion/ViaVersion/releases/latest", "1.21.11", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.URL != "https://gh/paper.jar" {
+		t.Fatalf("github URL = %+v", got)
+	}
 }
 
 func TestSlugIsStableAndSafe(t *testing.T) {
@@ -159,5 +166,31 @@ func TestCatalogSearchesModrinthAndHangar(t *testing.T) {
 	}
 	if _, err := r.Search(context.Background(), "github", "x", "", 10); err == nil {
 		t.Fatal("github catalog should be rejected")
+	}
+}
+
+func TestNormalizeGitHubProjectURLs(t *testing.T) {
+	cases := map[string]string{
+		"owner/repo":                             "owner/repo",
+		"https://github.com/owner/repo":          "owner/repo",
+		"https://github.com/owner/repo.git":      "owner/repo",
+		"https://github.com/owner/repo/releases": "owner/repo",
+		"git@github.com:owner/repo.git":          "owner/repo",
+		"github.com/owner/repo/":                 "owner/repo",
+	}
+	for in, want := range cases {
+		got, err := NormalizeProject("github", in)
+		if err != nil {
+			t.Errorf("NormalizeProject(%q): %v", in, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("NormalizeProject(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for _, bad := range []string{"", "owner", "https://example.com/owner/repo", "owner/repo/extra"} {
+		if _, err := NormalizeProject("github", bad); err == nil {
+			t.Errorf("NormalizeProject(%q) should fail", bad)
+		}
 	}
 }

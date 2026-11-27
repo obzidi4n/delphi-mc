@@ -22,7 +22,7 @@ manual Spigot jar upload is available from the Plugins page.
 |---|---|---|
 | Modrinth | slug | newest paper build compatible with the MC version (major-family fallback) |
 | Hangar | `owner/slug` | newest PAPER download for the MC version |
-| GitHub | `owner/repo` | latest release, preferring a `paper` jar asset |
+| GitHub | `owner/repo` or a `github.com` repo/release URL | latest release, preferring a `paper` jar asset |
 
 A template may pin an exact `version` or set a **version-prefix range** (`5.5`, `v5.5`,
 `5.5.71`). Both are resolved to a concrete version and sha256 at server creation. Semver

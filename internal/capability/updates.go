@@ -192,6 +192,11 @@ func (u *Updates) Add(ctx context.Context, p Principal, id string, req PluginReq
 	if req.Version != "" && req.Range != "" {
 		return PluginAddResult{}, invalid("version and range cannot both be set")
 	}
+	project, err := plugins.NormalizeProject(req.Provider, req.Project)
+	if err != nil {
+		return PluginAddResult{}, invalid("%v", err)
+	}
+	req.Project = project
 	srv, err := u.Store.GetServer(ctx, id)
 	if err != nil {
 		return PluginAddResult{}, err
@@ -393,7 +398,15 @@ func (u *Updates) Detect(ctx context.Context, p Principal, id string) ([]PluginU
 		if strings.EqualFold(installed.Provider, "spigot") || strings.EqualFold(installed.Policy, "manual") {
 			continue
 		}
-		res, err := u.resolve(ctx, installed.Provider, installed.Project, srv.MCVersion, "", installed.Range)
+		project, normalizeErr := plugins.NormalizeProject(installed.Provider, installed.Project)
+		if normalizeErr != nil {
+			out = append(out, PluginUpdate{
+				Project: installed.Project, Provider: installed.Provider,
+				Current: installed.Version, Error: normalizeErr.Error(),
+			})
+			continue
+		}
+		res, err := u.resolve(ctx, installed.Provider, project, srv.MCVersion, "", installed.Range)
 		if err != nil {
 			out = append(out, PluginUpdate{
 				Project: installed.Project, Provider: installed.Provider,

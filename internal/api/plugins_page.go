@@ -143,6 +143,14 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
     </div>
     <div id="results" class="meta">Search Modrinth or Hangar for a Paper plugin.</div>
     <p class="hint">Installing resolves the newest build compatible with Minecraft {{.MCVersion}} and downloads it through the panel's artifact store.</p>
+    <details id="githubbox">
+     <summary>Install from a GitHub repo</summary>
+     <div class="row" style="margin-top:.5rem">
+      <input id="github-repo" style="flex:1;min-width:14rem" placeholder="https://github.com/owner/repo">
+      <button id="github-install" class="primary" type="button">Install latest release</button>
+     </div>
+     <p class="hint">Fetches the latest GitHub release, preferring a <code>paper</code> jar asset when the release has several jars.</p>
+    </details>
     <details id="uploadbox">
      <summary>Upload a Spigot jar</summary>
      <form id="uploadform" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:.35rem;margin-top:.5rem">
@@ -177,6 +185,8 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
   var schedulesEl = document.getElementById('schedules');
   var serverName = body.dataset.name || id;
   var searchBtn = document.getElementById('search');
+  var githubRepo = document.getElementById('github-repo');
+  var githubInstall = document.getElementById('github-install');
   var uploadForm = document.getElementById('uploadform');
   var uploadProject = document.getElementById('upload-project');
   var uploadVersion = document.getElementById('upload-version');
@@ -352,10 +362,10 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
     return loadInstalled().then(function () { return loadSchedules(); }).then(function () { return checkUpdates(true); });
   }
   function install(entry) {
-    if (installing) { return; }
+    if (installing) { return Promise.resolve(); }
     installing = true;
     applyBtn.disabled = true;
-    request(api + '/plugins', {
+    return request(api + '/plugins', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({provider: entry.provider, project: entry.project})
@@ -423,6 +433,14 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
       resultsEl.textContent = err.message;
     });
   }
+  githubInstall.addEventListener('click', function () {
+    var repo = githubRepo.value.trim();
+    if (!repo) { toast('Enter a GitHub repository URL', true); return; }
+    githubInstall.disabled = true;
+    install({provider: 'github', project: repo}).finally(function () {
+      githubInstall.disabled = false;
+    });
+  });
   uploadForm.addEventListener('submit', function (e) {
     e.preventDefault();
     if (!uploadFile.files.length) { toast('Choose a jar file', true); return; }
