@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -129,6 +130,48 @@ func TestChatStopsAtStepLimit(t *testing.T) {
 	})
 	if _, err := svc.Chat(context.Background(), owner(), "", "loop", Stream{}); !errors.Is(err, ErrTooManySteps) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestStepLimitFallsBackToAnswer(t *testing.T) {
+	fs := &fakeStore{}
+	call := Event{Done: true, ToolCalls: []ToolCall{{ID: "c", Name: "search_docs", Arguments: `{"query":"playtime"}`}}}
+	provider := &scriptedProvider{responses: [][]Event{
+		{call}, {call}, {call},
+		{{Done: true, Delta: "DelphiMC does not track playtime."}},
+	}}
+	svc := testService(fs, provider, func(context.Context, string, int) ([]store.DocChunk, error) {
+		return []store.DocChunk{{Path: "a", Content: "no playtime data"}}, nil
+	})
+	result, err := svc.Chat(context.Background(), owner(), "", "who has the most playtime", Stream{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result.Text, "does not track playtime") {
+		t.Fatalf("result = %+v", result)
+	}
+	if result.ChatOnly {
+		t.Fatal("fallback with tools used must not be chat-only")
+	}
+}
+
+func TestDuplicateToolCallsAreSuppressed(t *testing.T) {
+	fs := &fakeStore{}
+	call := Event{Done: true, ToolCalls: []ToolCall{{ID: "c", Name: "search_docs", Arguments: `{"query":"x"}`}}}
+	provider := &scriptedProvider{responses: [][]Event{
+		{call}, {call}, {{Done: true, Delta: "Answer."}},
+	}}
+	runs := 0
+	svc := testService(fs, provider, func(context.Context, string, int) ([]store.DocChunk, error) {
+		runs++
+		return []store.DocChunk{{Path: "a", Content: "b"}}, nil
+	})
+	result, err := svc.Chat(context.Background(), owner(), "", "x", Stream{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runs != 1 || result.Text != "Answer." {
+		t.Fatalf("runs=%d result=%+v", runs, result)
 	}
 }
 

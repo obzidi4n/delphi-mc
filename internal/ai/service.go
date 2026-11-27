@@ -196,6 +196,7 @@ func (s *Service) runLoop(ctx context.Context, p capability.Principal, conv stor
 		steps = 4
 	}
 	seen := map[string]bool{}
+	called := map[string]bool{}
 	result := Result{ConversationID: conv.ID}
 	used := map[string]bool{}
 
@@ -247,6 +248,19 @@ func (s *Service) runLoop(ctx context.Context, p capability.Principal, conv stor
 		turn = append(turn, Message{Role: "assistant", Content: lastText, ToolCalls: calls})
 		writeCalls := make([]ProposedCall, 0)
 		for _, call := range calls {
+			callKey := call.Name + "\x00" + call.Arguments
+			if called[callKey] {
+				text := "duplicate tool call suppressed; no new data. Answer with the results already available."
+				if stream.OnTool != nil {
+					stream.OnTool(call.Name, "duplicate", text)
+				}
+				if _, err := s.Store.AppendMessage(ctx, conv.ID, "tool", text, nil, call.ID); err != nil {
+					return result, err
+				}
+				turn = append(turn, Message{Role: "tool", ToolCallID: call.ID, Content: text})
+				continue
+			}
+			called[callKey] = true
 			tool, ok := findTool(tools, call.Name)
 			if !ok {
 				text := fmt.Sprintf("tool error: unknown tool %q", call.Name)
@@ -326,10 +340,42 @@ func (s *Service) runLoop(ctx context.Context, p capability.Principal, conv stor
 			return result, nil
 		}
 	}
-	result.Text = lastText
+	// The model hit the tool budget. Ask for one final answer without tools so
+	// the user gets the collected evidence plus an explicit limitation instead
+	// of a bare loop error.
+	fallback := append(append([]Message(nil), turn...), Message{
+		Role: "user",
+		Content: "You have reached the tool-step limit. Do not call any more tools. " +
+			"Answer now using the results above, and state clearly if the requested data is not available.",
+	})
+	assembled := assembler.Assemble(SystemPrompt, fallback)
+	events, err := s.Provider.Chat(ctx, ChatRequest{Messages: assembled})
+	if err != nil {
+		return result, ErrTooManySteps
+	}
+	var content strings.Builder
+	for event := range events {
+		if event.Err != nil {
+			return result, ErrTooManySteps
+		}
+		if event.Delta != "" {
+			content.WriteString(event.Delta)
+			if stream.OnDelta != nil {
+				stream.OnDelta(event.Delta)
+			}
+		}
+	}
+	final := strings.TrimSpace(content.String())
+	if final == "" {
+		return result, ErrTooManySteps
+	}
+	if _, err := s.Store.AppendMessage(ctx, conv.ID, "assistant", final, nil, ""); err != nil {
+		return result, err
+	}
+	result.Text = final
 	result.ChatOnly = len(used) == 0
 	result.ToolsUsed = toolNames(used)
-	return result, ErrTooManySteps
+	return result, nil
 }
 
 func (s *Service) toolsFor(p capability.Principal) []Tool {
