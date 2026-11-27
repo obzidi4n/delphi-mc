@@ -54,6 +54,13 @@ criteria can be demonstrated on a clean host.
   Chunky and ViaVersion; two pinned builds updated to current with the server still running;
   unreferenced old artifacts were collected. Staging-clone boot-checks and `auto-*` policies
   remain deferred.
+- **M12** — v1.0 exit: base-path routing covers pages, WebSockets, API, and agent endpoints (verified
+  through a Go reverse proxy at `/delphi`), a degraded-status banner and node table explain
+  offline nodes and recent panel restarts, an audit viewer page, and `delphi upgrade`/
+  `delphi rollback` binary slots. Live: with Plugins-Demo running and the panel stopped, port
+  25566 stayed open; a kill was restarted by the agent with the panel still down; after the
+  panel returned the fleet page showed the server running and the outage banner. Automatic
+  health-gated upgrade/rollback and agent self-update remain deferred to v1.1.
 - **M11** — automation: cron schedules with persisted `next_run` (power and backup actions),
   agent-owned crash restart using the last desired set on disk (`on-failure`/`never`,
   backoff), crash-loop/server-down rules, webhook (Discord payload) and SMTP channels with

@@ -1,8 +1,11 @@
 package api
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
+	"time"
 
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/store"
@@ -15,11 +18,13 @@ type pageData struct {
 	Error    string
 	Notice   string
 
-	Servers []store.Server
-	Nodes   []store.Node
-	Users   []store.UserWithRole
-	Groups  []groupView
-	Roles   []string
+	Servers  []store.Server
+	Nodes    []store.Node
+	Audit    []store.AuditEntry
+	Degraded string
+	Users    []store.UserWithRole
+	Groups   []groupView
+	Roles    []string
 
 	CreatedEmail    string
 	CreatedPassword string
@@ -48,6 +53,7 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
  button{padding:.45rem .9rem;border-radius:.4rem;border:1px solid #8886;background:transparent;color:inherit;cursor:pointer}
  .err{color:#c33;margin:.5rem 0}
  .ok{color:#2a8;margin:.5rem 0}
+ .warn{border:1px solid #d90;border-radius:.5rem;padding:.7rem .9rem;margin:0 0 1rem;background:#d902}
  .card{border:1px solid #8884;border-radius:.6rem;padding:1.1rem 1.25rem;max-width:26rem;margin:3rem auto}
  section{border:1px solid #8884;border-radius:.6rem;padding:1rem 1.25rem;margin:0 0 1.25rem}
  section h3{margin:.1rem 0 .5rem;font-size:1rem}
@@ -58,6 +64,7 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
  <a href="{{$base}}" {{if eq .Page "home"}}class="on"{{end}}>Fleet</a>
  <a href="{{$base}}team" {{if eq .Page "team"}}class="on"{{end}}>Team</a>
  <a href="{{$base}}groups" {{if eq .Page "groups"}}class="on"{{end}}>Groups</a>
+ <a href="{{$base}}audit" {{if eq .Page "audit"}}class="on"{{end}}>Audit</a>
  <a href="{{$base}}chat">AI</a>
 </nav>{{end}}
 {{if .Email}}<form method="post" action="{{$base}}logout"><span class="muted">{{.Email}}</span> <button type="submit">Sign out</button></form>{{end}}
@@ -75,6 +82,7 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
     <p class="muted">The owner account is created by <code>delphi init</code>.</p>
   </div>
 {{else}}
+  {{if .Degraded}}<p class="warn"><strong>Degraded:</strong> {{.Degraded}}</p>{{end}}
   {{if .Notice}}<p class="ok">{{.Notice}}</p>{{end}}
   {{if .Error}}<p class="err">{{.Error}}</p>{{end}}
 
@@ -141,6 +149,12 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
       </form>
     </section>
 
+  {{else if eq .Page "audit"}}
+    <h2>Audit</h2>
+    <p class="muted">Most recent 200 entries. Diff payloads are available on the API.</p>
+    {{if .Audit}}<table><tr><th>Seq</th><th>When</th><th>Actor</th><th>Via</th><th>Action</th><th>Target</th></tr>
+    {{range .Audit}}<tr><td class="muted">{{.Seq}}</td><td>{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td><td>{{.Actor}}</td><td>{{.Via}}</td><td>{{.Action}}</td><td class="muted">{{.Target}}</td></tr>{{end}}</table>
+    {{else}}<p class="muted">No audit entries.</p>{{end}}
   {{else}}
     <h2>Servers</h2>
     {{if .Servers}}<table><tr><th>Name</th><th>Desired</th><th>Observed</th><th>Port</th><th>Node</th><th>ID</th></tr>
@@ -193,5 +207,61 @@ func (s *server) renderHome(w http.ResponseWriter, r *http.Request) {
 	if nodes, _, err := s.opts.Services.Fleet.ListNodes(r.Context(), principal, 200, ""); err == nil {
 		data.Nodes = nodes
 	}
+	data.Degraded = s.degradedReason(data.Nodes)
+	s.writePage(w, data)
+}
+
+// degradedReason explains partial operation instead of hiding it: nodes can be
+// offline while their servers keep running, and a recent panel start means an
+// outage just ended.
+func (s *server) degradedReason(nodes []store.Node) string {
+	now := s.opts.Now()
+	heartbeat := s.opts.Heartbeat
+	if heartbeat <= 0 {
+		heartbeat = 30 * time.Second
+	}
+	offline := 0
+	for _, n := range nodes {
+		if n.RevokedAt != nil {
+			continue
+		}
+		if n.Status != "healthy" || n.LastSeen == nil || now.Sub(*n.LastSeen) > 3*heartbeat {
+			offline++
+		}
+	}
+	var parts []string
+	if offline > 0 {
+		parts = append(parts, fmt.Sprintf("%d node(s) offline: their servers keep running and crash restarts are agent-local; console and mutations resume on reconnect.", offline))
+	}
+	if s.opts.StartedAt.After(now.Add(-10 * time.Minute)) {
+		parts = append(parts, "The panel restarted recently; agents reconnected automatically and servers were not restarted by the panel.")
+	}
+	return strings.Join(parts, " ")
+}
+
+func (s *server) renderAudit(w http.ResponseWriter, r *http.Request) {
+	data := pageData{BasePath: s.base, Page: "audit"}
+	user, ok := s.currentUser(r)
+	if !ok {
+		s.writePage(w, data)
+		return
+	}
+	data.Email = user.Email
+	if s.opts.Services == nil || s.opts.Services.Audit == nil {
+		data.Notice = "The database is not configured; the audit log is unavailable."
+		s.writePage(w, data)
+		return
+	}
+	principal := capability.Principal{UserID: user.ID, OrgID: user.OrgID, Via: "ui"}
+	if scopes, perr := s.opts.Identity.ScopesForUser(r.Context(), user.ID); perr == nil {
+		principal.Scopes = scopes
+	}
+	entries, _, err := s.opts.Services.Audit.List(r.Context(), principal, 200, "")
+	if err != nil {
+		data.Error = "Could not load audit entries: " + err.Error()
+		s.writePage(w, data)
+		return
+	}
+	data.Audit = entries
 	s.writePage(w, data)
 }

@@ -16,7 +16,7 @@ Examples live at [`panel.example.toml`](../../panel.example.toml) and
 | Key | Default | Notes |
 |---|---|---|
 | `listen` | `127.0.0.1:8080` | Address the panel binds. Its host becomes the certificate SAN, so use the name agents dial. |
-| `base_path` | `/` | UI prefix; normalized to a leading and trailing slash (`delphi` → `/delphi/`). |
+| `base_path` | `/` | Prefix for pages, WebSockets, the API, and agent endpoints; normalized to a leading and trailing slash (`delphi` → `/delphi/`). |
 | `database_url` | empty | Postgres DSN. Empty starts the panel but `/readyz` reports unready. |
 | `log_level` | `info` | `debug`, `info`, `warn`, `error`. |
 | `data_dir` | `/var/lib/delphi` | Holds `pki/` (CA, server certificate) and node data. |
@@ -81,8 +81,11 @@ create named users and keys. The CLI reads `DELPHI_API_TOKEN` (or the legacy
 | `GET /healthz` | The process is alive. Always 200 when serving. |
 | `GET /readyz` | 200 when Postgres answers a ping within 2 s, otherwise 503. |
 
-Health endpoints stay at the root even when `base_path` is a subpath; the page and the API
-follow `base_path`.
+Health endpoints stay at the root even when `base_path` is a subpath; pages, WebSockets,
+`/api/v1`, and `/agent/*` follow `base_path`. A reverse proxy may pass the prefix through
+unchanged (`/delphi/...`) or strip it while rewriting links is impossible — pass it through.
+Agents must be configured with a `panel_url` that includes the prefix; enrollment composes
+`<panel_url>/agent/enroll`.
 
 ## AI
 

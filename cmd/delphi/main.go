@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -44,6 +45,7 @@ import (
 	"delphi.dev/delphi/internal/secret"
 	"delphi.dev/delphi/internal/store"
 	"delphi.dev/delphi/internal/template"
+	"delphi.dev/delphi/internal/upgrade"
 	"delphi.dev/delphi/internal/version"
 	"delphi.dev/delphi/internal/wire"
 )
@@ -79,6 +81,10 @@ func main() {
 		err = runAudit(ctx, os.Args[2:])
 	case "init":
 		err = runInit(ctx, os.Args[2:])
+	case "upgrade":
+		err = runUpgrade(ctx, os.Args[2:])
+	case "rollback":
+		err = runRollback(os.Args[2:])
 	case "version":
 		fmt.Println(version.String())
 	case "help", "-h", "--help":
@@ -117,10 +123,66 @@ commands:
   templates import  import a template file
   audit list        recent mutations
   init              write config, create the CA and owner, apply migrations
+  upgrade           replace the binary and keep one rollback slot
+  rollback          restore the previous binary
   version           print the build version
 
 flags are per command; run "delphi <command> -h" for details.
 `)
+}
+
+func runUpgrade(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("upgrade", flag.ContinueOnError)
+	binary := fs.String("binary", "", "new executable to install")
+	dest := fs.String("dest", "", "executable to replace (default: this binary)")
+	if err := parseFlags(fs, args); err != nil {
+		return err
+	}
+	if *binary == "" {
+		return errors.New("upgrade: --binary is required")
+	}
+	target := *dest
+	if target == "" {
+		exe, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		target = exe
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(checkCtx, *binary, "version").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("upgrade: candidate failed its version check: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	backup, err := upgrade.Swap(target, *binary)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("installed %s -> %s\nrollback binary: %s\n", *binary, target, backup)
+	fmt.Println("restart the panel to run the new binary; a database rollback is a separate, forward-only operation")
+	return nil
+}
+
+func runRollback(args []string) error {
+	fs := flag.NewFlagSet("rollback", flag.ContinueOnError)
+	dest := fs.String("dest", "", "executable to restore (default: this binary)")
+	if err := parseFlags(fs, args); err != nil {
+		return err
+	}
+	target := *dest
+	if target == "" {
+		exe, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		target = exe
+	}
+	if err := upgrade.Rollback(target); err != nil {
+		return err
+	}
+	fmt.Printf("restored the previous binary at %s; restart the panel\n", target)
+	return nil
 }
 
 func runPanel(ctx context.Context, args []string) error {

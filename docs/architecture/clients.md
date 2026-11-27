@@ -25,6 +25,12 @@ chokes on live 5k-point series), CodeMirror 6 for configs, Tailwind + shadcn.
   it reconnects and receives the ring. Sequence gaps are rendered as an explicit line.
 - Config editing is a text editor with validation, diff and revision history — no
   JSON-Schema form generation in v1.0. Schema forms are a v1.1 candidate.
+- The fleet page explains degraded operation: a banner names offline nodes and a recent panel
+  restart, states that servers keep running and restarts are agent-local, and the node table
+  shows status and last-seen. Actions stay unavailable while the panel is down; there is no
+  offline write queue.
+- An audit page lists the most recent 200 mutations (seq, time, actor, via, action, target);
+  diff payloads remain on the API.
 - M8 ships a server-scoped file manager page: directory browser, monospace editor with
   Ctrl+S, revision list, unified diff, and restore. The SPA target keeps virtualization and a
   richer editor; the API and revision model are the same. Small writes go

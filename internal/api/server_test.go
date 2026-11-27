@@ -87,6 +87,12 @@ func TestSubpathRouting(t *testing.T) {
 	if rec := get(t, h, "/healthz"); rec.Code != http.StatusOK {
 		t.Fatalf("health under subpath: status = %d, want 200", rec.Code)
 	}
+	if rec := get(t, h, "/delphi/api/v1/nodes"); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("api under subpath: status = %d, want 401", rec.Code)
+	}
+	if rec := get(t, h, "/api/v1/nodes"); rec.Code != http.StatusNotFound {
+		t.Fatalf("unprefixed api: status = %d, want 404", rec.Code)
+	}
 }
 
 func TestUnknownPathIsNotFound(t *testing.T) {

@@ -1,6 +1,6 @@
 # Upgrades
 
-**Status:** design. Panel upgrade/rollback is an M12 exit requirement; signed agent
+**Status:** manual panel upgrade/rollback implemented at M12; signed, health-gated agent
 self-update is v1.1 (M15).
 
 ## Compatibility window
@@ -14,14 +14,22 @@ Upgrade order: **panel first, then agents**, draining each node before its resta
 ## Panel
 
 1. Back up Postgres (and the config file) before any minor upgrade.
-2. Replace the binary; the new process runs migrations at startup.
-3. `GET /readyz` returns healthy before the reverse proxy is pointed at it.
-4. Roll back by restoring the binary **and** the database snapshot — migrations are
-   forward-only (ADR [0019](../decisions/0019-forward-only-migrations.md)), so a binary
+2. Verify and swap the binary: `delphi upgrade --binary ./delphi-new`. The candidate must
+   answer `version`; the current binary is copied to `<exe>.rollback` and the new one is
+   installed atomically. The running process is unaffected.
+3. Restart the panel unit; migrations run through `delphi init --config` (or the deploy
+   procedure), and `GET /readyz` must be healthy before the proxy sends traffic.
+4. Roll back the binary with `delphi rollback`; restore the database snapshot too — migrations
+   are forward-only (ADR [0019](../decisions/0019-forward-only-migrations.md)), so a binary
    rollback without the database is unsupported.
+
+There is no automatic health check or automatic rollback in v1.0: the operator restarts after
+verification. A failed new binary leaves the previous file at `<exe>.rollback`.
 
 A panel restart does not stop servers: agents keep running and reconnect. Console history
 replays from the agent ring buffer; metric history and anything mid-job resume from Postgres.
+The fleet page shows a recent-restart/degraded banner and the node table shows last-seen times,
+so the outage is explained rather than silently forgotten.
 
 ## Agents
 

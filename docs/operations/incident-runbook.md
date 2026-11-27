@@ -1,13 +1,13 @@
 # Incident runbook
 
-**Status:** design · commands are provisional until M5. The point of this page is the
-"what still works" column: the system is built so most incidents do not page anyone.
+**Status:** current at v1.0 (M12). The point of this page is the "what still works" column:
+the system is built so most incidents do not page anyone.
 
 ## What still works
 
 | Failure | Servers | Console | Restart on crash | Alerts | Recovery |
 |---|---|---|---|---|---|
-| Panel down | running | no (agent keeps buffering) | **yes** (agent-local) | no | Start the panel; agents reconnect |
+| Panel down | running | no (UI/API offline; agents buffer console) | **yes** (agent-local, via `<data_dir>/desired.json`) | no | Start the panel; agents reconnect; the UI banner explains the restart |
 | Postgres down | running | **unavailable** — no auth or API; open WS sessions continue until reconnect | yes | no | Restore Postgres; queue resumes |
 | Node unreachable | running | no | yes (if the node is alive) | after N misses | Fix the node; desired state re-converges |
 | Node host dead | down | no | no | yes | Restore on another node **only if the backup target is mounted/networked**; a node-local target dies with the host (S3 at v1.1) |
@@ -17,9 +17,12 @@
 
 ## Panel down
 
-Agents are autonomous: containers keep running, the crash restart policy still executes, and
-console lines buffer in the agent ring buffer. On restart, desired state re-converges and
-nothing is re-executed thanks to job idempotency.
+Agents are autonomous: containers keep running, the crash restart policy still executes from
+the persisted desired set, and console lines buffer in the agent ring buffer. On restart,
+desired state re-converges and running containers are not recreated or restarted. The fleet
+page shows a degraded banner while nodes are offline and for ten minutes after a panel start,
+saying explicitly that servers keep running and restarts are agent-local. UI actions are
+unavailable while the panel is down; there is no offline write queue.
 
 Do **not** restart agents to "fix" a panel outage; that is the one action that can interrupt
 servers.
@@ -46,7 +49,8 @@ operator error.
 ## Disk full
 
 1. Identify: backups, the CAS, or world growth.
-2. The CAS is refcounted and GC-able; a stale artifact set is safe to reclaim.
+2. The CAS is registry-backed and GC-able; a stale artifact set is safe to reclaim. Backups
+   are encrypted archives; deleting one is immediate and irreversible.
 3. Never delete a server directory to free space — export or snapshot first.
 
 ## Failed restore

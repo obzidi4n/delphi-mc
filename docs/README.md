@@ -3,12 +3,11 @@
 The map. Every page here is versioned with the code and changes in the same PR as the
 behavior it describes.
 
-**Status:** M11 landed — cron schedules, agent-owned crash restart with offline desired state,
-crash-loop alerts to sealed webhook/SMTP channels, maintenance windows, and AI
-`create_schedule`, on top of M10 backups, M9 plugins/artifacts, M8 files, M7 approvals, M6
-assistant, M5 bridge, M4 console, M3b templates, the M3a spec-first API, identity/RBAC,
-paginated lists, Team/Groups pages, and the CLI. See
-[`plan/roadmap.md`](plan/roadmap.md).
+**Status:** v1.0 exit (M12) landed — degraded-mode UI, base-path routing through a reverse
+proxy, audit viewer, and manual binary upgrade/rollback, on top of M11 automation, M10
+backups, M9 plugins/artifacts, M8 files, M7 approvals, M6 assistant, M5 bridge, M4 console,
+M3b templates, the M3a spec-first API, identity/RBAC, paginated lists, Team/Groups pages,
+and the CLI. See [`plan/roadmap.md`](plan/roadmap.md).
 
 ## Architecture — what and how
 
