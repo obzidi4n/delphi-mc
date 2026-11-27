@@ -7,7 +7,7 @@ import (
 )
 
 func TestJSONFormats(t *testing.T) {
-	if _, err := Check("server.properties", ""); !errors.Is(err, ErrUnsupported) {
+	if _, err := Check("config.ini", ""); !errors.Is(err, ErrUnsupported) {
 		t.Fatalf("err = %v, want ErrUnsupported", err)
 	}
 	res, err := Check("config.json", `{"a":1,"nested":{"b":true}}`)
@@ -30,6 +30,17 @@ func TestJSONReportsLineAndColumn(t *testing.T) {
 	}
 	if res.Valid || !strings.Contains(res.Error, "line 4") {
 		t.Fatalf("result = %+v, want a line 4 error", res)
+	}
+}
+
+func TestServerPropertiesValidAndInvalid(t *testing.T) {
+	res, err := CheckVersion("server.properties", "online-mode=true\nview-distance=10\n", "1.21.11")
+	if err != nil || !res.Valid || res.Format != "properties" {
+		t.Fatalf("result = %+v, err = %v", res, err)
+	}
+	res, err = CheckVersion("server.properties", "online-mode=perhaps\n", "1.21.11")
+	if err != nil || res.Valid || res.Error == "" {
+		t.Fatalf("result = %+v, err = %v", res, err)
 	}
 }
 

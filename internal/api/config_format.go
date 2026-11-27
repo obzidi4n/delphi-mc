@@ -21,9 +21,13 @@ func (s *server) formatConfigFile(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	result, err := configfmt.Check(body.Path, body.Content)
+	version := ""
+	if body.Version != nil {
+		version = *body.Version
+	}
+	result, err := configfmt.CheckVersion(body.Path, body.Content, version)
 	if errors.Is(err, configfmt.ErrUnsupported) {
-		writeProblem(w, http.StatusBadRequest, "unsupported_config", "path must end in .json, .yaml, .yml, or .toml")
+		writeProblem(w, http.StatusBadRequest, "unsupported_config", "path must be server.properties or end in .json, .yaml, .yml, or .toml")
 		return
 	}
 	if err != nil {
@@ -31,6 +35,7 @@ func (s *server) formatConfigFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, apitypes.ConfigFormatDTO{
-		Format: result.Format, Valid: result.Valid, Error: result.Error, Formatted: result.Formatted,
+		Format: result.Format, Valid: result.Valid, Error: result.Error,
+		Warning: new(result.Warning), Formatted: result.Formatted,
 	})
 }

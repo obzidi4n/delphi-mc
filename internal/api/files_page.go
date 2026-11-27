@@ -1,15 +1,20 @@
 package api
 
 import (
+	"encoding/json"
 	"html/template"
 	"net/http"
+
+	"delphi.dev/delphi/internal/serverprops"
 )
 
 type filesPage struct {
-	BasePath string
-	Email    string
-	ID       string
-	Name     string
+	BasePath       string
+	Email          string
+	ID             string
+	Name           string
+	Version        string
+	PropertiesJSON template.JS
 }
 
 func (s *server) renderFiles(w http.ResponseWriter, r *http.Request) {
@@ -26,11 +31,16 @@ func (s *server) renderFiles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	properties, err := json.Marshal(serverprops.Reference(srv.MCVersion))
+	if err != nil {
+		properties = []byte("[]")
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	_ = filesTemplate.Execute(w, filesPage{
 		BasePath: s.base, Email: user.Email, ID: srv.ID, Name: srv.Name,
+		Version: srv.MCVersion, PropertiesJSON: template.JS(properties),
 	})
 }
 
@@ -75,7 +85,17 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
  .lintbar{height:2.1rem;box-sizing:border-box;display:flex;align-items:center;padding:0 .8rem;border-bottom:1px solid #21262d;background:#010409;color:#8b949e;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .lintbar.ok{color:#3fb950;background:#0d1b12;border-bottom-color:#238636}
  .lintbar.err{color:#ff7b72;background:#2d0f10;border-bottom-color:#6e2c2c}
-</style></head><body data-id="{{.ID}}" data-base="{{.BasePath}}">
+ .lintbar.warn{color:#e3b341;background:#221a06;border-bottom-color:#9e6a03}
+ .props{border-bottom:1px solid #21262d;padding-bottom:.5rem;margin-bottom:.5rem}
+ .props input{width:100%;background:#010409;border:1px solid #30363d;border-radius:.35rem;color:inherit;padding:.25rem .45rem;font:inherit;margin-bottom:.4rem}
+ .propsList{max-height:22rem;overflow:auto}
+ .prop{padding:.3rem 0;border-bottom:1px solid #161b22}
+ .prop:last-child{border-bottom:0}
+ .prop code{color:#79c0ff;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+ .prop .ptype{color:#6e7681;font-size:.7rem;margin-left:.3rem}
+ .prop .pdesc{font-size:.76rem;line-height:1.35;margin:.12rem 0;color:#c9d1d9}
+ .prop .pmeta{font-size:.68rem;line-height:1.35;color:#6e7681}
+</style></head><body data-id="{{.ID}}" data-base="{{.BasePath}}" data-version="{{.Version}}">
 <header>
   <a href="{{.BasePath}}">&larr; Fleet</a>
   <a href="{{.BasePath}}servers/{{.ID}}">Console</a>
@@ -83,6 +103,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   <h1>{{.Name}} · Files</h1>
   <span style="flex:1"></span><span class="status">{{.Email}}</span>
 </header>
+<script type="application/json" id="propertiesReference">{{.PropertiesJSON}}</script>
 <main>
   <aside>
     <div class="crumbs" id="crumbs"></div>
@@ -96,7 +117,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
       <button id="diffBtn" disabled>Diff latest</button>
       <span class="status" id="status"></span>
     </div>
-    <div class="lintbar" id="lintbar">Open a .json, .yaml, .yml, or .toml file to lint.</div>
+    <div class="lintbar" id="lintbar">Open server.properties or a .json, .yaml, .yml, or .toml file to lint.</div>
     <div class="editorwrap" id="editorWrap">
       <div class="gutter" id="lineNumbers" aria-hidden="true">1</div>
       <textarea id="editor" spellcheck="false" wrap="off" placeholder="Open a file from the list, or type a path and press Open."></textarea>
@@ -104,6 +125,11 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     <pre id="diff"></pre>
   </section>
   <div class="revs">
+    <div class="props" id="propsRef" style="display:none">
+      <h2>server.properties <span id="propsVersion"></span></h2>
+      <input id="propsFilter" placeholder="Filter properties">
+      <div class="propsList" id="propsList"></div>
+    </div>
     <h2>Revisions</h2>
     <div id="revisions"><p class="status">Open a file to see its revisions.</p></div>
   </div>
@@ -113,7 +139,12 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   'use strict';
   var base = document.body.dataset.base || '/';
   var id = document.body.dataset.id;
+  var version = document.body.dataset.version || '';
   var api = base + 'api/v1/servers/' + encodeURIComponent(id) + '/files';
+  var propertiesReference = [];
+  try {
+    propertiesReference = JSON.parse(document.getElementById('propertiesReference').textContent || '[]');
+  } catch (e) { propertiesReference = []; }
   var listEl = document.getElementById('list');
   var crumbsEl = document.getElementById('crumbs');
   var pathInput = document.getElementById('path');
@@ -126,6 +157,10 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   var editorWrap = document.getElementById('editorWrap');
   var lineNumbers = document.getElementById('lineNumbers');
   var lintbar = document.getElementById('lintbar');
+  var propsRef = document.getElementById('propsRef');
+  var propsList = document.getElementById('propsList');
+  var propsFilter = document.getElementById('propsFilter');
+  var propsVersion = document.getElementById('propsVersion');
   var dir = '';
   var currentPath = '';
   var currentSHA = '';
@@ -153,15 +188,66 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     lineNumbers.style.width = (String(count).length + 3) + 'ch';
     lineNumbers.scrollTop = editor.scrollTop;
   }
+  function isServerProperties(path) {
+    return String(path || '').split('/').pop() === 'server.properties';
+  }
   function configKind(path) {
+    if (isServerProperties(path)) { return 'properties'; }
     var m = /\.([A-Za-z0-9]+)$/.exec(path || '');
     if (!m) { return ''; }
     var ext = m[1].toLowerCase();
     if (ext === 'yml') { return 'yaml'; }
     return ext === 'yaml' || ext === 'json' || ext === 'toml' ? ext : '';
   }
+  function renderProperties(filter) {
+    var q = String(filter || '').toLowerCase();
+    var shown = 0;
+    propsList.textContent = '';
+    propertiesReference.forEach(function (key) {
+      var hay = (key.name + ' ' + key.description + ' ' + (key.allowed || '')).toLowerCase();
+      if (q && hay.indexOf(q) < 0) { return; }
+      shown++;
+      var box = document.createElement('div');
+      box.className = 'prop';
+      var head = document.createElement('div');
+      var code = document.createElement('code');
+      code.textContent = key.name;
+      var typ = document.createElement('span');
+      typ.className = 'ptype';
+      typ.textContent = key.type + (key.since ? ' · since ' + key.since : '');
+      head.appendChild(code);
+      head.appendChild(typ);
+      var desc = document.createElement('div');
+      desc.className = 'pdesc';
+      desc.textContent = key.description || '';
+      var meta = document.createElement('div');
+      meta.className = 'pmeta';
+      meta.textContent = 'Default: ' + (key.default || '(empty)') +
+        (key.allowed ? ' · Allowed: ' + key.allowed : '');
+      box.appendChild(head);
+      box.appendChild(desc);
+      box.appendChild(meta);
+      propsList.appendChild(box);
+    });
+    if (!shown) {
+      var empty = document.createElement('p');
+      empty.className = 'status';
+      empty.textContent = propertiesReference.length ? 'No matching properties.' : 'No reference data for this server version.';
+      propsList.appendChild(empty);
+    }
+  }
+  function showProperties(path) {
+    if (!isServerProperties(path)) {
+      propsRef.style.display = 'none';
+      return;
+    }
+    propsRef.style.display = 'block';
+    propsVersion.textContent = version ? '· Minecraft ' + version : '· version unknown';
+    propsFilter.value = '';
+    renderProperties('');
+  }
   function clearLint() {
-    lintbar.textContent = currentPath ? 'Not a config file.' : 'Open a .json, .yaml, .yml, or .toml file to lint.';
+    lintbar.textContent = currentPath ? 'Not a config file.' : 'Open server.properties or a .json, .yaml, .yml, or .toml file to lint.';
     lintbar.className = 'lintbar';
     lintbar.title = '';
     if (currentPath) { saveBtn.disabled = false; }
@@ -170,8 +256,11 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     if (!result) { clearLint(); return; }
     var valid = !!result.valid;
     var kind = (result.format || configKind(currentPath) || 'config').toUpperCase();
-    lintbar.textContent = valid ? kind + ' valid' : kind + ' error: ' + (result.error || 'invalid ' + kind);
-    lintbar.className = 'lintbar ' + (valid ? 'ok' : 'err');
+    var warning = valid ? (result.warning || '') : '';
+    lintbar.textContent = valid
+      ? (warning ? kind + ' warning: ' + warning : kind + ' valid')
+      : kind + ' error: ' + (result.error || 'invalid ' + kind);
+    lintbar.className = 'lintbar ' + (warning ? 'warn' : valid ? 'ok' : 'err');
     lintbar.title = lintbar.textContent;
     saveBtn.disabled = !valid;
   }
@@ -180,7 +269,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
       var res = await fetch(base + 'api/v1/config/format', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path: path, content: content })
+        body: JSON.stringify({ path: path, content: content, version: version })
       });
       if (!res.ok) {
         return { format: configKind(path), valid: false, error: 'lint failed: HTTP ' + res.status + ' ' + (await res.text()).slice(0, 300) };
@@ -270,6 +359,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
       note.textContent = 'New file (nothing stored yet).';
       revisionsEl.appendChild(note);
       showEditor();
+      showProperties(path);
       if (configKind(path)) {
         var emptyLint = await checkConfig(path, '');
         if (seq !== openSeq) { return; }
@@ -301,6 +391,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     dirty = false;
     diffBtn.disabled = true;
     showEditor();
+    showProperties(path);
     if (lint) { applyLint(lint); } else { clearLint(); }
     setStatus('loaded ' + path + ' (' + data.size + ' B)' +
       (content !== data.content ? ' · JSON formatted' : ''));
@@ -421,6 +512,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     if (path) { openFile(path); }
   });
   saveBtn.addEventListener('click', save);
+  propsFilter.addEventListener('input', function () { renderProperties(propsFilter.value); });
   diffBtn.addEventListener('click', function () {
     if (latestRevision >= 2) { showDiff(latestRevision - 1, latestRevision); }
   });
@@ -449,6 +541,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     }
   });
   renderLineNumbers();
+  showProperties('');
   loadDir('');
 })();
 </script>

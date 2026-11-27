@@ -9,11 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 	"gopkg.in/yaml.v3"
+
+	"delphi.dev/delphi/internal/serverprops"
 )
 
 // ErrUnsupported means the path is not one of the supported config formats.
@@ -25,12 +28,27 @@ type Result struct {
 	Format    string `json:"format"`
 	Valid     bool   `json:"valid"`
 	Error     string `json:"error"`
+	Warning   string `json:"warning"`
 	Formatted string `json:"formatted"`
 }
 
 // Check validates path's content by extension and pretty-prints JSON.
 func Check(path, content string) (Result, error) {
-	switch strings.ToLower(filepath.Ext(path)) {
+	return CheckVersion(path, content, "")
+}
+
+// CheckVersion validates path's content with an optional Minecraft version for
+// server.properties.
+func CheckVersion(file, content, version string) (Result, error) {
+	if path.Base(file) == "server.properties" {
+		res := serverprops.Validate(content, version)
+		return Result{
+			Format: "properties", Valid: res.Valid,
+			Error: strings.Join(res.Errors, "; "), Warning: strings.Join(res.Warnings, "; "),
+			Formatted: content,
+		}, nil
+	}
+	switch strings.ToLower(filepath.Ext(file)) {
 	case ".json":
 		return checkJSON(content), nil
 	case ".yaml", ".yml":

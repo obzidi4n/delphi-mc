@@ -190,16 +190,18 @@ type ChatRequestDTO struct {
 
 // ConfigFormatDTO is generated from the spec.
 type ConfigFormatDTO struct {
-	Error     string `json:"error"`
-	Format    string `json:"format"`
-	Formatted string `json:"formatted"`
-	Valid     bool   `json:"valid"`
+	Error     string  `json:"error"`
+	Format    string  `json:"format"`
+	Formatted string  `json:"formatted"`
+	Valid     bool    `json:"valid"`
+	Warning   *string `json:"warning,omitempty"`
 }
 
 // ConfigFormatRequest is generated from the spec.
 type ConfigFormatRequest struct {
-	Content string `json:"content"`
-	Path    string `json:"path"`
+	Content string  `json:"content"`
+	Path    string  `json:"path"`
+	Version *string `json:"version,omitempty"`
 }
 
 // ConversationDTO is generated from the spec.

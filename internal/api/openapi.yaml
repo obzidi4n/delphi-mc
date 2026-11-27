@@ -1713,6 +1713,7 @@ components:
       properties:
         path: { type: string }
         content: { type: string }
+        version: { type: string }
     ConfigFormatDTO:
       type: object
       required: [format, valid, error, formatted]
@@ -1720,6 +1721,7 @@ components:
         format: { type: string }
         valid: { type: boolean }
         error: { type: string }
+        warning: { type: string }
         formatted: { type: string }
     FileEntryDTO:
       type: object

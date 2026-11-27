@@ -63,9 +63,30 @@ func TestConfigFormatRejectsUnknownExtension(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec := postConfigFormat(t, h, `{"path":"server.properties","content":"x"}`)
+	rec := postConfigFormat(t, h, `{"path":"server.ini","content":"x"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestConfigFormatServerPropertiesUsesVersion(t *testing.T) {
+	h, err := api.New(api.Options{AdminToken: "secret", Now: time.Now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := postConfigFormat(t, h, `{"path":"server.properties","content":"pvp=true\nview-distance=99\n","version":"1.21.11"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	var got apitypes.ConfigFormatDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Valid || got.Format != "properties" || got.Error == "" {
+		t.Fatalf("result = %+v", got)
+	}
+	if got.Warning == nil || !strings.Contains(*got.Warning, "removed") {
+		t.Fatalf("warning = %v", got.Warning)
 	}
 }
 
