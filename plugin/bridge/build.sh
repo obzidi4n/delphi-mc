@@ -23,6 +23,6 @@ mkdir -p "$HERE/build"
 javac --release 21 -cp "$CP" -d "$HERE/build" "$HERE"/src/dev/delphi/bridge/*.java
 cp "$HERE/plugin.yml" "$HERE/build/"
 (cd "$HERE/build" && jar cf ../DelphiBridge.jar .)
-mkdir -p "$HERE/../internal/agent/bridge"
-cp "$HERE/DelphiBridge.jar" "$HERE/../internal/agent/bridge/DelphiBridge.jar"
+mkdir -p "$HERE/../../internal/agent/bridge"
+cp "$HERE/DelphiBridge.jar" "$HERE/../../internal/agent/bridge/DelphiBridge.jar"
 echo "built $HERE/DelphiBridge.jar"
