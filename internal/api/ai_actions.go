@@ -19,14 +19,17 @@ import (
 type AuditFunc func(ctx context.Context, orgID, actor, via, action, target string, diff any) error
 
 // NewActionExecutor previews and performs approved AI actions.
-func NewActionExecutor(services *capability.Services, hub *Hub, audit AuditFunc) ai.ActionExecutor {
-	return &actionExecutor{services: services, hub: hub, audit: audit}
+func NewActionExecutor(services *capability.Services, hub *Hub, audit AuditFunc, files *FileService) ai.ActionExecutor {
+	return &actionExecutor{services: services, hub: hub, audit: audit, files: files}
 }
+
+const maxEditableFile = 1 << 20
 
 type actionExecutor struct {
 	services *capability.Services
 	hub      *Hub
 	audit    AuditFunc
+	files    *FileService
 }
 
 func (e *actionExecutor) resolve(ctx context.Context, p capability.Principal, ref string) (store.Server, error) {
@@ -154,6 +157,30 @@ func (e *actionExecutor) Preview(ctx context.Context, p capability.Principal, to
 			Tool: "run_command", Summary: fmt.Sprintf("run %q on %s", command, srv.Name),
 			ServerID: srv.ID, ServerName: srv.Name, Command: command,
 		}}, nil
+	case "write_file":
+		var in struct {
+			Server  string `json:"server"`
+			Path    string `json:"path"`
+			Content string `json:"content"`
+		}
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, fmt.Errorf("invalid arguments: %w", err)
+		}
+		path := strings.TrimSpace(in.Path)
+		if path == "" || len(path) > 255 || strings.HasPrefix(path, "/") || strings.Contains(path, "..") {
+			return nil, fmt.Errorf("path must be a relative path inside the server directory")
+		}
+		if len(in.Content) > maxEditableFile {
+			return nil, fmt.Errorf("content is larger than %d bytes", maxEditableFile)
+		}
+		srv, err := e.resolve(ctx, p, in.Server)
+		if err != nil {
+			return nil, err
+		}
+		return []ai.Action{{
+			Tool: "write_file", Summary: fmt.Sprintf("write %s on %s (%d bytes)", path, srv.Name, len(in.Content)),
+			ServerID: srv.ID, ServerName: srv.Name, Path: path, Content: in.Content,
+		}}, nil
 	case "moderate_player":
 		var in struct {
 			Action string `json:"action"`
@@ -226,6 +253,22 @@ func (e *actionExecutor) Execute(ctx context.Context, p capability.Principal, ac
 			return "", err
 		}
 		out = "command queued for " + srv.Name
+	case "write_file":
+		if e.files == nil {
+			return "", fmt.Errorf("the file manager is not configured")
+		}
+		srv, err := e.resolve(ctx, p, action.ServerID)
+		if err != nil {
+			return "", err
+		}
+		if !auth.Allows(p.Scopes, "server:"+srv.ID+":update") {
+			return "", fmt.Errorf("missing scope server:%s:update", srv.ID)
+		}
+		_, revision, err := e.files.Write(ctx, p, srv, action.Path, action.Content, "", "file.write")
+		if err != nil {
+			return "", err
+		}
+		out = fmt.Sprintf("wrote %s (revision %d)", action.Path, revision)
 	case "moderate_player":
 		srv, err := e.resolve(ctx, p, action.ServerID)
 		if err != nil {

@@ -19,6 +19,8 @@ type Action struct {
 	ServerName string `json:"server_name,omitempty"`
 	Action     string `json:"action,omitempty"`
 	Command    string `json:"command,omitempty"`
+	Path       string `json:"path,omitempty"`
+	Content    string `json:"content,omitempty"`
 	Player     string `json:"player,omitempty"`
 	Reason     string `json:"reason,omitempty"`
 	TemplateID string `json:"template_id,omitempty"`
@@ -68,10 +70,11 @@ type ApprovalStore interface {
 }
 
 var (
-	powerSchema    = json.RawMessage(`{"type":"object","properties":{"action":{"type":"string","enum":["start","stop","restart","kill"]},"server":{"type":"string"},"group":{"type":"string"}},"required":["action"]}`)
-	createSchema   = json.RawMessage(`{"type":"object","properties":{"template":{"type":"string"},"name":{"type":"string"},"node":{"type":"string"},"memory_mb":{"type":"integer"},"port":{"type":"integer"},"desired_state":{"type":"string"}},"required":["template","name","node"]}`)
-	runSchema      = json.RawMessage(`{"type":"object","properties":{"server":{"type":"string"},"command":{"type":"string"}},"required":["server","command"]}`)
-	moderateSchema = json.RawMessage(`{"type":"object","properties":{"action":{"type":"string","enum":["kick","ban"]},"server":{"type":"string"},"player":{"type":"string"},"reason":{"type":"string"}},"required":["action","server","player"]}`)
+	powerSchema     = json.RawMessage(`{"type":"object","properties":{"action":{"type":"string","enum":["start","stop","restart","kill"]},"server":{"type":"string"},"group":{"type":"string"}},"required":["action"]}`)
+	createSchema    = json.RawMessage(`{"type":"object","properties":{"template":{"type":"string"},"name":{"type":"string"},"node":{"type":"string"},"memory_mb":{"type":"integer"},"port":{"type":"integer"},"desired_state":{"type":"string"}},"required":["template","name","node"]}`)
+	runSchema       = json.RawMessage(`{"type":"object","properties":{"server":{"type":"string"},"command":{"type":"string"}},"required":["server","command"]}`)
+	moderateSchema  = json.RawMessage(`{"type":"object","properties":{"action":{"type":"string","enum":["kick","ban"]},"server":{"type":"string"},"player":{"type":"string"},"reason":{"type":"string"}},"required":["action","server","player"]}`)
+	writeFileSchema = json.RawMessage(`{"type":"object","properties":{"server":{"type":"string"},"path":{"type":"string"},"content":{"type":"string"}},"required":["server","path","content"]}`)
 )
 
 // writeTools are proposed to the model; the service pauses for approval
@@ -87,6 +90,10 @@ func writeTools() []Tool {
 				return ToolResult{}, fmt.Errorf("approval required")
 			}},
 		{Name: "run_command", Write: true, Description: "Propose a console command for a server. Requires approval.", Parameters: runSchema,
+			Run: func(context.Context, capability.Principal, json.RawMessage) (ToolResult, error) {
+				return ToolResult{}, fmt.Errorf("approval required")
+			}},
+		{Name: "write_file", Write: true, Description: "Propose writing a text file under the server directory. Requires approval.", Parameters: writeFileSchema,
 			Run: func(context.Context, capability.Principal, json.RawMessage) (ToolResult, error) {
 				return ToolResult{}, fmt.Errorf("approval required")
 			}},

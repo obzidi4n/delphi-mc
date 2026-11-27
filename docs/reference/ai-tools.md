@@ -31,6 +31,9 @@ everything but `search_docs` from a principal without org read.
 | `power(action, server \| group)` | Propose start/stop/restart/kill; a group expands to member servers | `server:<id>:power` per target | action, server or group |
 | `run_command(server, command)` | Propose a console command through the bridge | `server:<id>:moderate` | server, command (≤512) |
 | `moderate_player(action, server, player, reason)` | Propose kick/ban through the bridge | `server:<id>:moderate` | action, server, player, reason |
+| `write_file(server, path, content)` | Propose writing a text file; records a revision | `server:<id>:update` | server, path, content (≤1 MiB) |
+
+Ten registered tools in total (five read, five approval-gated).
 
 Calling a write tool creates a pending approval, not a mutation. The user approves or rejects
 the card; approval executes as that user with their current scopes, then the model resumes

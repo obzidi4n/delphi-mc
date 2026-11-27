@@ -25,7 +25,9 @@ chokes on live 5k-point series), CodeMirror 6 for configs, Tailwind + shadcn.
   it reconnects and receives the ring. Sequence gaps are rendered as an explicit line.
 - Config editing is a text editor with validation, diff and revision history — no
   JSON-Schema form generation in v1.0. Schema forms are a v1.1 candidate.
-- Virtualized file manager; the diff view is shared with AI approval cards. Small writes go
+- M8 ships a server-scoped file manager page: directory browser, monospace editor with
+  Ctrl+S, revision list, unified diff, and restore. The SPA target keeps virtualization and a
+  richer editor; the API and revision model are the same. Small writes go
   inline through `write_file`; uploads above a small threshold use `POST /artifacts` and the
   blob path, so no file body rides a WebSocket frame.
 - Serves under a configurable base path (`/delphi/`) with a matching WS path, so it can sit

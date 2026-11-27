@@ -34,6 +34,7 @@ docs_chunks      (path, ordinal, heading, content, tsv)       # GIN FTS, replace
 docs_meta        (id=1, hash)
 ai_approvals     (id, org_id, user_id, conversation_id, status, plan jsonb, results jsonb,
                   created_at, decided_at, executed_at)
+file_revisions   (id, org_id, server_id, path, revision, content, sha256, author, created_at)
 plugins          (server_id, project, provider, installed_version, installed_hash,
                   previous_version, previous_hash, pinned_version, policy)
 file_revisions   (server_id, path, revision, sha256, author, via, created_at)

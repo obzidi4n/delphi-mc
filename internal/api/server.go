@@ -38,6 +38,7 @@ type Options struct {
 	Services   *capability.Services
 	Console    *ConsoleHub
 	AI         *ai.Service
+	Files      *FileService
 	Identity   IdentityStore
 	AdminToken string
 	CA         *pki.CA
@@ -102,6 +103,7 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("POST "+s.base+"team", s.createUserForm)
 	mux.HandleFunc("POST "+s.base+"team/{id}/role", s.setUserRoleForm)
 	mux.HandleFunc("GET "+s.base+"servers/{id}", s.renderConsole)
+	mux.HandleFunc("GET "+s.base+"servers/{id}/files", s.renderFiles)
 	mux.HandleFunc("GET "+s.base+"groups", s.renderGroups)
 	mux.HandleFunc("POST "+s.base+"groups", s.createGroupForm)
 	mux.HandleFunc("POST "+s.base+"groups/{id}/members", s.addGroupMemberForm)
@@ -138,6 +140,14 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("GET /api/v1/ai/approvals", s.listAIApprovals)
 	mux.HandleFunc("POST /api/v1/ai/approvals/{id}/approve", s.approveAIPlan)
 	mux.HandleFunc("POST /api/v1/ai/approvals/{id}/reject", s.rejectAIPlan)
+
+	mux.HandleFunc("GET /api/v1/servers/{id}/files", s.listFiles)
+	mux.HandleFunc("GET /api/v1/servers/{id}/files/content", s.readFile)
+	mux.HandleFunc("PUT /api/v1/servers/{id}/files/content", s.writeFile)
+	mux.HandleFunc("GET /api/v1/servers/{id}/files/revisions", s.listFileRevisions)
+	mux.HandleFunc("GET /api/v1/servers/{id}/files/revisions/{rev}", s.getFileRevision)
+	mux.HandleFunc("POST /api/v1/servers/{id}/files/rollback", s.rollbackFile)
+	mux.HandleFunc("GET /api/v1/servers/{id}/files/diff", s.diffFile)
 
 	mux.HandleFunc("GET /api/v1/servers/{id}/metrics", s.getServerMetrics)
 	mux.HandleFunc("GET /api/v1/servers/{id}/bridge", s.getServerBridge)

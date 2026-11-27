@@ -93,11 +93,11 @@ func (c *Client) do(ctx context.Context, method, path string, q url.Values, body
 
 // POST /agent/enroll
 func (c *Client) EnrollNode(ctx context.Context, body apitypes.EnrollRequest) (*apitypes.EnrollResponse, error) {
-	path := "/agent" + "/enroll"
+	reqPath := "/agent" + "/enroll"
 	var q url.Values
 
 	var out apitypes.EnrollResponse
-	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -107,12 +107,12 @@ func (c *Client) EnrollNode(ctx context.Context, body apitypes.EnrollRequest) (*
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ListAIApprovals(ctx context.Context, conversationID string) (*apitypes.AIApprovalListDTO, error) {
-	path := "/api" + "/v1" + "/ai" + "/approvals"
+	reqPath := "/api" + "/v1" + "/ai" + "/approvals"
 	q := url.Values{}
 	q.Set("conversation_id", conversationID)
 
 	var out apitypes.AIApprovalListDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -122,44 +122,44 @@ func (c *Client) ListAIApprovals(ctx context.Context, conversationID string) (*a
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ApproveAIPlan(ctx context.Context, id string) error {
-	path := "/api" + "/v1" + "/ai" + "/approvals" + "/" + url.PathEscape(id) + "/approve"
+	reqPath := "/api" + "/v1" + "/ai" + "/approvals" + "/" + url.PathEscape(fmt.Sprint(id)) + "/approve"
 	var q url.Values
 
-	return c.do(ctx, "POST", path, q, nil, nil)
+	return c.do(ctx, "POST", reqPath, q, nil, nil)
 }
 
 // POST /api/v1/ai/approvals/{id}/reject
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) RejectAIPlan(ctx context.Context, id string) error {
-	path := "/api" + "/v1" + "/ai" + "/approvals" + "/" + url.PathEscape(id) + "/reject"
+	reqPath := "/api" + "/v1" + "/ai" + "/approvals" + "/" + url.PathEscape(fmt.Sprint(id)) + "/reject"
 	var q url.Values
 
-	return c.do(ctx, "POST", path, q, nil, nil)
+	return c.do(ctx, "POST", reqPath, q, nil, nil)
 }
 
 // POST /api/v1/ai/chat
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ChatWithAI(ctx context.Context, body apitypes.ChatRequestDTO) error {
-	path := "/api" + "/v1" + "/ai" + "/chat"
+	reqPath := "/api" + "/v1" + "/ai" + "/chat"
 	var q url.Values
 
-	return c.do(ctx, "POST", path, q, body, nil)
+	return c.do(ctx, "POST", reqPath, q, body, nil)
 }
 
 // GET /api/v1/ai/conversations
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ListAIConversations(ctx context.Context, limit *int64) (*apitypes.ConversationListDTO, error) {
-	path := "/api" + "/v1" + "/ai" + "/conversations"
+	reqPath := "/api" + "/v1" + "/ai" + "/conversations"
 	q := url.Values{}
 	if limit != nil {
 		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
 	}
 
 	var out apitypes.ConversationListDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -169,11 +169,11 @@ func (c *Client) ListAIConversations(ctx context.Context, limit *int64) (*apityp
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) GetAIConversation(ctx context.Context, id string) (*apitypes.ConversationDetailDTO, error) {
-	path := "/api" + "/v1" + "/ai" + "/conversations" + "/" + url.PathEscape(id)
+	reqPath := "/api" + "/v1" + "/ai" + "/conversations" + "/" + url.PathEscape(fmt.Sprint(id))
 	var q url.Values
 
 	var out apitypes.ConversationDetailDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -183,11 +183,11 @@ func (c *Client) GetAIConversation(ctx context.Context, id string) (*apitypes.Co
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) GetAIStatus(ctx context.Context) (*apitypes.AIStatusDTO, error) {
-	path := "/api" + "/v1" + "/ai" + "/status"
+	reqPath := "/api" + "/v1" + "/ai" + "/status"
 	var q url.Values
 
 	var out apitypes.AIStatusDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -197,11 +197,11 @@ func (c *Client) GetAIStatus(ctx context.Context) (*apitypes.AIStatusDTO, error)
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) CreateAPIKey(ctx context.Context, body apitypes.APIKeyRequest) (*apitypes.APIKeyCreatedDTO, error) {
-	path := "/api" + "/v1" + "/api-keys"
+	reqPath := "/api" + "/v1" + "/api-keys"
 	var q url.Values
 
 	var out apitypes.APIKeyCreatedDTO
-	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -211,7 +211,7 @@ func (c *Client) CreateAPIKey(ctx context.Context, body apitypes.APIKeyRequest) 
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ListAudit(ctx context.Context, limit *int64, after *string) (*apitypes.AuditListDTO, error) {
-	path := "/api" + "/v1" + "/audit"
+	reqPath := "/api" + "/v1" + "/audit"
 	q := url.Values{}
 	if limit != nil {
 		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
@@ -221,7 +221,7 @@ func (c *Client) ListAudit(ctx context.Context, limit *int64, after *string) (*a
 	}
 
 	var out apitypes.AuditListDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -231,11 +231,11 @@ func (c *Client) ListAudit(ctx context.Context, limit *int64, after *string) (*a
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) CreateEnrollmentToken(ctx context.Context, body apitypes.EnrollmentTokenRequest) (*apitypes.EnrollmentTokenDTO, error) {
-	path := "/api" + "/v1" + "/enrollment-tokens"
+	reqPath := "/api" + "/v1" + "/enrollment-tokens"
 	var q url.Values
 
 	var out apitypes.EnrollmentTokenDTO
-	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -245,7 +245,7 @@ func (c *Client) CreateEnrollmentToken(ctx context.Context, body apitypes.Enroll
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ListGroups(ctx context.Context, limit *int64, after *string) (*apitypes.GroupListDTO, error) {
-	path := "/api" + "/v1" + "/groups"
+	reqPath := "/api" + "/v1" + "/groups"
 	q := url.Values{}
 	if limit != nil {
 		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
@@ -255,7 +255,7 @@ func (c *Client) ListGroups(ctx context.Context, limit *int64, after *string) (*
 	}
 
 	var out apitypes.GroupListDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -265,11 +265,11 @@ func (c *Client) ListGroups(ctx context.Context, limit *int64, after *string) (*
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) CreateGroup(ctx context.Context, body apitypes.GroupCreateRequest) (*apitypes.GroupDTO, error) {
-	path := "/api" + "/v1" + "/groups"
+	reqPath := "/api" + "/v1" + "/groups"
 	var q url.Values
 
 	var out apitypes.GroupDTO
-	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -279,7 +279,7 @@ func (c *Client) CreateGroup(ctx context.Context, body apitypes.GroupCreateReque
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ListGroupMembers(ctx context.Context, id string, limit *int64, after *string) (*apitypes.MemberListDTO, error) {
-	path := "/api" + "/v1" + "/groups" + "/" + url.PathEscape(id) + "/members"
+	reqPath := "/api" + "/v1" + "/groups" + "/" + url.PathEscape(fmt.Sprint(id)) + "/members"
 	q := url.Values{}
 	if limit != nil {
 		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
@@ -289,7 +289,7 @@ func (c *Client) ListGroupMembers(ctx context.Context, id string, limit *int64, 
 	}
 
 	var out apitypes.MemberListDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -299,27 +299,27 @@ func (c *Client) ListGroupMembers(ctx context.Context, id string, limit *int64, 
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) AddGroupMember(ctx context.Context, id string, body apitypes.MemberRequest) error {
-	path := "/api" + "/v1" + "/groups" + "/" + url.PathEscape(id) + "/members"
+	reqPath := "/api" + "/v1" + "/groups" + "/" + url.PathEscape(fmt.Sprint(id)) + "/members"
 	var q url.Values
 
-	return c.do(ctx, "POST", path, q, body, nil)
+	return c.do(ctx, "POST", reqPath, q, body, nil)
 }
 
 // DELETE /api/v1/groups/{id}/members/{server_id}
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) RemoveGroupMember(ctx context.Context, id string, serverID string) error {
-	path := "/api" + "/v1" + "/groups" + "/" + url.PathEscape(id) + "/members" + "/" + url.PathEscape(serverID)
+	reqPath := "/api" + "/v1" + "/groups" + "/" + url.PathEscape(fmt.Sprint(id)) + "/members" + "/" + url.PathEscape(fmt.Sprint(serverID))
 	var q url.Values
 
-	return c.do(ctx, "DELETE", path, q, nil, nil)
+	return c.do(ctx, "DELETE", reqPath, q, nil, nil)
 }
 
 // GET /api/v1/nodes
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ListNodes(ctx context.Context, limit *int64, after *string) (*apitypes.NodeListDTO, error) {
-	path := "/api" + "/v1" + "/nodes"
+	reqPath := "/api" + "/v1" + "/nodes"
 	q := url.Values{}
 	if limit != nil {
 		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
@@ -329,7 +329,7 @@ func (c *Client) ListNodes(ctx context.Context, limit *int64, after *string) (*a
 	}
 
 	var out apitypes.NodeListDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -339,17 +339,17 @@ func (c *Client) ListNodes(ctx context.Context, limit *int64, after *string) (*a
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) RevokeNode(ctx context.Context, id string) error {
-	path := "/api" + "/v1" + "/nodes" + "/" + url.PathEscape(id) + "/revoke"
+	reqPath := "/api" + "/v1" + "/nodes" + "/" + url.PathEscape(fmt.Sprint(id)) + "/revoke"
 	var q url.Values
 
-	return c.do(ctx, "POST", path, q, nil, nil)
+	return c.do(ctx, "POST", reqPath, q, nil, nil)
 }
 
 // GET /api/v1/servers
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ListServers(ctx context.Context, limit *int64, after *string) (*apitypes.ServerListDTO, error) {
-	path := "/api" + "/v1" + "/servers"
+	reqPath := "/api" + "/v1" + "/servers"
 	q := url.Values{}
 	if limit != nil {
 		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
@@ -359,7 +359,7 @@ func (c *Client) ListServers(ctx context.Context, limit *int64, after *string) (
 	}
 
 	var out apitypes.ServerListDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -369,11 +369,11 @@ func (c *Client) ListServers(ctx context.Context, limit *int64, after *string) (
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) CreateServer(ctx context.Context, body apitypes.ServerCreateRequest) (*apitypes.ServerDTO, error) {
-	path := "/api" + "/v1" + "/servers"
+	reqPath := "/api" + "/v1" + "/servers"
 	var q url.Values
 
 	var out apitypes.ServerDTO
-	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -383,12 +383,12 @@ func (c *Client) CreateServer(ctx context.Context, body apitypes.ServerCreateReq
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) DeleteServer(ctx context.Context, id string, confirm string) (*apitypes.ServerDTO, error) {
-	path := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(id)
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id))
 	q := url.Values{}
 	q.Set("confirm", confirm)
 
 	var out apitypes.ServerDTO
-	if err := c.do(ctx, "DELETE", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "DELETE", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -398,11 +398,11 @@ func (c *Client) DeleteServer(ctx context.Context, id string, confirm string) (*
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) GetServer(ctx context.Context, id string) (*apitypes.ServerDTO, error) {
-	path := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(id)
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id))
 	var q url.Values
 
 	var out apitypes.ServerDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -412,11 +412,11 @@ func (c *Client) GetServer(ctx context.Context, id string) (*apitypes.ServerDTO,
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) RenameServer(ctx context.Context, id string, body apitypes.RenameRequest) (*apitypes.ServerDTO, error) {
-	path := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(id)
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id))
 	var q url.Values
 
 	var out apitypes.ServerDTO
-	if err := c.do(ctx, "PATCH", path, q, body, &out); err != nil {
+	if err := c.do(ctx, "PATCH", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -426,11 +426,118 @@ func (c *Client) RenameServer(ctx context.Context, id string, body apitypes.Rena
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) GetServerBridge(ctx context.Context, id string) (*apitypes.BridgeDTO, error) {
-	path := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(id) + "/bridge"
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/bridge"
 	var q url.Values
 
 	var out apitypes.BridgeDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GET /api/v1/servers/{id}/files
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListServerFiles(ctx context.Context, id string, path *string) (*apitypes.FileListDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/files"
+	q := url.Values{}
+	if path != nil {
+		q.Set("path", *path)
+	}
+
+	var out apitypes.FileListDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GET /api/v1/servers/{id}/files/content
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ReadServerFile(ctx context.Context, id string, path string) (*apitypes.FileContentDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/files" + "/content"
+	q := url.Values{}
+	q.Set("path", path)
+
+	var out apitypes.FileContentDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PUT /api/v1/servers/{id}/files/content
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) WriteServerFile(ctx context.Context, id string, body apitypes.FileWriteRequest) (*apitypes.FileWriteResultDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/files" + "/content"
+	var q url.Values
+
+	var out apitypes.FileWriteResultDTO
+	if err := c.do(ctx, "PUT", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GET /api/v1/servers/{id}/files/diff
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) DiffServerFile(ctx context.Context, id string, path string, from int, to int) (*apitypes.FileDiffDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/files" + "/diff"
+	q := url.Values{}
+	q.Set("path", path)
+	q.Set("from", strconv.FormatInt(int64(from), 10))
+	q.Set("to", strconv.FormatInt(int64(to), 10))
+
+	var out apitypes.FileDiffDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GET /api/v1/servers/{id}/files/revisions
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListFileRevisions(ctx context.Context, id string, path string) (*apitypes.FileRevisionListDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/files" + "/revisions"
+	q := url.Values{}
+	q.Set("path", path)
+
+	var out apitypes.FileRevisionListDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GET /api/v1/servers/{id}/files/revisions/{rev}
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) GetFileRevision(ctx context.Context, id string, rev int, path string) (*apitypes.FileContentDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/files" + "/revisions" + "/" + url.PathEscape(fmt.Sprint(rev))
+	q := url.Values{}
+	q.Set("path", path)
+
+	var out apitypes.FileContentDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/servers/{id}/files/rollback
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) RollbackServerFile(ctx context.Context, id string, body apitypes.FileRollbackRequest) (*apitypes.FileWriteResultDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/files" + "/rollback"
+	var q url.Values
+
+	var out apitypes.FileWriteResultDTO
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -440,7 +547,7 @@ func (c *Client) GetServerBridge(ctx context.Context, id string) (*apitypes.Brid
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) GetServerMetrics(ctx context.Context, id string, resolution *string, limit *int64) (*apitypes.ServerMetricsDTO, error) {
-	path := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(id) + "/metrics"
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/metrics"
 	q := url.Values{}
 	if resolution != nil {
 		q.Set("resolution", *resolution)
@@ -450,7 +557,7 @@ func (c *Client) GetServerMetrics(ctx context.Context, id string, resolution *st
 	}
 
 	var out apitypes.ServerMetricsDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -460,11 +567,11 @@ func (c *Client) GetServerMetrics(ctx context.Context, id string, resolution *st
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ModeratePlayer(ctx context.Context, id string, body apitypes.ModerationRequest) (*apitypes.ModerationAcceptedDTO, error) {
-	path := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(id) + "/moderation"
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/moderation"
 	var q url.Values
 
 	var out apitypes.ModerationAcceptedDTO
-	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -474,11 +581,11 @@ func (c *Client) ModeratePlayer(ctx context.Context, id string, body apitypes.Mo
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) PowerServer(ctx context.Context, id string, body apitypes.PowerRequest) (*apitypes.ServerDTO, error) {
-	path := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(id) + "/power"
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/power"
 	var q url.Values
 
 	var out apitypes.ServerDTO
-	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -488,7 +595,7 @@ func (c *Client) PowerServer(ctx context.Context, id string, body apitypes.Power
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ListTemplates(ctx context.Context, limit *int64, after *string) (*apitypes.TemplateListDTO, error) {
-	path := "/api" + "/v1" + "/templates"
+	reqPath := "/api" + "/v1" + "/templates"
 	q := url.Values{}
 	if limit != nil {
 		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
@@ -498,7 +605,7 @@ func (c *Client) ListTemplates(ctx context.Context, limit *int64, after *string)
 	}
 
 	var out apitypes.TemplateListDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -508,11 +615,11 @@ func (c *Client) ListTemplates(ctx context.Context, limit *int64, after *string)
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ImportTemplate(ctx context.Context, body apitypes.TemplateInputDTO) (*apitypes.TemplateDTO, error) {
-	path := "/api" + "/v1" + "/templates"
+	reqPath := "/api" + "/v1" + "/templates"
 	var q url.Values
 
 	var out apitypes.TemplateDTO
-	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -522,11 +629,11 @@ func (c *Client) ImportTemplate(ctx context.Context, body apitypes.TemplateInput
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) GetTemplate(ctx context.Context, id string) (*apitypes.TemplateDTO, error) {
-	path := "/api" + "/v1" + "/templates" + "/" + url.PathEscape(id)
+	reqPath := "/api" + "/v1" + "/templates" + "/" + url.PathEscape(fmt.Sprint(id))
 	var q url.Values
 
 	var out apitypes.TemplateDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -536,7 +643,7 @@ func (c *Client) GetTemplate(ctx context.Context, id string) (*apitypes.Template
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) ListUsers(ctx context.Context, limit *int64, after *string) (*apitypes.UserListDTO, error) {
-	path := "/api" + "/v1" + "/users"
+	reqPath := "/api" + "/v1" + "/users"
 	q := url.Values{}
 	if limit != nil {
 		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
@@ -546,7 +653,7 @@ func (c *Client) ListUsers(ctx context.Context, limit *int64, after *string) (*a
 	}
 
 	var out apitypes.UserListDTO
-	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -556,11 +663,11 @@ func (c *Client) ListUsers(ctx context.Context, limit *int64, after *string) (*a
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) CreateUser(ctx context.Context, body apitypes.UserCreateRequest) (*apitypes.CreatedUserDTO, error) {
-	path := "/api" + "/v1" + "/users"
+	reqPath := "/api" + "/v1" + "/users"
 	var q url.Values
 
 	var out apitypes.CreatedUserDTO
-	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -570,11 +677,11 @@ func (c *Client) CreateUser(ctx context.Context, body apitypes.UserCreateRequest
 //
 // Requires a bearer token configured on the Client.
 func (c *Client) SetUserRole(ctx context.Context, id string, body apitypes.RoleRequest) (*apitypes.UserDTO, error) {
-	path := "/api" + "/v1" + "/users" + "/" + url.PathEscape(id) + "/role"
+	reqPath := "/api" + "/v1" + "/users" + "/" + url.PathEscape(fmt.Sprint(id)) + "/role"
 	var q url.Values
 
 	var out apitypes.UserDTO
-	if err := c.do(ctx, "PATCH", path, q, body, &out); err != nil {
+	if err := c.do(ctx, "PATCH", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

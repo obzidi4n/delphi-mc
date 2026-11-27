@@ -57,6 +57,10 @@ revocable, and scoped like any other principal.
   `user:admin`, group mutation needs org `admin`, and the console WebSocket needs
   `server:<id>:read`. UI mutations are same-origin checked, and the WS upgrade is
   origin-checked and accepts a session cookie or bearer key.
+- File access: reads use `server:<id>:read`, writes/rollback need `server:<id>:update`; the
+  node confines every path to the server directory (symlinks resolved) and caps text files at
+  1 MiB. Writes are atomic, revisioned, and audited (`file.write`, `file.rollback`,
+  `ai.write_file`).
 - Every mutation is audited with `Via` (ui/cli/api/ai) and, for AI actions, `Model`.
 - The AI tool registry is filtered by scope and capability, and the capability layer checks
   again — two independent gates for the same rule. In M6 the assistant is read-only: five

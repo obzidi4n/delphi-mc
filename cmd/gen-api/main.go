@@ -441,12 +441,12 @@ func (g *gen) client(s spec) ([]byte, error) {
 			}
 			if strings.HasPrefix(seg, "{") && strings.HasSuffix(seg, "}") {
 				name := strings.TrimSuffix(strings.TrimPrefix(seg, "{"), "}")
-				parts = append(parts, `"/" + url.PathEscape(`+lowerName(name)+`)`)
+				parts = append(parts, `"/" + url.PathEscape(fmt.Sprint(`+lowerName(name)+`))`)
 				continue
 			}
 			parts = append(parts, fmt.Sprintf("%q", "/"+seg))
 		}
-		body.WriteString("\tpath := " + strings.Join(parts, " + ") + "\n")
+		body.WriteString("\treqPath := " + strings.Join(parts, " + ") + "\n")
 
 		// Query.
 		if len(op.QueryParams) > 0 {
@@ -478,10 +478,10 @@ func (g *gen) client(s spec) ([]byte, error) {
 		}
 		if op.RespType != "" {
 			fmt.Fprintf(&body, "\tvar out apitypes.%s\n", op.RespType)
-			fmt.Fprintf(&body, "\tif err := c.do(ctx, %q, path, q, %s, &out); err != nil {\n\t\treturn nil, err\n\t}\n", op.Method, bodyArgs)
+			fmt.Fprintf(&body, "\tif err := c.do(ctx, %q, reqPath, q, %s, &out); err != nil {\n\t\treturn nil, err\n\t}\n", op.Method, bodyArgs)
 			body.WriteString("\treturn &out, nil\n")
 		} else {
-			fmt.Fprintf(&body, "\treturn c.do(ctx, %q, path, q, %s, nil)\n", op.Method, bodyArgs)
+			fmt.Fprintf(&body, "\treturn c.do(ctx, %q, reqPath, q, %s, nil)\n", op.Method, bodyArgs)
 		}
 		body.WriteString("}\n\n")
 	}

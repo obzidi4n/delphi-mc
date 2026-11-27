@@ -41,6 +41,11 @@ criteria can be demonstrated on a clean host.
   state/commands, chat events, online players, TPS, the root command tree, and kick/ban
   moderation through `POST /servers/{id}/moderation`. A console sidebar shows TPS, players,
   chat and the command tree. Live chat with a real player is the remaining manual check.
+- **M8** — files: node-side list/read/write over request/response frames with path and size
+  containment, a file manager page (browse, edit, save, revisions, unified diff, restore),
+  and `file_revisions` rollback. The AI gains `write_file` (10 tools). Live: edited
+  `server.properties` through the UI, diffed r3→r4, restored r1 as r3 via API, and an AI
+  approval created `ai-note.txt`.
 - **M7** — AI actions: create_server, power, run_command, moderate_player as two-phase
   tools; durable approval plans, approval cards in the chat UI, approve/reject that executes
   as the user and resumes the model, and audit entries. Live: a group restart plan approved

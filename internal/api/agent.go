@@ -236,6 +236,11 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 			if err := s.opts.Nodes.TouchNode(r.Context(), node.ID, s.opts.Now()); err != nil {
 				revoked = errors.Is(err, store.ErrNodeRevoked)
 			}
+		case wire.TypeFileResult:
+			var result wire.FileResult
+			if json.Unmarshal(data, &result) == nil && result.RequestID != "" && s.opts.Hub != nil {
+				s.opts.Hub.Resolve(result.RequestID, data)
+			}
 		case wire.TypeBridgeState:
 			var frame wire.BridgeStateFrame
 			if json.Unmarshal(data, &frame) == nil && frame.ServerID != "" && s.opts.Console != nil {

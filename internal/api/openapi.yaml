@@ -164,6 +164,162 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/files:
+    get:
+      operationId: listServerFiles
+      summary: List a server directory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: path
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Directory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/files/content:
+    get:
+      operationId: readServerFile
+      summary: Read a text file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: path
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: File
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileContentDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "502": { $ref: "#/components/responses/Problem" }
+    put:
+      operationId: writeServerFile
+      summary: Write a text file and record a revision
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FileWriteRequest" }
+      responses:
+        "200":
+          description: Written
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileWriteResultDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/files/revisions:
+    get:
+      operationId: listFileRevisions
+      summary: List revisions for one path
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: path
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Revisions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileRevisionListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/servers/{id}/files/revisions/{rev}:
+    get:
+      operationId: getFileRevision
+      summary: Read one revision
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: rev
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: path
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Revision content
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileContentDTO" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/files/rollback:
+    post:
+      operationId: rollbackServerFile
+      summary: Restore a revision as a new revision
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FileRollbackRequest" }
+      responses:
+        "200":
+          description: Restored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileWriteResultDTO" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/files/diff:
+    get:
+      operationId: diffServerFile
+      summary: Unified diff between two revisions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: path
+          in: query
+          required: true
+          schema: { type: string }
+        - name: from
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: to
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Diff
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileDiffDTO" }
+        "404": { $ref: "#/components/responses/Problem" }
   /api/v1/servers/{id}/bridge:
     get:
       operationId: getServerBridge
@@ -944,6 +1100,74 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/AIApprovalDTO" }
+    FileEntryDTO:
+      type: object
+      required: [name, dir, size, mod_time]
+      properties:
+        name: { type: string }
+        dir: { type: boolean }
+        size: { type: integer, format: int64 }
+        mod_time: { type: string, format: date-time }
+    FileListDTO:
+      type: object
+      required: [path, entries]
+      properties:
+        path: { type: string }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/FileEntryDTO" }
+    FileContentDTO:
+      type: object
+      required: [path, content, sha256, size]
+      properties:
+        path: { type: string }
+        content: { type: string }
+        sha256: { type: string }
+        size: { type: integer, format: int64 }
+    FileWriteRequest:
+      type: object
+      required: [path, content]
+      properties:
+        path: { type: string }
+        content: { type: string }
+        expected_sha256: { type: string }
+    FileWriteResultDTO:
+      type: object
+      required: [path, sha256, revision]
+      properties:
+        path: { type: string }
+        sha256: { type: string }
+        revision: { type: integer }
+    FileRevisionDTO:
+      type: object
+      required: [revision, sha256, author, created_at]
+      properties:
+        revision: { type: integer }
+        sha256: { type: string }
+        author: { type: string }
+        created_at: { type: string, format: date-time }
+    FileRevisionListDTO:
+      type: object
+      required: [path, items]
+      properties:
+        path: { type: string }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/FileRevisionDTO" }
+    FileRollbackRequest:
+      type: object
+      required: [path, revision]
+      properties:
+        path: { type: string }
+        revision: { type: integer }
+    FileDiffDTO:
+      type: object
+      required: [path, from, to, diff]
+      properties:
+        path: { type: string }
+        from: { type: integer }
+        to: { type: integer }
+        diff: { type: string }
     BridgePlayerDTO:
       type: object
       required: [name, uuid]

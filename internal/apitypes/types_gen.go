@@ -162,6 +162,70 @@ type EnrollmentTokenRequest struct {
 	TTLSeconds *int `json:"ttl_seconds,omitempty"`
 }
 
+// FileContentDTO is generated from the spec.
+type FileContentDTO struct {
+	Content string `json:"content"`
+	Path    string `json:"path"`
+	SHA256  string `json:"sha256"`
+	Size    int64  `json:"size"`
+}
+
+// FileDiffDTO is generated from the spec.
+type FileDiffDTO struct {
+	Diff string `json:"diff"`
+	From int    `json:"from"`
+	Path string `json:"path"`
+	To   int    `json:"to"`
+}
+
+// FileEntryDTO is generated from the spec.
+type FileEntryDTO struct {
+	Dir     bool      `json:"dir"`
+	ModTime time.Time `json:"mod_time"`
+	Name    string    `json:"name"`
+	Size    int64     `json:"size"`
+}
+
+// FileListDTO is generated from the spec.
+type FileListDTO struct {
+	Entries []FileEntryDTO `json:"entries"`
+	Path    string         `json:"path"`
+}
+
+// FileRevisionDTO is generated from the spec.
+type FileRevisionDTO struct {
+	Author    string    `json:"author"`
+	CreatedAt time.Time `json:"created_at"`
+	Revision  int       `json:"revision"`
+	SHA256    string    `json:"sha256"`
+}
+
+// FileRevisionListDTO is generated from the spec.
+type FileRevisionListDTO struct {
+	Items []FileRevisionDTO `json:"items"`
+	Path  string            `json:"path"`
+}
+
+// FileRollbackRequest is generated from the spec.
+type FileRollbackRequest struct {
+	Path     string `json:"path"`
+	Revision int    `json:"revision"`
+}
+
+// FileWriteRequest is generated from the spec.
+type FileWriteRequest struct {
+	Content        string  `json:"content"`
+	ExpectedSHA256 *string `json:"expected_sha256,omitempty"`
+	Path           string  `json:"path"`
+}
+
+// FileWriteResultDTO is generated from the spec.
+type FileWriteResultDTO struct {
+	Path     string `json:"path"`
+	Revision int    `json:"revision"`
+	SHA256   string `json:"sha256"`
+}
+
 // GroupCreateRequest is generated from the spec.
 type GroupCreateRequest struct {
 	Description *string `json:"description,omitempty"`

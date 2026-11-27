@@ -154,6 +154,11 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 				if json.Unmarshal(data, &frame) == nil {
 					reconciler.submit(sctx, frame)
 				}
+			case wire.TypeFileRequest:
+				var req wire.FileRequest
+				if json.Unmarshal(data, &req) == nil {
+					_ = writer.write(sctx, HandleFileRequest(opts.Supervisor, req))
+				}
 			case wire.TypeBridgeCommand:
 				var frame wire.BridgeCommandFrame
 				if json.Unmarshal(data, &frame) == nil {

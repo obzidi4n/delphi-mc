@@ -107,6 +107,18 @@ The panel sends the node's full desired server set; the agent converges it
   panel never parses logs for any of this.
 - Bridge state is in memory in the panel (like metrics); it is not persisted.
 
+## Files
+
+- The panel asks the node for file operations over the same agent socket
+  (`file.request` → `file.result`, request id correlated). The agent only resolves paths under
+  `<data_dir>/servers/<server_id>`: relative paths, no `..`, no absolute paths, and both the
+  file and its parent are checked after symlink resolution. Text reads/writes are capped at
+  1 MiB; binary or non-UTF-8 files are refused, as are special files.
+- Writes are atomic (temp file + rename). The panel stores every write as a `file_revisions`
+  row (content, sha256, author, revision) and prunes to the last 50 per file.
+- Revisions and rollback are panel-side: the UI/API can diff two stored revisions and restore
+  one by writing it back as a new revision. The node never sees revision numbers.
+
 ## Metrics
 
 - M4 samples with one `stats --no-stream` call per second for all containers and parses both

@@ -158,9 +158,11 @@ func runPanel(ctx context.Context, args []string) error {
 	console := api.NewConsoleHub()
 	var services *capability.Services
 	var aiService *ai.Service
+	var files *api.FileService
 	var identity api.IdentityStore
 	if db != nil {
 		identity = db
+		files = api.NewFileService(db, hub, db.Audit)
 		servers := &capability.Servers{Store: db, Notify: hub}
 		services = &capability.Services{
 			Servers: servers,
@@ -189,7 +191,7 @@ func runPanel(ctx context.Context, args []string) error {
 				Model:     cfg.AI.Model,
 				Tools:     buildToolbox(services, console, db),
 				MaxSteps:  4,
-				Executor:  api.NewActionExecutor(services, hub, db.Audit),
+				Executor:  api.NewActionExecutor(services, hub, db.Audit, files),
 				Approvals: db,
 			}
 		}
@@ -230,6 +232,7 @@ func runPanel(ctx context.Context, args []string) error {
 		AdminToken: cfg.AdminToken,
 		Console:    console,
 		AI:         aiService,
+		Files:      files,
 		CA:         ca,
 		Hub:        hub,
 		BridgeSender: func(ctx context.Context, nodeID string, frame wire.BridgeCommandFrame) error {
