@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"delphi.dev/delphi/internal/apitypes"
 	"delphi.dev/delphi/internal/pki"
 	"delphi.dev/delphi/internal/store"
 	"delphi.dev/delphi/internal/wire"
@@ -22,25 +23,13 @@ import (
 // self-update at v1.1.
 const enrollmentTTL = 30 * 24 * time.Hour
 
-type enrollRequest struct {
-	Token string `json:"token"`
-	CSR   string `json:"csr"`
-	Name  string `json:"name"`
-}
-
-type enrollResponse struct {
-	NodeID      string    `json:"node_id"`
-	Certificate string    `json:"certificate"`
-	NotAfter    time.Time `json:"not_after"`
-}
-
 func (s *server) enroll(w http.ResponseWriter, r *http.Request) {
 	if s.opts.CA == nil || s.opts.Nodes == nil {
 		writeProblem(w, http.StatusNotImplemented, "enrollment_disabled", "enrollment is not configured")
 		return
 	}
 
-	var req enrollRequest
+	var req apitypes.EnrollRequest
 	if err := decodeJSON(w, r, &req); err != nil {
 		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
@@ -76,29 +65,17 @@ func (s *server) enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, enrollResponse{
+	writeJSON(w, http.StatusOK, apitypes.EnrollResponse{
 		NodeID: node.ID, Certificate: string(certPEM), NotAfter: node.CertExpiresAt,
 	})
 }
 
-type nodeDTO struct {
-	ID            string          `json:"id"`
-	Name          string          `json:"name"`
-	Status        string          `json:"status"`
-	AgentVersion  string          `json:"agent_version"`
-	FSCapability  string          `json:"fs_capability"`
-	Capacity      json.RawMessage `json:"capacity"`
-	CertExpiresAt time.Time       `json:"cert_expires_at"`
-	LastSeen      *time.Time      `json:"last_seen"`
-	RevokedAt     *time.Time      `json:"revoked_at"`
-}
-
-func toNodeDTO(n store.Node) nodeDTO {
+func toNodeDTO(n store.Node) apitypes.NodeDTO {
 	capacity := n.Capacity
 	if len(capacity) == 0 {
 		capacity = []byte(`{}`)
 	}
-	return nodeDTO{
+	return apitypes.NodeDTO{
 		ID: n.ID, Name: n.Name, Status: n.Status, AgentVersion: n.AgentVersion,
 		FSCapability: n.FSCapability, Capacity: capacity,
 		CertExpiresAt: n.CertExpiresAt, LastSeen: n.LastSeen, RevokedAt: n.RevokedAt,
@@ -123,11 +100,11 @@ func (s *server) listNodes(w http.ResponseWriter, r *http.Request) {
 		writeCapabilityError(w, err)
 		return
 	}
-	items := make([]nodeDTO, 0, len(nodes))
+	items := make([]apitypes.NodeDTO, 0, len(nodes))
 	for _, n := range nodes {
 		items = append(items, toNodeDTO(n))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeJSON(w, http.StatusOK, apitypes.NodeListDTO{Items: items})
 }
 
 func (s *server) revokeNode(w http.ResponseWriter, r *http.Request) {
@@ -174,7 +151,7 @@ func (s *server) createToken(w http.ResponseWriter, r *http.Request) {
 		writeCapabilityError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"token": token, "expires_at": expires})
+	writeJSON(w, http.StatusOK, apitypes.EnrollmentTokenDTO{Token: token, ExpiresAt: expires})
 }
 
 func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,506 @@
+openapi: 3.1.0
+info:
+  title: DelphiMC panel API
+  version: 0.3.0
+  description: |
+    The control-plane API. Every mutation is a capability call behind the
+    requesting principal's scopes; every mutation is audited.
+  license:
+    name: MIT
+servers:
+  - url: https://127.0.0.1:8443
+    description: Panel root (API paths are absolute).
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/nodes:
+    get:
+      operationId: listNodes
+      summary: List fleet nodes
+      responses:
+        "200":
+          description: Nodes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NodeListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/nodes/{id}/revoke:
+    post:
+      operationId: revokeNode
+      summary: Revoke a node certificate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Revoked; the agent channel closes within one heartbeat }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/enrollment-tokens:
+    post:
+      operationId: createEnrollmentToken
+      summary: Mint a one-time enrollment token
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EnrollmentTokenRequest" }
+      responses:
+        "200":
+          description: Token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnrollmentTokenDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/servers:
+    get:
+      operationId: listServers
+      summary: List live servers
+      responses:
+        "200":
+          description: Servers
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServerListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: createServer
+      summary: Create a server and sync its node
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServerCreateRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServerDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}:
+    get:
+      operationId: getServer
+      summary: Fetch one server
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Server
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServerDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+    patch:
+      operationId: renameServer
+      summary: Rename a server
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RenameRequest" }
+      responses:
+        "200":
+          description: Renamed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServerDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+    delete:
+      operationId: deleteServer
+      summary: Soft-delete a server
+      description: |
+        Stops the container and removes it; the data directory is kept for seven
+        days before the GC purges it. Requires ?confirm=<server name>.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: confirm
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "202":
+          description: Deleted row (deleted_at and purge_after set)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServerDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/power:
+    post:
+      operationId: powerServer
+      summary: Request a power action
+      description: Bumps desired_revision; the next agent sync converges the container.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PowerRequest" }
+      responses:
+        "202":
+          description: Updated server
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServerDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/groups:
+    get:
+      operationId: listGroups
+      summary: List server groups
+      responses:
+        "200":
+          description: Groups
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GroupListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: createGroup
+      summary: Create a server group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GroupCreateRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GroupDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /api/v1/groups/{id}/members:
+    get:
+      operationId: listGroupMembers
+      summary: List server ids in a group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Members
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MemberListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+    post:
+      operationId: addGroupMember
+      summary: Add a server to the group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MemberRequest" }
+      responses:
+        "204": { description: Added }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/groups/{id}/members/{server_id}:
+    delete:
+      operationId: removeGroupMember
+      summary: Remove a server from the group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: server_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Removed }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/audit:
+    get:
+      operationId: listAudit
+      summary: Read the audit log, newest first
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, format: int64 }
+        - name: before
+          in: query
+          required: false
+          description: Return entries with seq < before (cursor).
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Entries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/api-keys:
+    post:
+      operationId: createAPIKey
+      summary: Mint an API key for the calling user
+      description: The token is returned once and stored hashed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/APIKeyRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/APIKeyCreatedDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /agent/enroll:
+    post:
+      operationId: enrollNode
+      summary: Exchange a one-time token and CSR for a node certificate
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EnrollRequest" }
+      responses:
+        "200":
+          description: Enrolled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnrollResponse" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "410": { $ref: "#/components/responses/Problem" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: API key or the break-glass admin token.
+  responses:
+    Unauthorized:
+      description: Missing or invalid credential
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Problem:
+      description: Problem details (RFC 9457). `code` is stable.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, detail, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string }
+    ServerDTO:
+      type: object
+      required:
+        [id, name, node_id, desired_state, desired_revision, observed_state,
+         summary_state, applied_revision, kill_requested, port, image,
+         java_version, memory_mb, cpu_cores, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        node_id: { type: string }
+        desired_state: { type: string }
+        desired_revision: { type: integer, format: int64 }
+        observed_state: { type: string }
+        summary_state: { type: string }
+        applied_revision: { type: integer, format: int64 }
+        kill_requested: { type: boolean }
+        port: { type: integer }
+        image: { type: string }
+        java_version: { type: integer }
+        memory_mb: { type: integer }
+        cpu_cores: { type: number, format: double }
+        last_error: { type: string }
+        created_at: { type: string, format: date-time }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        purge_after: { type: string, format: date-time, nullable: true }
+    ServerCreateRequest:
+      type: object
+      required: [name, node_id, image, memory_mb, jar_url, jar_sha256, accept_eula]
+      properties:
+        name: { type: string }
+        node_id: { type: string }
+        image: { type: string }
+        memory_mb: { type: integer }
+        cpu_cores: { type: number, format: double }
+        port: { type: integer }
+        jar_url: { type: string }
+        jar_sha256: { type: string }
+        accept_eula: { type: boolean }
+        group_id: { type: string }
+        desired_state: { type: string }
+    ServerListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ServerDTO" }
+    RenameRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+    PowerRequest:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [start, stop, restart, kill] }
+    GroupDTO:
+      type: object
+      required: [id, org_id, name, description, created_at]
+      properties:
+        id: { type: string }
+        org_id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        created_at: { type: string, format: date-time }
+    GroupCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+    GroupListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/GroupDTO" }
+    MemberRequest:
+      type: object
+      required: [server_id]
+      properties:
+        server_id: { type: string }
+    MemberListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { type: string }
+    AuditEntryDTO:
+      type: object
+      required: [seq, org_id, actor, via, action, target, diff, created_at]
+      properties:
+        seq: { type: integer, format: int64 }
+        org_id: { type: string }
+        actor: { type: string }
+        via: { type: string }
+        action: { type: string }
+        target: { type: string }
+        diff: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    AuditListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AuditEntryDTO" }
+    APIKeyRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+    APIKeyCreatedDTO:
+      type: object
+      required: [id, name, token, scopes]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        token: { type: string }
+        scopes:
+          type: array
+          items: { type: string }
+    NodeDTO:
+      type: object
+      required:
+        [id, name, status, agent_version, fs_capability, capacity,
+         cert_expires_at, last_seen, revoked_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { type: string }
+        agent_version: { type: string }
+        fs_capability: { type: string }
+        capacity: { type: object, additionalProperties: true }
+        cert_expires_at: { type: string, format: date-time }
+        last_seen: { type: string, format: date-time, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+    NodeListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/NodeDTO" }
+    EnrollmentTokenRequest:
+      type: object
+      properties:
+        ttl_seconds: { type: integer }
+    EnrollmentTokenDTO:
+      type: object
+      required: [token, expires_at]
+      properties:
+        token: { type: string }
+        expires_at: { type: string, format: date-time }
+    EnrollRequest:
+      type: object
+      required: [token, csr, name]
+      properties:
+        token: { type: string }
+        csr: { type: string }
+        name: { type: string }
+    EnrollResponse:
+      type: object
+      required: [node_id, certificate, not_after]
+      properties:
+        node_id: { type: string }
+        certificate: { type: string }
+        not_after: { type: string, format: date-time }

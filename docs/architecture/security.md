@@ -1,7 +1,7 @@
 # Security model
 
-**Status:** current design. Implementation spans M1 (identity), M3a (auth/RBAC/audit) and
-M12 (hardening).
+**Status:** current. Landed: node identity (M1), users/API keys/sessions, scopes, and audit
+(M3a). Hardening and 2FA land at M12.
 
 ## Trust boundaries
 
@@ -29,9 +29,9 @@ days; revocation records `revoked_at` and is checked on every reconnect. Details
 **Bridge:** each server has its own token in the plugin handshake; the socket is created by
 the agent inside that server's container namespace.
 
-**Users:** Argon2id password hashing, TOTP 2FA, httpOnly `Secure` SameSite=Lax session
-cookies, CSRF protection. The panel must be served over TLS (HSTS at the proxy); plaintext
-HTTP is refused for the API and the WebSocket upgrade.
+**Users:** Argon2id password hashing, httpOnly `Secure` SameSite=Lax session cookies, and a
+same-origin check on `POST /login` and `POST /logout` (no token yet). TOTP 2FA lands with
+hardening (M12). The panel must be served over TLS; the agent channel refuses plaintext.
 
 **v1.0 account model:** one owner plus admin-created users with generated passwords. No email
 invites — SMTP only arrives with alert email at M11.
@@ -42,8 +42,12 @@ revocable, and scoped like any other principal.
 
 ## Authorization
 
-- RBAC with global roles plus per-server grants; scopes are `<resource>:<id>:<verb>`
-  ([capability layer](capability-layer.md)).
+- Scopes are `org:<org>:<resource>:<id>:<verb>`; `*` matches one segment, so
+  `org:*:server:*:read` grants reads on every server. The owner's bootstrap key and the
+  break-glass `admin_token` carry `*`. API keys store their scope set at mint time; session
+  principals resolve scopes from `role_bindings` ([capability layer](capability-layer.md)).
+  Default role→scope profiles are not seeded yet: only `owner` is granted scopes at
+  bootstrap, and other users get what their bindings grant.
 - Every mutation is audited with `Via` (ui/cli/api/ai) and, for AI actions, `Model`.
 - The AI tool registry is filtered by scope and capability, and the capability layer checks
   again — two independent gates for the same rule.

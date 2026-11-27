@@ -1,13 +1,12 @@
 # API conventions
 
-**Status:** design · enforced from M3a. The wire shape itself lives in
-`internal/api/openapi.yaml` (spec-first; see
-[`../contributing/conventions.md`](../contributing/conventions.md)); this page records the
-rules the spec must follow.
+**Status:** current at M3a. The wire shape lives in `internal/api/openapi.yaml`;
+`make generate` emits `internal/apitypes` (DTOs) and `internal/apiclient` (the client the CLI
+uses), and `make check` fails on drift. This page records the rules the spec follows.
 
 ## Base and versioning
 
-- `/api/v1` under the configured base path (default `/delphi/api/v1`).
+- `/api/v1`, absolute (the page follows `base_path`; the API does not).
 - Within v1: additive changes only. A breaking change is `/api/v2`, and a v1 client keeps
   working until it is retired.
 - Agent protocol versioning is separate ([wire protocol](wire-protocol.md)); capability flags,
@@ -17,7 +16,7 @@ rules the spec must follow.
 
 | Caller | Credential |
 |---|---|
-| Browser | `delphi_session` cookie (httpOnly, SameSite=Lax) + CSRF token |
+| Browser | `delphi_session` cookie (httpOnly, SameSite=Lax) + same-origin check on mutations |
 | CLI / SDK | `Authorization: Bearer <token>` |
 | Agent | mTLS node certificate (agent endpoints only) |
 
@@ -66,6 +65,12 @@ RFC 9457 problem details:
 
 No stack traces, no internal identifiers, no secrets. `code` is stable and machine-readable;
 `detail` is for humans.
+
+## Not yet in the v1 spec
+
+Cursor pagination, `Idempotency-Key`, and `If-Match` preconditions are normative for the
+product but land with jobs and approvals (M6+). Until then, list endpoints return the whole
+collection and mutations are not replay-protected.
 
 ## Rate limits and quotas
 

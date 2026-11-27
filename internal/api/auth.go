@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"delphi.dev/delphi/internal/apitypes"
 	"delphi.dev/delphi/internal/auth"
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/store"
@@ -173,8 +174,8 @@ func (s *server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeCapabilityError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"id": key.ID, "name": key.Name, "token": token, "scopes": key.Scopes,
+	writeJSON(w, http.StatusCreated, apitypes.APIKeyCreatedDTO{
+		ID: key.ID, Name: key.Name, Token: token, Scopes: key.Scopes,
 	})
 }
 

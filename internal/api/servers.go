@@ -3,42 +3,26 @@ package api
 import (
 	"errors"
 	"net/http"
-	"time"
 
+	"delphi.dev/delphi/internal/apitypes"
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/store"
 )
 
-type serverDTO struct {
-	ID              string     `json:"id"`
-	Name            string     `json:"name"`
-	NodeID          string     `json:"node_id"`
-	DesiredState    string     `json:"desired_state"`
-	DesiredRevision int64      `json:"desired_revision"`
-	ObservedState   string     `json:"observed_state"`
-	SummaryState    string     `json:"summary_state"`
-	AppliedRevision int64      `json:"applied_revision"`
-	KillRequested   bool       `json:"kill_requested"`
-	Port            int        `json:"port"`
-	Image           string     `json:"image"`
-	JavaVersion     int        `json:"java_version"`
-	MemoryMB        int        `json:"memory_mb"`
-	CPUCores        float64    `json:"cpu_cores"`
-	LastError       string     `json:"last_error,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	DeletedAt       *time.Time `json:"deleted_at,omitempty"`
-	PurgeAfter      *time.Time `json:"purge_after,omitempty"`
-}
-
-func toServerDTO(s store.Server) serverDTO {
-	return serverDTO{
-		ID: s.ID, Name: s.Name, NodeID: s.NodeID,
-		DesiredState: s.DesiredState, DesiredRevision: s.DesiredRevision,
-		ObservedState: s.ObservedState, SummaryState: s.SummaryState, AppliedRevision: s.AppliedRevision,
-		KillRequested: s.KillRequested, Port: s.Port, Image: s.Image,
-		JavaVersion: s.JavaVersion, MemoryMB: s.MemoryMB, CPUCores: s.CPUCores,
-		LastError: s.LastError, CreatedAt: s.CreatedAt,
-		DeletedAt: s.DeletedAt, PurgeAfter: s.PurgeAfter,
+func toServerDTO(sv store.Server) apitypes.ServerDTO {
+	var lastErr *string
+	if sv.LastError != "" {
+		lastErr = &sv.LastError
+	}
+	return apitypes.ServerDTO{
+		ID: sv.ID, Name: sv.Name, NodeID: sv.NodeID,
+		DesiredState: sv.DesiredState, DesiredRevision: sv.DesiredRevision,
+		ObservedState: sv.ObservedState, SummaryState: sv.SummaryState,
+		AppliedRevision: sv.AppliedRevision,
+		KillRequested:   sv.KillRequested, Port: sv.Port, Image: sv.Image,
+		JavaVersion: sv.JavaVersion, MemoryMB: sv.MemoryMB, CPUCores: sv.CPUCores,
+		LastError: lastErr, CreatedAt: sv.CreatedAt,
+		DeletedAt: sv.DeletedAt, PurgeAfter: sv.PurgeAfter,
 	}
 }
 
@@ -106,11 +90,11 @@ func (s *server) listServers(w http.ResponseWriter, r *http.Request) {
 		writeCapabilityError(w, err)
 		return
 	}
-	items := make([]serverDTO, 0, len(servers))
+	items := make([]apitypes.ServerDTO, 0, len(servers))
 	for _, srv := range servers {
 		items = append(items, toServerDTO(srv))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeJSON(w, http.StatusOK, apitypes.ServerListDTO{Items: items})
 }
 
 func (s *server) getServer(w http.ResponseWriter, r *http.Request) {
@@ -141,9 +125,7 @@ func (s *server) renameServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body struct {
-		Name string `json:"name"`
-	}
+	var body apitypes.RenameRequest
 	if err := decodeJSON(w, r, &body); err != nil {
 		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
@@ -195,9 +177,7 @@ func (s *server) powerServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body struct {
-		Action string `json:"action"`
-	}
+	var body apitypes.PowerRequest
 	if err := decodeJSON(w, r, &body); err != nil {
 		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return

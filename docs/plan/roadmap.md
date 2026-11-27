@@ -14,6 +14,16 @@ criteria can be demonstrated on a clean host.
 | v1.0 | M6–M12 | AI, files, jar/plugin updates, backups, automation, hardening |
 | v1.1 | M13–M19 | TUI, networks, fleet ops, S3, dev envs, databases, proactive AI |
 
+## Delivered
+
+- **M0** — monorepo, single binary, embedded page, Postgres + migrations, config, docs tree.
+- **M1** — enrollment, per-node certificates, the mTLS WebSocket, node registry and health.
+- **M2** — container lifecycle on rootless Podman (create/start/stop/kill, limits, crash
+  artifacts, pinned jar).
+- **M3a** — spec-first OpenAPI with generated DTOs and Go client, users/API keys/sessions,
+  RBAC scopes, audit (write + read), server CRUD with rename and soft delete, groups,
+  `server_summary`, and the first CLI commands (`nodes`, `servers`, `audit`).
+
 ## Alpha: the vertical slice (M0–M5)
 
 ```

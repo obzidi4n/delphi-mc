@@ -50,9 +50,11 @@ created there before its milestone.
 - **All mutations go through `capability`.** A handler, CLI command or AI tool that writes
   state directly is a bug, not a shortcut.
 - **The OpenAPI document is spec-first.** `internal/api/openapi.yaml` is hand-written and
-  reviewed; Go/TS clients and DTOs are generated from it. Handlers are thin, convert DTOs to
-  capability types, and never become the second source of truth. The capability layer is the
-  behavior; the spec is the wire shape.
+  reviewed; `make generate` emits `internal/apitypes` (DTOs) and `internal/apiclient` (the Go
+  client the CLI uses). `make check` runs `gen-api -check` and fails when the generated files
+  drift from the spec. Handlers are thin, convert DTOs to capability types, and never become
+  the second source of truth. The capability layer is the behavior; the spec is the wire
+  shape. The TypeScript client is generated when the first browser consumer lands (M4 console).
 - **No web framework.** `net/http` with Go 1.22 routing; one middleware chain, no reflection
   routers.
 - **Return `Job` for anything long.** No handler blocks on a container operation.

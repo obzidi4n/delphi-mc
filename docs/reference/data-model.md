@@ -1,6 +1,6 @@
 # Data model
 
-**Status:** design · schema created at M0–M3a. Postgres + `pgx` + `sqlc`; embedded
+**Status:** current at M3a · schema created at M0–M3a. Postgres + `pgx` + `sqlc`; embedded
 forward-only SQL migrations applied by the panel at startup ([ADR 0019](../decisions/0019-forward-only-migrations.md)).
 
 ```
@@ -15,7 +15,7 @@ servers          (id, org_id, node_id, name, image, java_version, memory_mb, cpu
                   deleted_at, purge_after)
 server_groups    (id, org_id, name, description)          # targeting (many-to-many)
 server_group_members (group_id, server_id)
-server_summary   (materialized: state, version, plugins, last_error, tps_avg, players)
+server_summary   (server_id, state, updated_at)            # per-server state rollup
 templates        (id, org_id, name, base, mc_version, java, defaults, files, plugins,
                   variables, builtin, revision, schema_version)
 networks         (id, org_id, name, proxy_server_id, mode)

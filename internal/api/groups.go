@@ -3,6 +3,9 @@ package api
 import (
 	"net/http"
 	"strconv"
+
+	"delphi.dev/delphi/internal/apitypes"
+	"delphi.dev/delphi/internal/store"
 )
 
 func (s *server) groups(w http.ResponseWriter) bool {
@@ -23,7 +26,11 @@ func (s *server) listGroups(w http.ResponseWriter, r *http.Request) {
 		writeCapabilityError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": groups})
+	items := make([]apitypes.GroupDTO, 0, len(groups))
+	for _, g := range groups {
+		items = append(items, toGroupDTO(g))
+	}
+	writeJSON(w, http.StatusOK, apitypes.GroupListDTO{Items: items})
 }
 
 func (s *server) createGroup(w http.ResponseWriter, r *http.Request) {
@@ -31,20 +38,21 @@ func (s *server) createGroup(w http.ResponseWriter, r *http.Request) {
 	if !ok || !s.groups(w) {
 		return
 	}
-	var body struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-	}
+	var body apitypes.GroupCreateRequest
 	if err := decodeJSON(w, r, &body); err != nil {
 		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	group, err := s.opts.Services.Groups.Create(r.Context(), principal, body.Name, body.Description)
+	description := ""
+	if body.Description != nil {
+		description = *body.Description
+	}
+	group, err := s.opts.Services.Groups.Create(r.Context(), principal, body.Name, description)
 	if err != nil {
 		writeCapabilityError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, group)
+	writeJSON(w, http.StatusCreated, toGroupDTO(group))
 }
 
 func (s *server) addGroupMember(w http.ResponseWriter, r *http.Request) {
@@ -52,9 +60,7 @@ func (s *server) addGroupMember(w http.ResponseWriter, r *http.Request) {
 	if !ok || !s.groups(w) {
 		return
 	}
-	var body struct {
-		ServerID string `json:"server_id"`
-	}
+	var body apitypes.MemberRequest
 	if err := decodeJSON(w, r, &body); err != nil {
 		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
@@ -89,7 +95,7 @@ func (s *server) listGroupMembers(w http.ResponseWriter, r *http.Request) {
 		writeCapabilityError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": ids})
+	writeJSON(w, http.StatusOK, apitypes.MemberListDTO{Items: ids})
 }
 
 func (s *server) listAudit(w http.ResponseWriter, r *http.Request) {
@@ -110,5 +116,19 @@ func (s *server) listAudit(w http.ResponseWriter, r *http.Request) {
 		writeCapabilityError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": entries})
+	items := make([]apitypes.AuditEntryDTO, 0, len(entries))
+	for _, e := range entries {
+		items = append(items, apitypes.AuditEntryDTO{
+			Seq: e.Seq, OrgID: e.OrgID, Actor: e.Actor, Via: e.Via,
+			Action: e.Action, Target: e.Target, Diff: e.Diff, CreatedAt: e.CreatedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, apitypes.AuditListDTO{Items: items})
+}
+
+func toGroupDTO(g store.Group) apitypes.GroupDTO {
+	return apitypes.GroupDTO{
+		ID: g.ID, OrgID: g.OrgID, Name: g.Name,
+		Description: g.Description, CreatedAt: g.CreatedAt,
+	}
 }

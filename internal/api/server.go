@@ -1,5 +1,7 @@
 // Package api is the panel's HTTP surface: pages, the JSON API, agent
 // enrollment and the node channel.
+//go:generate go run delphi.dev/delphi/cmd/gen-api
+
 package api
 
 import (

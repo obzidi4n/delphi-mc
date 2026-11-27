@@ -12,11 +12,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -29,6 +27,8 @@ import (
 
 	"delphi.dev/delphi/internal/agent"
 	"delphi.dev/delphi/internal/api"
+	"delphi.dev/delphi/internal/apiclient"
+	"delphi.dev/delphi/internal/apitypes"
 	"delphi.dev/delphi/internal/auth"
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/config"
@@ -393,47 +393,29 @@ func (a *adminConfig) resolve() error {
 	return nil
 }
 
-func (a *adminConfig) request(ctx context.Context, method, path string, body any) ([]byte, int, error) {
+func (a *adminConfig) newClient() (*apiclient.Client, error) {
 	caPEM, err := os.ReadFile(a.ca)
 	if err != nil {
-		return nil, 0, fmt.Errorf("read CA: %w", err)
+		return nil, fmt.Errorf("read CA: %w", err)
 	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(caPEM) {
-		return nil, 0, errors.New("the CA file is not valid PEM")
+		return nil, errors.New("the CA file is not valid PEM")
 	}
-	client := &http.Client{
+	hc := &http.Client{
 		Timeout:   15 * time.Second,
 		Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}},
 	}
+	return apiclient.New(a.panel, hc, a.token), nil
+}
 
-	var reader io.Reader
-	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return nil, 0, err
-		}
-		reader = bytes.NewReader(data)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(a.panel, "/")+path, reader)
+func printJSON(v any) error {
+	data, err := json.Marshal(v)
 	if err != nil {
-		return nil, 0, err
+		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+a.token)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-	payload, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode >= 300 {
-		return payload, resp.StatusCode, fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(payload)))
-	}
-	return payload, resp.StatusCode, nil
+	fmt.Println(string(data))
+	return nil
 }
 
 func runNodes(ctx context.Context, args []string) error {
@@ -463,28 +445,16 @@ func runNodes(ctx context.Context, args []string) error {
 
 	switch sub {
 	case "list":
-		payload, _, err := admin.request(ctx, http.MethodGet, "/api/v1/nodes", nil)
+		client, err := admin.newClient()
+		if err != nil {
+			return err
+		}
+		out, err := client.ListNodes(ctx)
 		if err != nil {
 			return err
 		}
 		if *jsonOut {
-			fmt.Println(strings.TrimSpace(string(payload)))
-			return nil
-		}
-		var out struct {
-			Items []struct {
-				ID           string     `json:"id"`
-				Name         string     `json:"name"`
-				Status       string     `json:"status"`
-				AgentVersion string     `json:"agent_version"`
-				FSCapability string     `json:"fs_capability"`
-				LastSeen     *time.Time `json:"last_seen"`
-				CertExpires  time.Time  `json:"cert_expires_at"`
-				RevokedAt    *time.Time `json:"revoked_at"`
-			} `json:"items"`
-		}
-		if err := json.Unmarshal(payload, &out); err != nil {
-			return err
+			return printJSON(out)
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "NAME\tSTATUS\tVERSION\tFS\tLAST SEEN\tID")
@@ -499,21 +469,17 @@ func runNodes(ctx context.Context, args []string) error {
 		return w.Flush()
 
 	case "token":
-		payload, _, err := admin.request(ctx, http.MethodPost, "/api/v1/enrollment-tokens",
-			map[string]int{"ttl_seconds": *ttl})
+		client, err := admin.newClient()
 		if err != nil {
 			return err
 		}
-		var out struct {
-			Token     string    `json:"token"`
-			ExpiresAt time.Time `json:"expires_at"`
-		}
-		if err := json.Unmarshal(payload, &out); err != nil {
+		ttlSeconds := *ttl
+		out, err := client.CreateEnrollmentToken(ctx, apitypes.EnrollmentTokenRequest{TTLSeconds: &ttlSeconds})
+		if err != nil {
 			return err
 		}
 		if *jsonOut {
-			fmt.Println(strings.TrimSpace(string(payload)))
-			return nil
+			return printJSON(out)
 		}
 		fmt.Printf("token: %s\nexpires: %s\n", out.Token, out.ExpiresAt.Local().Format(time.RFC3339))
 		return nil
@@ -522,7 +488,11 @@ func runNodes(ctx context.Context, args []string) error {
 		if id == "" {
 			return errors.New("usage: delphi nodes revoke <id> [flags]")
 		}
-		if _, _, err := admin.request(ctx, http.MethodPost, "/api/v1/nodes/"+id+"/revoke", nil); err != nil {
+		client, err := admin.newClient()
+		if err != nil {
+			return err
+		}
+		if err := client.RevokeNode(ctx, id); err != nil {
 			return err
 		}
 		fmt.Printf("revoked: %s\n", id)
@@ -531,19 +501,6 @@ func runNodes(ctx context.Context, args []string) error {
 	default:
 		return fmt.Errorf("unknown nodes command %q", sub)
 	}
-}
-
-type serverRow struct {
-	ID              string     `json:"id"`
-	Name            string     `json:"name"`
-	NodeID          string     `json:"node_id"`
-	DesiredState    string     `json:"desired_state"`
-	ObservedState   string     `json:"observed_state"`
-	SummaryState    string     `json:"summary_state"`
-	DesiredRevision int64      `json:"desired_revision"`
-	AppliedRevision int64      `json:"applied_revision"`
-	Port            int        `json:"port"`
-	DeletedAt       *time.Time `json:"deleted_at"`
 }
 
 func runServers(ctx context.Context, args []string) error {
@@ -575,19 +532,16 @@ func runServers(ctx context.Context, args []string) error {
 
 	switch sub {
 	case "list":
-		payload, _, err := admin.request(ctx, http.MethodGet, "/api/v1/servers", nil)
+		client, err := admin.newClient()
+		if err != nil {
+			return err
+		}
+		out, err := client.ListServers(ctx)
 		if err != nil {
 			return err
 		}
 		if *jsonOut {
-			fmt.Println(strings.TrimSpace(string(payload)))
-			return nil
-		}
-		var out struct {
-			Items []serverRow `json:"items"`
-		}
-		if err := json.Unmarshal(payload, &out); err != nil {
-			return err
+			return printJSON(out)
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "NAME\tDESIRED\tOBSERVED\tPORT\tID")
@@ -601,24 +555,28 @@ func runServers(ctx context.Context, args []string) error {
 		if id == "" {
 			return errors.New("usage: delphi servers get <id> [flags]")
 		}
-		payload, _, err := admin.request(ctx, http.MethodGet, "/api/v1/servers/"+id, nil)
+		client, err := admin.newClient()
 		if err != nil {
 			return err
 		}
-		fmt.Println(strings.TrimSpace(string(payload)))
-		return nil
+		srv, err := client.GetServer(ctx, id)
+		if err != nil {
+			return err
+		}
+		return printJSON(srv)
 
 	case "start", "stop", "restart", "kill":
 		if id == "" {
 			return fmt.Errorf("usage: delphi servers %s <id> [flags]", sub)
 		}
-		payload, _, err := admin.request(ctx, http.MethodPost, "/api/v1/servers/"+id+"/power",
-			map[string]string{"action": sub})
+		client, err := admin.newClient()
 		if err != nil {
 			return err
 		}
-		var srv serverRow
-		_ = json.Unmarshal(payload, &srv)
+		srv, err := client.PowerServer(ctx, id, apitypes.PowerRequest{Action: sub})
+		if err != nil {
+			return err
+		}
 		fmt.Printf("%s: desired=%s revision=%d\n", srv.Name, srv.DesiredState, srv.DesiredRevision)
 		return nil
 
@@ -626,16 +584,15 @@ func runServers(ctx context.Context, args []string) error {
 		if id == "" {
 			return errors.New("usage: delphi servers delete <id> [flags]")
 		}
-		payload, _, err := admin.request(ctx, http.MethodGet, "/api/v1/servers/"+id, nil)
+		client, err := admin.newClient()
 		if err != nil {
 			return err
 		}
-		var existing serverRow
-		if err := json.Unmarshal(payload, &existing); err != nil {
+		existing, err := client.GetServer(ctx, id)
+		if err != nil {
 			return err
 		}
-		if _, _, err := admin.request(ctx, http.MethodDelete,
-			"/api/v1/servers/"+id+"?confirm="+url.QueryEscape(existing.Name), nil); err != nil {
+		if _, err := client.DeleteServer(ctx, id, existing.Name); err != nil {
 			return err
 		}
 		fmt.Printf("deleted: %s (data kept for 7 days)\n", existing.Name)
@@ -645,13 +602,14 @@ func runServers(ctx context.Context, args []string) error {
 		if id == "" || name == "" {
 			return errors.New("usage: delphi servers rename <id> <name> [flags]")
 		}
-		payload, _, err := admin.request(ctx, http.MethodPatch, "/api/v1/servers/"+id,
-			map[string]string{"name": name})
+		client, err := admin.newClient()
 		if err != nil {
 			return err
 		}
-		var srv serverRow
-		_ = json.Unmarshal(payload, &srv)
+		srv, err := client.RenameServer(ctx, id, apitypes.RenameRequest{Name: name})
+		if err != nil {
+			return err
+		}
 		fmt.Printf("%s: renamed to %s\n", srv.ID, srv.Name)
 		return nil
 
@@ -679,29 +637,19 @@ func runAudit(ctx context.Context, args []string) error {
 		return err
 	}
 
-	payload, _, err := admin.request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v1/audit?limit=%d", *limit), nil)
+	client, err := admin.newClient()
+	if err != nil {
+		return err
+	}
+	limit64 := int64(*limit)
+	out, err := client.ListAudit(ctx, &limit64, nil)
 	if err != nil {
 		return err
 	}
 	if *jsonOut {
-		fmt.Println(strings.TrimSpace(string(payload)))
-		return nil
+		return printJSON(out)
 	}
 
-	var out struct {
-		Items []struct {
-			Seq       int64     `json:"seq"`
-			Actor     string    `json:"actor"`
-			Via       string    `json:"via"`
-			Action    string    `json:"action"`
-			Target    string    `json:"target"`
-			CreatedAt time.Time `json:"created_at"`
-		} `json:"items"`
-	}
-	if err := json.Unmarshal(payload, &out); err != nil {
-		return err
-	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "SEQ\tWHEN\tACTOR\tVIA\tACTION\tTARGET")
 	for _, e := range out.Items {
