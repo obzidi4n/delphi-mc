@@ -345,6 +345,27 @@ func (u *Updates) Upload(ctx context.Context, p Principal, id, project, version 
 	return PluginAddResult{Plugin: plugin, Revision: updated.DesiredRevision}, nil
 }
 
+// PromotePlugins replaces the managed plugin set on a production server with
+// the dev server's set. It stages files and does not restart production.
+func (u *Updates) PromotePlugins(ctx context.Context, p Principal, targetID string, plugins []store.ServerPlugin) (store.Server, error) {
+	if !p.Allows(serverScope(targetID, "update")) {
+		return store.Server{}, forbidden(serverScope(targetID, "update"))
+	}
+	srv, err := u.Store.GetServer(ctx, targetID)
+	if err != nil {
+		return store.Server{}, err
+	}
+	updated, err := u.Store.SetPlugins(ctx, srv.ID, plugins)
+	if err != nil {
+		return store.Server{}, err
+	}
+	u.sync(ctx, srv.NodeID)
+	_ = u.audit(ctx, srv, p, "server.plugin.promote", map[string]any{
+		"plugins": len(plugins), "revision": updated.DesiredRevision,
+	})
+	return updated, nil
+}
+
 // Remove deletes one managed plugin and syncs the server. A running server is
 // not restarted; the owner restarts when ready to unload it.
 func (u *Updates) Remove(ctx context.Context, p Principal, id, project string) (int64, error) {

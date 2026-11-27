@@ -991,6 +991,34 @@ func (c *Client) PowerServer(ctx context.Context, id string, body apitypes.Power
 	return &out, nil
 }
 
+// GET /api/v1/servers/{id}/promotion
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) PreviewDevPromotion(ctx context.Context, id string) (*apitypes.PromotionPreviewDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/promotion"
+	var q url.Values
+
+	var out apitypes.PromotionPreviewDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/servers/{id}/promotion
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) PromoteDevChanges(ctx context.Context, id string, body apitypes.PromotionRequest) (*apitypes.PromotionResultDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/promotion"
+	var q url.Values
+
+	var out apitypes.PromotionResultDTO
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GET /api/v1/servers/{id}/updates
 //
 // Requires a bearer token configured on the Client.

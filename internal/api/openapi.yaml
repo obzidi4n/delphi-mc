@@ -499,6 +499,46 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/promotion:
+    get:
+      operationId: previewDevPromotion
+      summary: Compare a dev clone with its production source
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Promotion diff
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PromotionPreviewDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+    post:
+      operationId: promoteDevChanges
+      summary: Stage selected dev changes on production
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PromotionRequest" }
+      responses:
+        "200":
+          description: Staged changes; production restart remains manual
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PromotionResultDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
   /api/v1/servers/{id}/plugins:
     get:
       operationId: listServerPlugins
@@ -1368,6 +1408,52 @@ components:
         status: { type: integer }
         detail: { type: string }
         code: { type: string }
+    PromotionPluginChange:
+      type: object
+      required: [project, provider, change]
+      properties:
+        project: { type: string }
+        provider: { type: string }
+        current: { type: string }
+        next: { type: string }
+        change: { type: string, enum: [added, removed, changed] }
+    PromotionFileChange:
+      type: object
+      required: [path, status]
+      properties:
+        path: { type: string }
+        status: { type: string, enum: [added, changed] }
+        production_sha: { type: string }
+        dev_sha: { type: string }
+        size: { type: integer, format: int64 }
+    PromotionPreviewDTO:
+      type: object
+      required: [dev_id, target_id, target_name, plugins, files]
+      properties:
+        dev_id: { type: string }
+        target_id: { type: string }
+        target_name: { type: string }
+        plugins:
+          type: array
+          items: { $ref: "#/components/schemas/PromotionPluginChange" }
+        files:
+          type: array
+          items: { $ref: "#/components/schemas/PromotionFileChange" }
+    PromotionRequest:
+      type: object
+      required: [plugins, files]
+      properties:
+        plugins: { type: boolean }
+        files:
+          type: array
+          items: { type: string }
+    PromotionResultDTO:
+      type: object
+      required: [plugins, files, pending]
+      properties:
+        plugins: { type: integer }
+        files: { type: integer }
+        pending: { type: boolean }
     DevCreateRequest:
       type: object
       required: [owner_username]

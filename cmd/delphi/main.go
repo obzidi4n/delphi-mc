@@ -359,7 +359,7 @@ func runPanel(ctx context.Context, args []string) error {
 			Store: db, Servers: servers, Ports: db, Resolver: mc.NewClient(nil), Plugins: updates,
 		}
 		dev := &capability.Dev{
-			Store: db, Servers: servers, Hub: hub, Log: log,
+			Store: db, Servers: servers, Updates: updates, Files: files, Hub: hub, Log: log,
 		}
 		services = &capability.Services{
 			Servers:   servers,

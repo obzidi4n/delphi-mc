@@ -58,3 +58,39 @@ func TestCreateDevClonesAndWhitelistsOwner(t *testing.T) {
 		t.Fatalf("whitelist = %+v", caller.req.Whitelist)
 	}
 }
+
+func TestPromotionPropertiesPreserveProductionBindings(t *testing.T) {
+	dev := "server-port=25567\nwhite-list=true\nenforce-whitelist=true\nmotd=Dev\n"
+	prod := "server-port=25565\nwhite-list=false\nenforce-whitelist=false\nlevel-name=world\n"
+	got := promoteProperties(dev, prod)
+	for _, want := range []string{"server-port=25565", "white-list=false", "enforce-whitelist=false", "level-name=world", "motd=Dev"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("promoted properties missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "25567") {
+		t.Fatalf("dev port leaked into production properties:\n%s", got)
+	}
+}
+
+func TestPluginDiffReportsAddedRemovedChanged(t *testing.T) {
+	dev := []store.ServerPlugin{
+		{Project: "same", Provider: "modrinth", Version: "1.0", SHA256: "a"},
+		{Project: "new", Provider: "modrinth", Version: "2.0", SHA256: "b"},
+	}
+	prod := []store.ServerPlugin{
+		{Project: "same", Provider: "modrinth", Version: "0.9", SHA256: "c"},
+		{Project: "old", Provider: "modrinth", Version: "1.0", SHA256: "d"},
+	}
+	got := pluginDiff(dev, prod)
+	if len(got) != 3 {
+		t.Fatalf("diff = %+v", got)
+	}
+	byProject := map[string]PromotionPluginChange{}
+	for _, change := range got {
+		byProject[change.Project] = change
+	}
+	if byProject["new"].Change != "added" || byProject["old"].Change != "removed" || byProject["same"].Change != "changed" {
+		t.Fatalf("diff = %+v", got)
+	}
+}

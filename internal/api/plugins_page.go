@@ -99,6 +99,10 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
  .devbox.pending{border-color:#1f6feb;box-shadow:0 0 0 1px #1f6feb inset}
  .devpending{color:#79c0ff;font-size:.8rem;margin:.2rem 0 .5rem}
  #dev-status{margin-top:.5rem;color:#8b949e;font-size:.8rem;word-break:break-word}
+ #promo-diff{margin-top:.5rem;max-height:26rem;overflow:auto}
+ #promo-diff table{margin-top:.3rem}
+ #promo-diff code{color:#79c0ff;font-size:.75rem}
+ .promo-section{margin:.5rem 0}
  #toast{position:fixed;right:1rem;bottom:1rem;max-width:34rem;background:#161b22;border:1px solid #30363d;border-radius:.4rem;padding:.55rem .7rem;color:#e6edf3;display:none;white-space:pre-wrap}
  #toast.err{border-color:#f85149;color:#ff7b72}
  .loading{opacity:.55}
@@ -114,6 +118,20 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
   <span class="meta">Minecraft {{.MCVersion}}</span>
 </header>
 <main>
+ {{if .DevOf}}
+ <section id="promotion" class="devbox">
+  <div class="row" style="justify-content:space-between">
+   <h2>Promote to production</h2>
+   <button id="promo-load">Review changes</button>
+  </div>
+  <p class="meta">Compare this dev clone with its production source. Selected plugins and config files are staged on production without restarting it.</p>
+  <div id="promo-status" class="meta">Review changes to see the diff.</div>
+  <div id="promo-diff"></div>
+  <div class="row" style="margin-top:.5rem">
+   <button id="promo-apply" class="primary" type="button" disabled>Promote selected</button>
+  </div>
+ </section>
+ {{end}}
  <section id="devbox" class="devbox{{if or .PendingPlugins .PendingFiles}} pending{{end}}">
   <div class="row" style="justify-content:space-between">
    <h2>Test in a dev server</h2>
@@ -223,6 +241,10 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
   var serverName = body.dataset.name || id;
   var searchBtn = document.getElementById('search');
   var devbox = document.getElementById('devbox');
+  var promoLoad = document.getElementById('promo-load');
+  var promoApply = document.getElementById('promo-apply');
+  var promoStatus = document.getElementById('promo-status');
+  var promoDiff = document.getElementById('promo-diff');
   var devOwner = document.getElementById('dev-owner');
   var devFresh = document.getElementById('dev-fresh');
   var devCreate = document.getElementById('dev-create');
@@ -407,6 +429,114 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
   function refreshAll() {
     return loadInstalled().then(function () { return loadSchedules(); }).then(function () { return checkUpdates(true); });
   }
+  var promotion = null;
+
+  function renderPromotion(preview) {
+    promotion = preview;
+    promoDiff.textContent = '';
+    var hasPlugins = preview.plugins && preview.plugins.length > 0;
+    var hasFiles = preview.files && preview.files.length > 0;
+    if (!hasPlugins && !hasFiles) {
+      promoStatus.textContent = 'No plugin or config differences.';
+      promoApply.disabled = true;
+      return;
+    }
+    promoStatus.textContent = 'Target: ' + preview.target_name + '. Select what to stage.';
+    if (hasPlugins) {
+      var pluginBox = document.createElement('div');
+      pluginBox.className = 'promo-section';
+      var pluginLabel = document.createElement('label');
+      pluginLabel.className = 'check';
+      var pluginCheck = document.createElement('input');
+      pluginCheck.type = 'checkbox';
+      pluginCheck.id = 'promo-plugins';
+      pluginCheck.checked = true;
+      pluginLabel.appendChild(pluginCheck);
+      pluginLabel.appendChild(document.createTextNode(' Plugin set (' + preview.plugins.length + ' change(s))'));
+      pluginBox.appendChild(pluginLabel);
+      var table = document.createElement('table');
+      preview.plugins.forEach(function (change) {
+        var tr = document.createElement('tr');
+        tr.appendChild(cell(change.project, 'name'));
+        tr.appendChild(cell(change.change));
+        tr.appendChild(cell(change.current || '—'));
+        tr.appendChild(cell(change.next || '—'));
+        table.appendChild(tr);
+      });
+      pluginBox.appendChild(table);
+      promoDiff.appendChild(pluginBox);
+    }
+    if (hasFiles) {
+      var fileBox = document.createElement('div');
+      fileBox.className = 'promo-section';
+      var title = document.createElement('div');
+      title.className = 'meta';
+      title.textContent = 'Config files';
+      fileBox.appendChild(title);
+      preview.files.forEach(function (file) {
+        var label = document.createElement('label');
+        label.className = 'check';
+        label.style.display = 'flex';
+        label.style.margin = '.15rem 0';
+        var check = document.createElement('input');
+        check.type = 'checkbox';
+        check.checked = true;
+        check.setAttribute('data-promo-file', file.path);
+        label.appendChild(check);
+        var code = document.createElement('code');
+        code.textContent = file.path;
+        label.appendChild(code);
+        var status = document.createElement('span');
+        status.className = 'meta';
+        status.textContent = ' ' + file.status;
+        label.appendChild(status);
+        fileBox.appendChild(label);
+      });
+      promoDiff.appendChild(fileBox);
+    }
+    promoApply.disabled = false;
+  }
+
+  function loadPromotion() {
+    if (!promoLoad) { return; }
+    promoLoad.disabled = true;
+    promoStatus.textContent = 'Comparing dev and production…';
+    request(api + '/promotion').then(function (preview) {
+      renderPromotion(preview);
+    }).catch(function (err) {
+      promoStatus.textContent = err.message;
+    }).finally(function () { promoLoad.disabled = false; });
+  }
+
+  function applyPromotion() {
+    if (!promotion) { return; }
+    var files = Array.prototype.map.call(
+      promoDiff.querySelectorAll('input[data-promo-file]:checked'),
+      function (el) { return el.getAttribute('data-promo-file'); }
+    );
+    var pluginCheck = document.getElementById('promo-plugins');
+    var plugins = !!(pluginCheck && pluginCheck.checked);
+    if (!plugins && files.length === 0) {
+      toast('Select at least one change to promote', true);
+      return;
+    }
+    promoApply.disabled = true;
+    request(api + '/promotion', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({plugins: plugins, files: files})
+    }).then(function (result) {
+      promoStatus.textContent = 'Staged ' + result.plugins + ' plugin change(s) and ' + result.files + ' file(s). Restart production to deploy.';
+      var link = document.createElement('a');
+      link.href = base + 'servers/' + encodeURIComponent(promotion.target_id);
+      link.textContent = ' Open production console';
+      promoStatus.appendChild(link);
+      toast('Changes staged on production; restart it when ready');
+    }).catch(function (err) {
+      toast(err.message, true);
+    }).finally(function () { promoApply.disabled = false; });
+  }
+
   function markStaged() {
     if (!devbox) { return; }
     devbox.classList.add('pending');
@@ -543,6 +673,11 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
       .catch(function (err) { toast(err.message, true); })
       .finally(function () { submit.disabled = false; });
   });
+  if (promoLoad) {
+    promoLoad.addEventListener('click', loadPromotion);
+    promoApply.addEventListener('click', applyPromotion);
+    loadPromotion();
+  }
   autoForm.addEventListener('submit', function (e) {
     e.preventDefault();
     var cron = cronEl.value.trim();

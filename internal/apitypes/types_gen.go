@@ -562,6 +562,46 @@ type Problem struct {
 	Type   string `json:"type"`
 }
 
+// PromotionFileChange is generated from the spec.
+type PromotionFileChange struct {
+	DevSha        *string `json:"dev_sha,omitempty"`
+	Path          string  `json:"path"`
+	ProductionSha *string `json:"production_sha,omitempty"`
+	Size          *int64  `json:"size,omitempty"`
+	Status        string  `json:"status"`
+}
+
+// PromotionPluginChange is generated from the spec.
+type PromotionPluginChange struct {
+	Change   string  `json:"change"`
+	Current  *string `json:"current,omitempty"`
+	Next     *string `json:"next,omitempty"`
+	Project  string  `json:"project"`
+	Provider string  `json:"provider"`
+}
+
+// PromotionPreviewDTO is generated from the spec.
+type PromotionPreviewDTO struct {
+	DevID      string                  `json:"dev_id"`
+	Files      []PromotionFileChange   `json:"files"`
+	Plugins    []PromotionPluginChange `json:"plugins"`
+	TargetID   string                  `json:"target_id"`
+	TargetName string                  `json:"target_name"`
+}
+
+// PromotionRequest is generated from the spec.
+type PromotionRequest struct {
+	Files   []string `json:"files"`
+	Plugins bool     `json:"plugins"`
+}
+
+// PromotionResultDTO is generated from the spec.
+type PromotionResultDTO struct {
+	Files   int  `json:"files"`
+	Pending bool `json:"pending"`
+	Plugins int  `json:"plugins"`
+}
+
 // RenameRequest is generated from the spec.
 type RenameRequest struct {
 	Name string `json:"name"`

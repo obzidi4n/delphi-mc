@@ -69,6 +69,13 @@ and excluded from remote update checks. Re-uploading the same project replaces
 the managed entry. This is the manual Spigot path; Modrinth/Hangar projects can
 still be browsed and resolved normally.
 
+For a dev clone, `GET /servers/{id}/promotion` compares its managed plugin set
+and config files with the production source. `POST /servers/{id}/promotion`
+stages selected plugin/file changes on production without restarting it; the
+production server then shows the normal pending state. `server.properties`
+promotion preserves the production port, whitelist, level name, and RCON
+bindings so a dev port or whitelist cannot leak back.
+
 The page checks for updates on load and every five minutes while it is open.
 To make updates automatic, create a schedule with action `updates.apply`; the
 existing scheduler runs detection, downloads changed artifacts, applies the new

@@ -2,12 +2,16 @@ package capability
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -21,10 +25,54 @@ type DevStore interface {
 	ExpiredDevServers(ctx context.Context, now time.Time) ([]store.Server, error)
 }
 
+// DevFiles is the node file surface used to compare and promote settings.
+type DevFiles interface {
+	List(ctx context.Context, srv store.Server, path string) ([]wire.FileEntry, error)
+	Read(ctx context.Context, srv store.Server, path string) (string, string, int64, error)
+	Write(ctx context.Context, p Principal, srv store.Server, path, content, expected, auditAction string) (string, int, error)
+}
+
+// PromotionPluginChange is one plugin difference between a dev clone and
+// production.
+type PromotionPluginChange struct {
+	Project  string `json:"project"`
+	Provider string `json:"provider"`
+	Current  string `json:"current,omitempty"`
+	Next     string `json:"next,omitempty"`
+	Change   string `json:"change"` // added | removed | changed
+}
+
+// PromotionFileChange is one settings/config difference.
+type PromotionFileChange struct {
+	Path          string `json:"path"`
+	Status        string `json:"status"` // added | changed
+	ProductionSHA string `json:"production_sha,omitempty"`
+	DevSHA        string `json:"dev_sha,omitempty"`
+	Size          int64  `json:"size,omitempty"`
+}
+
+// PromotionPreview is a safe review of dev changes before promotion.
+type PromotionPreview struct {
+	DevID      string                  `json:"dev_id"`
+	TargetID   string                  `json:"target_id"`
+	TargetName string                  `json:"target_name"`
+	Plugins    []PromotionPluginChange `json:"plugins"`
+	Files      []PromotionFileChange   `json:"files"`
+}
+
+// PromotionResult reports the staged production changes.
+type PromotionResult struct {
+	Plugins int  `json:"plugins"`
+	Files   int  `json:"files"`
+	Pending bool `json:"pending"`
+}
+
 // Dev creates temporary same-node clones for testing settings and plugins.
 type Dev struct {
 	Store      DevStore
 	Servers    *Servers
+	Updates    *Updates
+	Files      DevFiles
 	Hub        NodeCaller
 	HTTP       *http.Client
 	MojangBase string
@@ -123,6 +171,289 @@ func (d *Dev) Create(ctx context.Context, p Principal, sourceID, ownerName strin
 	target = started
 	d.log().Info("dev server created", "source", source.ID, "target", target.ID, "bytes", result.Bytes, "method", result.Method)
 	return DevCreateResult{Server: target, Owner: ownerName, UUID: uuid}, nil
+}
+
+// Preview compares a dev clone with its production source.
+func (d *Dev) Preview(ctx context.Context, p Principal, devID string) (PromotionPreview, error) {
+	dev, target, err := d.devPair(ctx, p, devID)
+	if err != nil {
+		return PromotionPreview{}, err
+	}
+	files, err := d.promotionFiles(ctx, dev, target)
+	if err != nil {
+		return PromotionPreview{}, err
+	}
+	return PromotionPreview{
+		DevID: dev.ID, TargetID: target.ID, TargetName: target.Name,
+		Plugins: pluginDiff(dev.Plugins, target.Plugins), Files: files,
+	}, nil
+}
+
+// Promote stages selected dev changes on production. It does not restart
+// production; plugin/file mutations mark the production server pending.
+func (d *Dev) Promote(ctx context.Context, p Principal, devID string, includePlugins bool, selected []string) (PromotionResult, error) {
+	dev, target, err := d.devPair(ctx, p, devID)
+	if err != nil {
+		return PromotionResult{}, err
+	}
+	preview, err := d.Preview(ctx, p, devID)
+	if err != nil {
+		return PromotionResult{}, err
+	}
+	result := PromotionResult{Pending: true}
+	if includePlugins && len(preview.Plugins) > 0 {
+		if d.Updates == nil {
+			return PromotionResult{}, errors.New("plugin promotion is not configured")
+		}
+		if _, err := d.Updates.PromotePlugins(ctx, p, target.ID, dev.Plugins); err != nil {
+			return PromotionResult{}, err
+		}
+		result.Plugins = len(preview.Plugins)
+	}
+	want := map[string]bool{}
+	for _, path := range selected {
+		want[path] = true
+	}
+	for _, change := range preview.Files {
+		if !want[change.Path] {
+			continue
+		}
+		content, _, _, err := d.Files.Read(ctx, dev, change.Path)
+		if err != nil {
+			return PromotionResult{}, fmt.Errorf("read dev %s: %w", change.Path, err)
+		}
+		production, productionSHA, _, readErr := d.Files.Read(ctx, target, change.Path)
+		if readErr != nil {
+			production, productionSHA = "", ""
+		}
+		if change.Path == "server.properties" {
+			content = promoteProperties(content, production)
+		}
+		if _, _, err := d.Files.Write(ctx, p, target, change.Path, content, productionSHA, "dev.promote"); err != nil {
+			return PromotionResult{}, fmt.Errorf("write production %s: %w", change.Path, err)
+		}
+		result.Files++
+	}
+	d.StoreAudit(ctx, p, "dev.promote", dev.ID, map[string]any{
+		"target_id": target.ID, "plugins": result.Plugins, "files": result.Files,
+	})
+	return result, nil
+}
+
+func (d *Dev) devPair(ctx context.Context, p Principal, devID string) (store.Server, store.Server, error) {
+	if d.Store == nil {
+		return store.Server{}, store.Server{}, errors.New("dev environments are not configured")
+	}
+	dev, err := d.Store.GetServer(ctx, devID)
+	if err != nil {
+		return store.Server{}, store.Server{}, err
+	}
+	if dev.DevOf == "" {
+		return store.Server{}, store.Server{}, invalid("server is not a dev clone")
+	}
+	target, err := d.Store.GetServer(ctx, dev.DevOf)
+	if err != nil {
+		return store.Server{}, store.Server{}, err
+	}
+	if target.OrgID != p.OrgID || dev.OrgID != p.OrgID {
+		return store.Server{}, store.Server{}, forbidden(serverScope(devID, "update"))
+	}
+	if !p.Allows(serverScope(target.ID, "update")) {
+		return store.Server{}, store.Server{}, forbidden(serverScope(target.ID, "update"))
+	}
+	return dev, target, nil
+}
+
+func pluginDiff(dev, target []store.ServerPlugin) []PromotionPluginChange {
+	byProject := make(map[string]store.ServerPlugin, len(target))
+	for _, p := range target {
+		byProject[strings.ToLower(p.Project)] = p
+	}
+	seen := map[string]bool{}
+	var out []PromotionPluginChange
+	for _, p := range dev {
+		key := strings.ToLower(p.Project)
+		seen[key] = true
+		old, ok := byProject[key]
+		switch {
+		case !ok:
+			out = append(out, PromotionPluginChange{Project: p.Project, Provider: p.Provider, Next: p.Version, Change: "added"})
+		case old.Version != p.Version || old.SHA256 != p.SHA256 || old.Provider != p.Provider:
+			out = append(out, PromotionPluginChange{Project: p.Project, Provider: p.Provider, Current: old.Version, Next: p.Version, Change: "changed"})
+		}
+	}
+	for _, p := range target {
+		if !seen[strings.ToLower(p.Project)] {
+			out = append(out, PromotionPluginChange{Project: p.Project, Provider: p.Provider, Current: p.Version, Change: "removed"})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Project == out[j].Project {
+			return out[i].Change < out[j].Change
+		}
+		return out[i].Project < out[j].Project
+	})
+	return out
+}
+
+var promotionRoots = []string{
+	"server.properties", "bukkit.yml", "spigot.yml", "paper-global.yml",
+	"paper-world-defaults.yml", "commands.yml", "help.yml", "permissions.yml", "purpur.yml",
+}
+
+var promotionSkipDirs = map[string]bool{
+	"world": true, "world_nether": true, "world_the_end": true,
+	"logs": true, "cache": true, "crash": true, "backups": true,
+	"libraries": true, "versions": true, "playerdata": true, "data": true,
+	"sessions": true, "stats": true, "advancements": true,
+}
+
+func (d *Dev) promotionFiles(ctx context.Context, dev, target store.Server) ([]PromotionFileChange, error) {
+	if d.Files == nil {
+		return nil, errors.New("file promotion is not configured")
+	}
+	paths := map[string]bool{}
+	for _, p := range promotionRoots {
+		paths[p] = true
+	}
+	for _, root := range []string{"config", "plugins"} {
+		d.walkPromotionFiles(ctx, dev, root, paths)
+	}
+	list := make([]string, 0, len(paths))
+	for p := range paths {
+		list = append(list, p)
+	}
+	sort.Strings(list)
+	var out []PromotionFileChange
+	for _, p := range list {
+		devContent, _, size, err := d.Files.Read(ctx, dev, p)
+		if err != nil {
+			continue
+		}
+		production, productionSHA, _, prodErr := d.Files.Read(ctx, target, p)
+		if p == "server.properties" {
+			devContent = promoteProperties(devContent, production)
+			size = int64(len(devContent))
+		}
+		devSHA := contentSHA(devContent)
+		if prodErr == nil && devSHA == productionSHA {
+			continue
+		}
+		status := "changed"
+		if prodErr != nil {
+			status = "added"
+			productionSHA = ""
+		}
+		out = append(out, PromotionFileChange{
+			Path: p, Status: status, ProductionSHA: productionSHA, DevSHA: devSHA, Size: size,
+		})
+	}
+	return out, nil
+}
+
+func (d *Dev) walkPromotionFiles(ctx context.Context, srv store.Server, dir string, out map[string]bool) {
+	entries, err := d.Files.List(ctx, srv, dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		rel := path.Join(dir, entry.Name)
+		if entry.Dir {
+			if promotionSkipDirs[strings.ToLower(entry.Name)] {
+				continue
+			}
+			d.walkPromotionFiles(ctx, srv, rel, out)
+			continue
+		}
+		if isPromotionFile(rel) {
+			out[rel] = true
+		}
+	}
+}
+
+func isPromotionFile(rel string) bool {
+	base := strings.ToLower(path.Base(rel))
+	ext := path.Ext(base)
+	if ext != ".yml" && ext != ".yaml" && ext != ".json" && ext != ".properties" && ext != ".conf" && ext != ".toml" {
+		return false
+	}
+	for _, bad := range []string{"whitelist.json", "ops.json", "usercache.json", "banned-ips.json", "banned-players.json"} {
+		if base == bad {
+			return false
+		}
+	}
+	lower := strings.ToLower(rel)
+	for _, bad := range []string{"/playerdata/", "/data/", "/sessions/", "/stats/", "/advancements/"} {
+		if strings.Contains(lower, bad) {
+			return false
+		}
+	}
+	return true
+}
+
+func promoteProperties(dev, production string) string {
+	protected := []string{"server-port", "server-ip", "white-list", "enforce-whitelist", "level-name", "enable-rcon", "rcon.port"}
+	out := dev
+	for _, key := range protected {
+		if value, ok := propertyValue(production, key); ok {
+			out = setProperty(out, key, value)
+		}
+	}
+	return out
+}
+
+func propertyValue(content, key string) (string, bool) {
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(trimmed, "=")
+		if ok && strings.TrimSpace(k) == key {
+			return strings.TrimSpace(v), true
+		}
+	}
+	return "", false
+}
+
+func setProperty(content, key, value string) string {
+	lines := strings.Split(content, "\n")
+	found := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		k, _, ok := strings.Cut(trimmed, "=")
+		if ok && strings.TrimSpace(k) == key {
+			lines[i] = key + "=" + value
+			found = true
+		}
+	}
+	if !found {
+		if len(lines) > 0 && lines[len(lines)-1] == "" {
+			lines = lines[:len(lines)-1]
+		}
+		lines = append(lines, key+"="+value)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func contentSHA(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:])
+}
+
+// StoreAudit records promotion without requiring the full server store.
+func (d *Dev) StoreAudit(ctx context.Context, p Principal, action, target string, diff any) {
+	if d.Store == nil {
+		return
+	}
+	if auditor, ok := d.Store.(interface {
+		Audit(context.Context, string, string, string, string, string, any) error
+	}); ok {
+		_ = auditor.Audit(ctx, p.OrgID, p.UserID, p.Via, action, target, diff)
+	}
 }
 
 // Cleanup deletes dev clones whose TTL elapsed. It uses a system principal

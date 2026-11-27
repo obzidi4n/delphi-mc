@@ -100,7 +100,11 @@ through the guarded boot-check path. Its **Test in a dev server** panel is alway
 available and is highlighted when plugins or config files are staged but not
 loaded; the dev clone copies the current on-disk state and whitelists only the
 owner's Minecraft account. It calls `POST /api/v1/servers/{id}/dev` with
-`{owner_username, fresh_world?}`; the clone expires after 24 hours.
+`{owner_username, fresh_world?}`; the clone expires after 24 hours. A dev server
+has a **Promote to production** panel: `GET /servers/{id}/promotion` shows plugin
+and config-file changes, and `POST /servers/{id}/promotion` stages selected
+changes on production. Promotion does not restart production; it leaves the
+normal pending/restart state in place.
 For unattended operation, the page's cron form creates a schedule with action
 `updates.apply`; the scheduler performs detection and download on each run.
 
