@@ -66,6 +66,12 @@ The home page renders servers by group, with an `Ungrouped` section. The Groups 
 membership. Placement happens per node at server creation; v1.0 has no live migration, only
 drain plus stop/snapshot/restore.
 
+## Adding a node from the web UI
+
+Open **Nodes**, choose a node name, and generate a one-time enrollment token. The page provides
+`ca.crt` and the `delphi agent enroll` command. After the agent connects, the node appears as
+healthy and is available in **Create server**.
+
 ## Capacity and placement
 
 Resource pressure is per node, not per group. The panel evaluates placement by node capacity;

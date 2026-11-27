@@ -36,6 +36,9 @@ chokes on live 5k-point series), CodeMirror 6 for configs, Tailwind + shadcn.
   banner names offline nodes and a recent panel restart, states that servers keep running and
   restarts are agent-local, and the node table shows status and last-seen. Actions stay
   unavailable while the panel is down; there is no offline write queue.
+- The Nodes page generates one-time enrollment tokens, downloads `ca.crt`, and lists node
+  health. The Create server page selects a template and node, applies optional memory/CPU/port
+  overrides, requires the EULA, and opens the new server console.
 - The Templates page lists built-in and org templates, shows the full JSON body, and edits
   org-owned templates in place with revision increments. The `files` map is also exposed as
   per-file multiline sub-editors, so long `server.properties` content is not a single escaped

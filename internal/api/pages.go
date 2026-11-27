@@ -65,6 +65,7 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
  <a href="{{$base}}" {{if eq .Page "home"}}class="on"{{end}}>Fleet</a>
  <a href="{{$base}}team" {{if eq .Page "team"}}class="on"{{end}}>Team</a>
  <a href="{{$base}}groups" {{if eq .Page "groups"}}class="on"{{end}}>Groups</a>
+ <a href="{{$base}}nodes">Nodes</a>
  <a href="{{$base}}templates">Templates</a>
  <a href="{{$base}}audit" {{if eq .Page "audit"}}class="on"{{end}}>Audit</a>
  <a href="{{$base}}chat">AI</a>
@@ -159,7 +160,7 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
     {{else}}<p class="muted">No audit entries.</p>{{end}}
   {{else}}
     {{if .Groups}}
-      <h2>Servers by group</h2>
+      <h2>Servers by group <a href="{{$base}}servers/new" class="muted">Create server</a></h2>
       {{range .Groups}}{{$g := .}}
         <section>
           <h3>{{.Group.Name}} <span class="muted">({{len .Members}})</span></h3>
@@ -174,12 +175,12 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
       {{range .Ungrouped}}<tr><td><a href="{{$base}}servers/{{.ID}}">{{.Name}}</a></td><td>{{.DesiredState}}</td><td>{{.ObservedState}}</td><td>{{.Port}}</td><td>{{.NodeID}}</td><td class="muted">{{.ID}}</td></tr>{{end}}</table>
       {{else}}<p class="muted">Every server belongs to a group.</p>{{end}}
     {{else}}
-      <h2>Servers</h2>
+      <h2>Servers <a href="{{$base}}servers/new" class="muted">Create server</a></h2>
       {{if .Servers}}<table><tr><th>Name</th><th>Desired</th><th>Observed</th><th>Port</th><th>Node</th><th>ID</th></tr>
       {{range .Servers}}<tr><td><a href="{{$base}}servers/{{.ID}}">{{.Name}}</a></td><td>{{.DesiredState}}</td><td>{{.ObservedState}}</td><td>{{.Port}}</td><td>{{.NodeID}}</td><td class="muted">{{.ID}}</td></tr>{{end}}</table>
-      {{else}}<p class="muted">No servers yet. Create one with the API or CLI.</p>{{end}}
+      {{else}}<p class="muted">No servers yet. <a href="{{$base}}servers/new">Create one</a>.</p>{{end}}
     {{end}}
-    <h2>Nodes</h2>
+    <h2>Nodes <a href="{{$base}}nodes" class="muted">Add node</a></h2>
     {{if .Nodes}}<table><tr><th>Name</th><th>Status</th><th>Version</th><th>FS</th><th>Last seen</th></tr>
     {{range .Nodes}}<tr><td>{{.Name}}</td><td>{{.Status}}</td><td>{{.AgentVersion}}</td><td>{{.FSCapability}}</td><td>{{if .LastSeen}}{{.LastSeen}}{{else}}-{{end}}</td></tr>{{end}}</table>
     {{else}}<p class="muted">No nodes enrolled.</p>{{end}}

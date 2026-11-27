@@ -20,6 +20,14 @@ panel                                  node
   │  assign node id, record cert_serial    │
 ```
 
+## Web UI
+
+An owner can open **Nodes**, enter a node name, generate a one-time token, and download
+`ca.crt` from the same page. The page shows the exact `delphi agent enroll` command with the
+token, panel URL, CA file, and node name filled in. The token is single-use and expires; it is
+shown once. After enrollment the node appears in the table and can be selected in
+**Create server**.
+
 ## Rules
 
 - Tokens are **single-use, short-TTL** (default 15 minutes), bound to an org, and listed with

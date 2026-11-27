@@ -202,6 +202,10 @@ Start the agent in another terminal and keep it running:
 Return to the panel web page. The node should appear as **healthy**. The machine is now ready
 to host servers.
 
+You can do the same enrollment from the web UI: open **Nodes**, set the node name, generate a
+one-time token, download `ca.crt`, and copy the displayed `delphi agent enroll` command. Then
+open **Create server** to launch a template on that node.
+
 ### 6. Create your first server
 
 List nodes to copy the node ID:

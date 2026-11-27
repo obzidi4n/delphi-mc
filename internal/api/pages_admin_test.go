@@ -211,6 +211,28 @@ func TestHomePageGroupsServers(t *testing.T) {
 	}
 }
 
+func TestWebOnboardingPages(t *testing.T) {
+	h, _, _, _ := newAdminHandler(t, []string{"*"})
+	for _, path := range []string{"/nodes", "/servers/new"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.AddCookie(loginCookie(t, h))
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d: %s", path, rec.Code, rec.Body.String())
+		}
+	}
+	req := httptest.NewRequest(http.MethodGet, "/nodes", nil)
+	req.AddCookie(loginCookie(t, h))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	for _, want := range []string{"Add a node", "Generate enrollment token"} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Fatalf("nodes page missing %q", want)
+		}
+	}
+}
+
 func TestGroupsPageRendersMembers(t *testing.T) {
 	h, _, _, _ := newAdminHandler(t, []string{"*"})
 	req := httptest.NewRequest(http.MethodGet, "/groups", nil)
