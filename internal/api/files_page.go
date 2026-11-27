@@ -60,7 +60,9 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
  button{padding:.3rem .65rem;background:#21262d;border:1px solid #30363d;border-radius:.35rem;color:inherit;font:inherit;cursor:pointer}
  button:hover{background:#30363d}
  button:disabled{opacity:.45;cursor:default}
- textarea{flex:1;width:100%;resize:none;border:0;background:#010409;color:#c9d1d9;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:.7rem .9rem;outline:none;tab-size:4}
+ .editorwrap{flex:1;display:flex;min-height:0;min-width:0;background:#010409}
+ .gutter{flex:none;min-width:3.2rem;padding:.7rem .55rem .7rem .7rem;border-right:1px solid #21262d;background:#0d1117;color:#6e7681;text-align:right;white-space:pre;overflow:hidden;user-select:none;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+ textarea{flex:1;width:auto;min-width:0;height:100%;resize:none;border:0;background:#010409;color:#c9d1d9;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:.7rem .9rem;outline:none;tab-size:4;white-space:pre;overflow:auto}
  .revs{width:19rem;border-left:1px solid #21262d;overflow:auto;padding:.5rem .6rem}
  .revs h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#8b949e;margin:.2rem 0 .5rem}
  .rev{border-bottom:1px solid #21262d;padding:.35rem 0;font-size:.8rem}
@@ -95,7 +97,10 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
       <span class="status" id="status"></span>
     </div>
     <div class="lintbar" id="lintbar">Open a .json, .yaml, .yml, or .toml file to lint.</div>
-    <textarea id="editor" spellcheck="false" placeholder="Open a file from the list, or type a path and press Open."></textarea>
+    <div class="editorwrap" id="editorWrap">
+      <div class="gutter" id="lineNumbers" aria-hidden="true">1</div>
+      <textarea id="editor" spellcheck="false" wrap="off" placeholder="Open a file from the list, or type a path and press Open."></textarea>
+    </div>
     <pre id="diff"></pre>
   </section>
   <div class="revs">
@@ -118,6 +123,8 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   var statusEl = document.getElementById('status');
   var revisionsEl = document.getElementById('revisions');
   var diffEl = document.getElementById('diff');
+  var editorWrap = document.getElementById('editorWrap');
+  var lineNumbers = document.getElementById('lineNumbers');
   var lintbar = document.getElementById('lintbar');
   var dir = '';
   var currentPath = '';
@@ -134,6 +141,18 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     statusEl.className = 'status' + (ok === true ? ' ok' : ok === false ? ' err' : '');
   }
   function join(parent, name) { return parent ? parent + '/' + name : name; }
+  function renderLineNumbers() {
+    var text = editor.value;
+    var count = 1;
+    for (var i = 0; i < text.length; i++) {
+      if (text.charCodeAt(i) === 10) { count++; }
+    }
+    var lines = new Array(count);
+    for (var n = 0; n < count; n++) { lines[n] = String(n + 1); }
+    lineNumbers.textContent = lines.join('\n');
+    lineNumbers.style.width = (String(count).length + 3) + 'ch';
+    lineNumbers.scrollTop = editor.scrollTop;
+  }
   function configKind(path) {
     var m = /\.([A-Za-z0-9]+)$/.exec(path || '');
     if (!m) { return ''; }
@@ -239,6 +258,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     if (seq !== openSeq) { return; }
     if (!res.ok) {
       editor.value = '';
+      renderLineNumbers();
       currentPath = path;
       currentSHA = '';
       latestRevision = 0;
@@ -274,6 +294,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
       }
     }
     editor.value = content;
+    renderLineNumbers();
     currentPath = path;
     currentSHA = data.sha256;
     latestRevision = 0;
@@ -287,7 +308,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   }
   function showEditor() {
     diffEl.style.display = 'none';
-    editor.style.display = 'block';
+    editorWrap.style.display = 'flex';
   }
   async function save() {
     var path = (currentPath || pathInput.value).trim();
@@ -316,7 +337,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     if (res.status === 409) { setStatus('conflict: the file changed on disk; reopen it', false); return; }
     if (!res.ok) { setStatus('save failed: HTTP ' + res.status + ' ' + (await res.text()).slice(0, 160), false); return; }
     var result = await res.json();
-    if (content !== editor.value) { editor.value = content; }
+    if (content !== editor.value) { editor.value = content; renderLineNumbers(); }
     currentPath = path;
     currentSHA = result.sha256;
     latestRevision = result.revision;
@@ -373,7 +394,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     var res = await fetch(api + '/diff?path=' + enc(currentPath) + '&from=' + from + '&to=' + to, { credentials: 'same-origin' });
     if (!res.ok) { setStatus('diff failed: HTTP ' + res.status, false); return; }
     var data = await res.json();
-    editor.style.display = 'none';
+    editorWrap.style.display = 'none';
     diffEl.style.display = 'block';
     diffEl.textContent = data.diff || '(no changes)';
     setStatus('diff r' + from + ' → r' + to + ' of ' + currentPath, true);
@@ -405,21 +426,29 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   });
   editor.addEventListener('input', function () {
     dirty = true;
+    renderLineNumbers();
     setStatus('unsaved changes');
     if (configKind(currentPath)) { scheduleLint(); }
     else { clearLint(); }
+  });
+  editor.addEventListener('scroll', function () {
+    lineNumbers.scrollTop = editor.scrollTop;
   });
   editor.addEventListener('keydown', function (event) {
     if (event.key === 'Tab') {
       event.preventDefault();
       var start = editor.selectionStart;
       editor.setRangeText('  ', start, editor.selectionEnd, 'end');
+      renderLineNumbers();
+      setStatus('unsaved changes');
+      if (configKind(currentPath)) { scheduleLint(); }
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
       event.preventDefault();
       save();
     }
   });
+  renderLineNumbers();
   loadDir('');
 })();
 </script>
