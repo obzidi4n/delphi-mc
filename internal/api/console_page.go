@@ -75,6 +75,13 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
  .mainrow{flex:1;display:flex;min-height:0}
  .termcol{flex:1;display:flex;flex-direction:column;min-width:0}
  #term{flex:1;overflow:auto;padding:.5rem .9rem 1.2rem;white-space:pre-wrap;word-break:break-word;min-height:0}
+ .commandbar{display:flex;gap:.5rem;padding:.45rem .9rem;border-top:1px solid #21262d;background:#010409}
+ .commandbar input{flex:1;min-width:0;background:#0d1117;border:1px solid #30363d;border-radius:.35rem;color:inherit;padding:.35rem .55rem;font:inherit;outline:none}
+ .commandbar input:focus{border-color:#388bfd}
+ .commandbar input:disabled{opacity:.5}
+ .commandbar button{background:#21262d;border:1px solid #30363d;border-radius:.35rem;color:#c9d1d9;padding:.3rem .7rem;font:inherit;cursor:pointer}
+ .commandbar button:hover{background:#30363d}
+ .commandbar button:disabled{opacity:.4;cursor:default}
  aside{width:21rem;flex:0 0 auto;border-left:1px solid #21262d;background:#0d1117;overflow:auto;padding:.6rem .8rem}
  aside h2{font-size:.85rem;margin:.2rem 0 .5rem;display:flex;align-items:center;gap:.4rem}
  aside h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:#8b949e;margin:.9rem 0 .35rem}
@@ -132,6 +139,11 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
     <button id="clear">Clear</button>
   </div>
   <div id="term" tabindex="0"></div>
+  <form class="commandbar" id="cmdform">
+    <input id="cmdinput" list="commandOptions" autocomplete="off" disabled placeholder="Server command (no leading / needed)">
+    <button id="cmdsend" type="submit" disabled>Send</button>
+  </form>
+  <datalist id="commandOptions"></datalist>
   </div>
   <aside>
     <h2>Bridge <span class="pill off" id="bridge-state">waiting</span></h2>
@@ -167,6 +179,12 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
   var bridgeNote = document.getElementById('bridgenote');
   var metricsEl = document.getElementById('metrics');
   var searchEl = document.getElementById('search');
+  var cmdForm = document.getElementById('cmdform');
+  var cmdInput = document.getElementById('cmdinput');
+  var cmdSend = document.getElementById('cmdsend');
+  var commandOptions = document.getElementById('commandOptions');
+  var history = [];
+  var historyIndex = 0;
   var countEl = document.getElementById('count');
   var pauseBtn = document.getElementById('pause');
   var followEl = document.getElementById('follow');
@@ -235,6 +253,14 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
     var commands = m.commands || [];
     cmdCountEl.textContent = commands.length;
     commandsEl.textContent = commands.join('  ');
+    commandOptions.textContent = '';
+    commands.forEach(function (command) {
+      var option = document.createElement('option');
+      option.value = command;
+      commandOptions.appendChild(option);
+    });
+    cmdInput.disabled = false;
+    cmdSend.disabled = false;
   }
   function chatLine(text, cls) {
     var el = document.createElement('div');
@@ -254,6 +280,9 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
       chatLine('- ' + event.player, 'sys');
     } else if (event.kind === 'moderation') {
       chatLine('[' + event.action + '] ' + event.player + ': ' + (event.ok ? 'ok' : (event.error || 'failed')),
+        event.ok ? 'sys' : 'err');
+    } else if (event.kind === 'command') {
+      chatLine('/' + (event.message || '') + ' · ' + (event.ok ? 'ok' : (event.error || 'failed')),
         event.ok ? 'sys' : 'err');
     } else if (event.kind === 'ready') {
       bridgeNote.hidden = true;
@@ -280,6 +309,42 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
     var button = ev.target.closest('button[data-action]');
     if (!button) { return; }
     moderate(button.dataset.action, button.dataset.player);
+  });
+  function sendCommand() {
+    var text = cmdInput.value.trim();
+    if (!text) { return; }
+    var command = text.replace(/^\/+/, '');
+    if (!command) { return; }
+    cmdInput.value = '';
+    history.push(text);
+    historyIndex = history.length;
+    appendLine('> /' + command, 'sys');
+    fetch(base + 'api/v1/servers/' + encodeURIComponent(id) + '/command', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ command: command })
+    }).then(function (r) {
+      if (r.ok) { return; }
+      return r.text().then(function (text) {
+        var detail = text;
+        try { detail = JSON.parse(text).detail || text; } catch (e) {}
+        chatLine('command refused: ' + detail, 'err');
+      });
+    }).catch(function () { chatLine('command failed', 'err'); });
+  }
+  cmdForm.addEventListener('submit', function (ev) { ev.preventDefault(); sendCommand(); });
+  cmdInput.addEventListener('keydown', function (ev) {
+    if (ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      if (historyIndex > 0) { historyIndex--; cmdInput.value = history[historyIndex] || ''; }
+    } else if (ev.key === 'ArrowDown') {
+      ev.preventDefault();
+      if (historyIndex < history.length - 1) { historyIndex++; cmdInput.value = history[historyIndex] || ''; }
+      else { historyIndex = history.length; cmdInput.value = ''; }
+    } else if (ev.key === 'Enter') {
+      ev.preventDefault();
+      sendCommand();
+    }
   });
   function onBinary(bytes) {
     if (bytes.length < 15 || bytes[0] !== 1) { return; }

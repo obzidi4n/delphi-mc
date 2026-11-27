@@ -89,6 +89,40 @@ func TestModerationSendsBridgeCommand(t *testing.T) {
 	}
 }
 
+func TestCommandSendsBridgeCommand(t *testing.T) {
+	console := api.NewConsoleHub()
+	console.PublishBridgeState(wire.BridgeStateFrame{ServerID: "s_1", Updated: time.Now()})
+	var sent *wire.BridgeCommandFrame
+	h, err := api.New(api.Options{
+		AdminToken: "secret",
+		Console:    console,
+		Services: &capability.Services{Servers: &capability.Servers{Store: &fakeServerStore{
+			servers: []store.Server{{ID: "s_1", Name: "SMP", NodeID: "node-c"}},
+		}}},
+		BridgeSender: func(_ context.Context, nodeID string, frame wire.BridgeCommandFrame) error {
+			if nodeID != "node-c" {
+				t.Fatalf("nodeID = %q", nodeID)
+			}
+			sent = &frame
+			return nil
+		},
+		Now: time.Now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/servers/s_1/command", strings.NewReader(`{"command":"say hello"}`))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted || sent == nil {
+		t.Fatalf("status = %d, sent = %+v: %s", rec.Code, sent, rec.Body.String())
+	}
+	if sent.Action != "command" || sent.Command != "say hello" || sent.ServerID != "s_1" || sent.ID == "" {
+		t.Fatalf("frame = %+v", sent)
+	}
+}
+
 func TestModerationNeedsScopeAndOnlineNode(t *testing.T) {
 	identity := newFakeIdentity(t)
 	identity.scopes = []string{"server:s_1:read"}

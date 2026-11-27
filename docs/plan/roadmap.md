@@ -35,12 +35,13 @@ criteria can be demonstrated on a clean host.
   batches, a 5k ring in the agent and panel, browser WebSocket fan-out (20 viewers tested
   under 50 ms), a console page with ANSI colour, search, pause, follow, copy, reconnect and
   power buttons, and 1s/15s/5m CPU+memory rollups exposed at `/servers/{id}/metrics`.
-  Command input waits for the bridge (M5).
+  Command input is wired once the bridge is live.
 
 - **M5** — bridge plugin v0 embedded in the agent and self-installed: file transport for
-  state/commands, chat events, online players, TPS, the root command tree, and kick/ban
-  moderation through `POST /servers/{id}/moderation`. A console sidebar shows TPS, players,
-  chat and the command tree. Live chat with a real player is the remaining manual check.
+  state/commands, chat events, online players, TPS, the root command tree, direct console
+  commands through `POST /servers/{id}/command`, and kick/ban moderation through
+  `POST /servers/{id}/moderation`. A console sidebar shows TPS, players, chat and the command
+  tree. Live chat with a real player is the remaining manual check.
 - **M8** — files: node-side list/read/write over request/response frames with path and size
   containment, a file manager page (browse, edit, save, revisions, unified diff, restore),
   and `file_revisions` rollback. The AI gains `write_file` (10 tools). Live: edited

@@ -31,7 +31,11 @@ func (s *server) getServerBridge(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusNotImplemented, "bridge_disabled", "the bridge is not configured")
 		return
 	}
-	state, _ := s.opts.Console.BridgeState(id)
+	state, ok := s.opts.Console.BridgeState(id)
+	if !ok {
+		writeProblem(w, http.StatusConflict, "bridge_unavailable", "the server bridge has not reported yet")
+		return
+	}
 	players := make([]apitypes.BridgePlayerDTO, 0, len(state.Players))
 	for _, p := range state.Players {
 		players = append(players, apitypes.BridgePlayerDTO{Name: p.Name, UUID: p.UUID})
@@ -43,6 +47,45 @@ func (s *server) getServerBridge(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apitypes.BridgeDTO{
 		TPS: state.TPS, Players: players, Commands: commands, Updated: state.Updated,
 	})
+}
+
+// runServerCommand queues a console command through the server's bridge.
+func (s *server) runServerCommand(w http.ResponseWriter, r *http.Request) {
+	principal, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	service := s.serverService(w)
+	if service == nil {
+		return
+	}
+	var body apitypes.CommandRequest
+	if err := decodeJSON(w, r, &body); err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if s.opts.BridgeSender == nil {
+		writeProblem(w, http.StatusNotImplemented, "bridge_disabled", "the agent channel is not configured")
+		return
+	}
+	if s.opts.Console == nil {
+		writeProblem(w, http.StatusConflict, "bridge_unavailable", "the server bridge is not ready")
+		return
+	}
+	if _, ok := s.opts.Console.BridgeState(r.PathValue("id")); !ok {
+		writeProblem(w, http.StatusConflict, "bridge_unavailable", "the server bridge is not ready")
+		return
+	}
+	cmdID, err := service.Command(r.Context(), principal, r.PathValue("id"), body.Command, s.opts.BridgeSender)
+	if err != nil {
+		if errors.Is(err, ErrNodeOffline) {
+			writeProblem(w, http.StatusConflict, "node_offline", "the server's node is not connected")
+			return
+		}
+		writeCapabilityError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, apitypes.CommandAcceptedDTO{ID: cmdID})
 }
 
 // moderatePlayer asks the agent's bridge to kick or ban a player.

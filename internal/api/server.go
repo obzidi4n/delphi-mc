@@ -197,6 +197,7 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("GET "+s.base+"api/v1/servers/{id}/metrics", s.getServerMetrics)
 	mux.HandleFunc("GET "+s.base+"api/v1/servers/{id}/bridge", s.getServerBridge)
 	mux.HandleFunc("POST "+s.base+"api/v1/servers/{id}/moderation", s.moderatePlayer)
+	mux.HandleFunc("POST "+s.base+"api/v1/servers/{id}/command", s.runServerCommand)
 
 	mux.HandleFunc("GET "+s.base+"api/v1/users", s.listUsers)
 	mux.HandleFunc("POST "+s.base+"api/v1/users", s.createUser)

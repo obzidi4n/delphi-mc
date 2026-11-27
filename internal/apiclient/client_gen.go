@@ -730,6 +730,20 @@ func (c *Client) GetServerBridge(ctx context.Context, id string) (*apitypes.Brid
 	return &out, nil
 }
 
+// POST /api/v1/servers/{id}/command
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) RunServerCommand(ctx context.Context, id string, body apitypes.CommandRequest) (*apitypes.CommandAcceptedDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/command"
+	var q url.Values
+
+	var out apitypes.CommandAcceptedDTO
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GET /api/v1/servers/{id}/files
 //
 // Requires a bearer token configured on the Client.

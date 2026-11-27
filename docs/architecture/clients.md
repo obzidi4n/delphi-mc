@@ -63,13 +63,16 @@ What M4 delivers in the vanilla page:
 - The bridge sidebar shows TPS, online players (with kick/ban), chat and join/quit events, and
   the root command tree, all over the same socket. Moderation calls
   `POST /servers/{id}/moderation` and surfaces the plugin's result event.
-- The xterm/WebGL renderer, timestamp toggle, level filter, and command input remain the SPA
-  target; command input is not built.
+- The console command bar sends one command through the live Paper bridge. It has ↑/↓ history
+  and autocomplete from the bridge's root command tree; the server and scope checks are
+  enforced by `POST /api/v1/servers/{id}/command`.
+- The xterm/WebGL renderer, timestamp toggle, level filter, and richer command completion
+  remain SPA targets.
 - Timestamp toggle, level filter, and **structured events rendered as events** (chat, join,
   death) rather than raw lines — the bridge paying off.
-- Command input with ↑ history, autocomplete from the plugin's command tree, paste safety for
-  multi-line commands — submitted through `capability.Servers.Command`, so it is authorized
-  and audited like every other mutation.
+- Command input with ↑ history, autocomplete from the plugin's command tree, and one-line
+  validation — submitted through `capability.Servers.Command`, so it is authorized and
+  audited like every other mutation.
 - Snippets/macros with variables (`{{server}}`, `{{player}}`).
 - Multi-server tail in tabs or split panes.
 - Reconnect with buffer replay from the agent ring buffer; "jump to first error" on crash.

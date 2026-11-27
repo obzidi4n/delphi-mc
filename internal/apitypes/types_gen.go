@@ -188,6 +188,16 @@ type ChatRequestDTO struct {
 	Message        string  `json:"message"`
 }
 
+// CommandAcceptedDTO is generated from the spec.
+type CommandAcceptedDTO struct {
+	ID string `json:"id"`
+}
+
+// CommandRequest is generated from the spec.
+type CommandRequest struct {
+	Command string `json:"command"`
+}
+
 // ConfigFormatDTO is generated from the spec.
 type ConfigFormatDTO struct {
 	Error     string  `json:"error"`

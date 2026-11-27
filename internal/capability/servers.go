@@ -193,6 +193,40 @@ func (c *Servers) Create(ctx context.Context, p Principal, req CreateRequest) (s
 	return created, nil
 }
 
+// CommandSender writes one bridge command to a node's connected agent.
+type CommandSender func(ctx context.Context, nodeID string, frame wire.BridgeCommandFrame) error
+
+// Command queues one console command through the server's bridge.
+func (c *Servers) Command(ctx context.Context, p Principal, id, command string, send CommandSender) (string, error) {
+	srv, err := c.Store.GetServer(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if err := c.require(p, serverScope(id, "moderate")); err != nil {
+		return "", err
+	}
+	command = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(command), "/"))
+	if command == "" || len(command) > 512 || strings.ContainsAny(command, "\r\n") {
+		return "", invalid("command must be 1-512 characters on one line")
+	}
+	if send == nil {
+		return "", invalid("the agent channel is not configured")
+	}
+	cmdID, err := newID("c_")
+	if err != nil {
+		return "", err
+	}
+	if err := send(ctx, srv.NodeID, wire.BridgeCommandFrame{
+		Type: wire.TypeBridgeCommand, ServerID: id, ID: cmdID, Action: "command", Command: command,
+	}); err != nil {
+		return "", err
+	}
+	if err := c.audit(ctx, p, "server.command", id, map[string]any{"command": command}); err != nil {
+		return "", err
+	}
+	return cmdID, nil
+}
+
 // Power applies start/stop/restart/kill as a desired-state transition.
 func (c *Servers) Power(ctx context.Context, p Principal, id, action string) (store.Server, error) {
 	if _, err := c.Store.GetServer(ctx, id); err != nil {
