@@ -26,7 +26,7 @@ criteria can be demonstrated on a clean host.
   delete, groups (API + page), `server_summary`, cursor pagination on every list endpoint,
   and the first CLI commands (`nodes`, `servers`, `audit`).
 
-- **M3b** — template schema and validation, six embedded built-ins, PaperMC/Purpur channel/build
+- **M3b** — template schema and validation, seven embedded built-ins, PaperMC/Purpur channel/build
   resolution with sha256, instantiation that renders files and records `template_id`/
   `template_version`, and JSON/YAML import/export. Plugin downloads landed at M9. Exit: a
   Paper server created from the Survival template boots.
@@ -185,7 +185,7 @@ S3/dev-env/database tail.
 | Prompt injection via chat/logs/plugin metadata | Fencing + approval gate + no auto-tool from untrusted text |
 | AI hallucinating server state | Tool-first prompt + provenance UI + evals |
 | Cloud AI egress for self-hosters | Local-only mode, redaction at egress and at rest, BYO key, off unless configured |
-| Folia / modded demand | Out of scope; capability flags leave room |
+| Folia bridge/telemetry | Folia template/runtime supported; Paper bridge is not installed, so player/TPS/chat telemetry is unavailable |
 | SpigotMC has no API | Manual upload path from day one |
 | Reflink unavailable on ext4 | Capability-detected (ADR 0010); `tar` fallback and UI gating before M10 |
 | Node loss with local-only backups | A mounted/network backup target is required for node-loss recovery; S3 offload at v1.1 |

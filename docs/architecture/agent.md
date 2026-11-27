@@ -190,7 +190,9 @@ The panel sends the node's full desired server set; the agent converges it
   a hot reload.
 - Each server has its own bridge token; the unix socket is created by the agent and mounted
   into that server's container, never exposed on the host.
-- The bridge ships inside the agent binary as a builtin artifact until the CAS exists (M9);
+- The bridge ships inside the agent binary as a builtin artifact until the CAS exists (M9).
+  It is installed for Paper/Purpur only; Velocity and Folia run without it (Folia therefore has
+  no bridge-provided player/TPS/chat telemetry).
   afterwards it is a normal artifact.
 
 ## Self-update (v1.1)

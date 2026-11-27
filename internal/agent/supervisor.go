@@ -260,9 +260,9 @@ func (s *Supervisor) prepare(ctx context.Context, spec wire.ServerSpec, dir stri
 	if err := writeTemplateFiles(dir, spec.Files); err != nil {
 		return err
 	}
-	if spec.Base == "velocity" {
-		// The Paper bridge does not load on Velocity; remove a stale copy from
-		// before a server was attached to a network.
+	if spec.Base == "velocity" || spec.Base == "folia" {
+		// The bridge is Paper-only: remove a stale copy for proxies
+		// (Velocity) and for regionized Folia, where it is not supported.
 		_ = os.Remove(filepath.Join(dir, "plugins", "DelphiBridge.jar"))
 	} else if err := InstallBridge(dir); err != nil {
 		return err

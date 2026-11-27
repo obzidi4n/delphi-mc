@@ -8,7 +8,7 @@ decision updates this table and adds an ADR — it never edits the old one.
 | D1 | Backend language | Go everywhere — agent + control plane, single binary | [0001](../decisions/0001-go-monorepo.md) |
 | D2 | Transport | One mTLS WebSocket per agent; Postgres `SKIP LOCKED` is the queue | [0002](../decisions/0002-one-transport-websocket.md) |
 | D3 | Isolation | Container per server, rootless Podman default; no socket proxy | [0003](../decisions/0003-containers-per-server.md) |
-| D4 | Server flavors | Paper-family; Velocity from v1.1; Folia/Fabric/Forge out | [0007](../decisions/0007-velocity-networks-in-v1-1.md), [0016](../decisions/0016-paper-1-20-java-21-floor.md) |
+| D4 | Server flavors | Paper-family: Paper, Purpur, Folia; Velocity; Fabric/Forge out | [0007](../decisions/0007-velocity-networks-in-v1-1.md), [0016](../decisions/0016-paper-1-20-java-21-floor.md), [0021](../decisions/0021-paper-family-templates.md) |
 | D5 | Capability layer | Single typed mutation surface for HTTP, CLI and AI | [0004](../decisions/0004-capability-layer-as-single-mutation-surface.md) |
 | D6 | AI safety | Two-phase approvals, untrusted-content fencing, provenance | [0005](../decisions/0005-ai-two-phase-approvals.md) |
 | D7 | Docs | In-repo `docs/`, doubling as the RAG corpus | [0006](../decisions/0006-docs-in-repo.md) |

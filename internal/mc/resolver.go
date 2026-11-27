@@ -1,6 +1,6 @@
-// Package mc resolves Minecraft server artifacts (Paper, Velocity, Purpur) from
-// their provider APIs: channel to version to build to a pinned download and
-// sha256.
+// Package mc resolves Minecraft server artifacts (Paper, Velocity, Purpur, Folia)
+// from their provider APIs: channel to version to build to a pinned download
+// and sha256.
 package mc
 
 import (
@@ -97,7 +97,7 @@ type build struct {
 // Resolve pins version/channel to a build and its sha256.
 func (c *Client) Resolve(ctx context.Context, project, version string) (Artifact, error) {
 	switch project {
-	case "paper", "velocity", "purpur":
+	case "paper", "velocity", "purpur", "folia":
 	default:
 		return Artifact{}, fmt.Errorf("%w: project %q is not supported", ErrResolve, project)
 	}

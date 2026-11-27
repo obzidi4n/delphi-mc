@@ -109,9 +109,9 @@ func (t Template) Validate() error {
 		return errors.New("id must be a lowercase slug (3-64 characters)")
 	}
 	switch t.Base {
-	case "paper", "purpur", "velocity":
+	case "paper", "purpur", "folia", "velocity":
 	default:
-		return errors.New("base must be paper, purpur, or velocity")
+		return errors.New("base must be paper, purpur, folia, or velocity")
 	}
 	if t.MCVersion != "latest" && t.MCVersion != "recommended" && !versionFixed.MatchString(t.MCVersion) {
 		return errors.New("mc_version must be latest, recommended, or a version like 1.21.4")

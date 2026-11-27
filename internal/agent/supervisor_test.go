@@ -308,6 +308,19 @@ func TestVelocitySkipsPaperBootFiles(t *testing.T) {
 	}
 }
 
+func TestFoliaSkipsPaperBridge(t *testing.T) {
+	rt := newFakeRuntime()
+	sup, spec, dir := newTestSupervisor(t, rt, []byte("jar"))
+	spec.Base = "folia"
+	spec.AcceptEULA = true
+	if state, detail := sup.Apply(context.Background(), spec); state != "running" || detail != "" {
+		t.Fatalf("state=%q detail=%q", state, detail)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "plugins", "DelphiBridge.jar")); !os.IsNotExist(err) {
+		t.Fatalf("Folia should not receive the Paper bridge (err=%v)", err)
+	}
+}
+
 func TestTemplateFilesApplyOnce(t *testing.T) {
 	rt := newFakeRuntime()
 	sup, spec, dir := newTestSupervisor(t, rt, []byte("jar"))

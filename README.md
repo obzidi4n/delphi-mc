@@ -12,8 +12,8 @@ DelphiMC is under active development. The steps below are for the current build.
 
 ## What it does
 
-- **Create servers from templates.** Start with Paper, Purpur, or Velocity for proxy networks,
-  with a sensible set of files, then adjust memory, ports, and settings.
+- **Create servers from templates.** Start with Paper, Purpur, Folia, or Velocity for proxy
+  networks, with a sensible set of files, then adjust memory, ports, and settings.
 - **Live console and controls.** Start, stop, restart, kill, read the console, edit files, and
   see CPU/memory for each server.
 - **Install and update plugins.** Pull plugins from Modrinth, Hangar, or GitHub, and update

@@ -45,7 +45,7 @@ The existing agent already manages it.
 
 | Setup | Agents |
 |---|---|
-| One host, three Paper/Purpur servers | 1 |
+| One host, three Paper/Purpur/Folia servers | 1 |
 | One host, Velocity proxy plus three backends | 1 |
 | Two physical hosts, several servers each | 2 |
 | Three VMs on one hypervisor | 3 |

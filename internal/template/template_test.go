@@ -10,8 +10,8 @@ func TestBuiltinsValidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(all) != 6 {
-		t.Fatalf("builtins = %d, want 6", len(all))
+	if len(all) != 7 {
+		t.Fatalf("builtins = %d, want 7", len(all))
 	}
 	bases := map[string]bool{}
 	for _, tpl := range all {
@@ -20,7 +20,7 @@ func TestBuiltinsValidate(t *testing.T) {
 		}
 		bases[tpl.Base] = true
 	}
-	if !bases["paper"] || !bases["purpur"] || !bases["velocity"] {
+	if !bases["paper"] || !bases["purpur"] || !bases["folia"] || !bases["velocity"] {
 		t.Fatalf("bases = %v", bases)
 	}
 }

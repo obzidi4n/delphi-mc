@@ -9,7 +9,7 @@ Server creation is a **template instantiation**, not a forty-field form.
 ```
 Template {
   schema_version: 1
-  name, description, base: paper | purpur | velocity
+  name, description, base: paper | purpur | folia | velocity
   mc_version: "1.21.11" | channel (latest | recommended)
   java: 8 | 17 | 21 | 25
   defaults: memory_mb, cpu_cores, port (0 = allocate)
@@ -42,16 +42,17 @@ happens at instantiation and reports the variable name; that is enough for v1.0.
 
 ## Built-ins
 
-Embedded in the binary: **Survival**, **Creative**, **Minigames**, **Dev**, **Purpur**, and
-**Velocity Network**.
+Embedded in the binary: **Survival**, **Creative**, **Minigames**, **Dev**, **Purpur**,
+**Folia**, and **Velocity Network**. The Paper bridge is not installed on Folia or Velocity;
+Folia therefore runs without bridge-provided player/TPS/chat telemetry.
 
 ## Instantiation
 
 Creating a server resolves the template into concrete state:
 
 1. `mc_version` (literal or channel) is resolved through the PaperMC v3 API
-   (`fill.papermc.io`) for Paper/Velocity, or the Purpur API for Purpur, to a build, an https
-   jar URL, and its sha256. Purpur hashes the downloaded jar because its API omits sha256. The
+   (`fill.papermc.io`) for Paper/Folia/Velocity, or the Purpur API for Purpur, to a build, an
+   https jar URL, and its sha256. Purpur hashes the downloaded jar because its API omits sha256. The
    result is cached briefly.
 2. `defaults` are applied, then overrides (`memory_mb`, `cpu_cores`, `port`, `java`, custom
    variables). A zero port is allocated from the node's pool before rendering, so variables

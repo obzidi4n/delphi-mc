@@ -54,6 +54,21 @@ func fakeAPI(t *testing.T) *httptest.Server {
 				}}},
 		})
 	})
+	mux.HandleFunc("/v3/projects/folia", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"project":  map[string]string{"id": "folia"},
+			"versions": map[string][]string{"1.21": {"1.21.4"}},
+		})
+	})
+	mux.HandleFunc("/v3/projects/folia/versions/1.21.4/builds", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]map[string]any{
+			{"id": 7, "channel": "STABLE", "downloads": map[string]any{
+				"server:default": map[string]any{
+					"name": "folia-1.21.4-7.jar", "url": object(sha100),
+					"checksums": map[string]string{"sha256": sha100},
+				}}},
+		})
+	})
 	return httptest.NewServer(mux)
 }
 
@@ -96,6 +111,17 @@ func TestResolveExplicitVersion(t *testing.T) {
 	art, err := c.Resolve(context.Background(), "paper", "1.21.3")
 	if err != nil || art.Version != "1.21.3" || art.Build != 90 {
 		t.Fatalf("artifact = %+v, err = %v", art, err)
+	}
+}
+
+func TestResolveFoliaThroughPaperAPI(t *testing.T) {
+	c := newTestClient(t)
+	art, err := c.Resolve(context.Background(), "folia", "latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if art.Project != "folia" || art.Version != "1.21.4" || art.Build != 7 {
+		t.Fatalf("artifact = %+v", art)
 	}
 }
 
