@@ -22,7 +22,7 @@ Examples live at [`panel.example.toml`](../../panel.example.toml) and
 | `data_dir` | `/var/lib/delphi` | Holds `pki/` (CA, server certificate) and node data. |
 | `admin_token` | empty | Break-glass bearer token for `/api/v1`. Optional: API keys minted for a user are the normal credential. |
 | `tls` | `true` | Serve TLS with the org CA's server certificate. The agent channel requires TLS. |
-| `ai.base_url` | empty | OpenAI-compatible API root (for example `http://127.0.0.1:11434/v1`). Empty disables the AI surface. |
+| `ai.base_url` | empty | OpenAI-compatible API root (for example `http://127.0.0.1:11434/v1`). DelphiMC appends `/chat/completions`; do not include that path. For OpenRouter use `https://openrouter.ai/api/v1`. Empty disables the AI surface. |
 | `ai.model` | empty | Model name; required when `ai.base_url` is set. |
 | `ai.api_key` | empty | Bearer key for the provider, if it needs one. |
 

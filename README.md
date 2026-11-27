@@ -267,7 +267,8 @@ model = "qwen2.5:3b"
 ```
 
 The AI assistant can read server state and propose actions. It cannot change anything without
-an approval click.
+an approval click. `base_url` is the API root, not the full completion URL: for OpenRouter use
+`https://openrouter.ai/api/v1`, not `.../chat/completions`.
 
 ## Optional extras
 
