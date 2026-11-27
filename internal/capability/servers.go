@@ -88,6 +88,8 @@ type CreateRequest struct {
 	JavaVersion     int
 	Variables       map[string]string
 	Files           map[string]string
+	MCVersion       string
+	Plugins         []store.ServerPlugin
 }
 
 var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -170,6 +172,8 @@ func (c *Servers) Create(ctx context.Context, p Principal, req CreateRequest) (s
 		TemplateVersion: req.TemplateVersion,
 		Variables:       req.Variables,
 		Files:           req.Files,
+		MCVersion:       req.MCVersion,
+		Plugins:         req.Plugins,
 	})
 	if err != nil {
 		return store.Server{}, err
@@ -307,10 +311,23 @@ func (c *Servers) SpecsForNode(ctx context.Context, nodeID string) ([]wire.Serve
 			JarSHA256:     s.JarSHA256,
 			Base:          s.Base,
 			Files:         s.Files,
+			MCVersion:     s.MCVersion,
+			Plugins:       pluginSpecs(s.Plugins),
 			Deleted:       s.DeletedAt != nil,
 		})
 	}
 	return out, nil
+}
+
+func pluginSpecs(in []store.ServerPlugin) []wire.PluginSpec {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]wire.PluginSpec, 0, len(in))
+	for _, p := range in {
+		out = append(out, wire.PluginSpec{Name: p.Name, SHA256: p.SHA256})
+	}
+	return out
 }
 
 // ReportState records a node's observation, scoped to that node.

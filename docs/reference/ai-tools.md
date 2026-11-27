@@ -1,12 +1,11 @@
 # AI tool catalog
 
-**Status:** M6 subset implemented; the rest is the v1.0 target. At M6 every tool is
-read-only and no action tool is registered. This table is the **authorization contract**: every
+**Status:** M9 implemented. This table is the **authorization contract**: every
 tool row names its scope and whether it is read-only. A tool that is not in this table must
 not be registered.
 
 The registry is capability-gated: a tool appears only when every capability it needs exists
-at the panel's and node's versions. Ten tools at v1.0 — nine by M7, `write_file` at M8 — and
+at the panel's and node's versions. Twelve tools at M9 (seven read, five approval-gated);
 fifteen is the ceiling.
 
 ## Read-only (M6, implemented)
@@ -18,6 +17,7 @@ fifteen is the ceiling.
 | `get_server(server)` | One server by name or id: state, template, port, node, last error | `org:<id>:read` + server read | `server` |
 | `get_server_health(server)` | Live TPS, player count, CPU and memory (bridge + metrics) | `org:<id>:read` + server read | `server` |
 | `get_console_tail(server, lines)` | Recent console lines for diagnosis | `org:<id>:read` + server read | `server`, `lines` (≤200) |
+| `plugins(server)` | Managed plugins with versions and available updates | `org:<id>:read` + server read | `server` |
 
 Citations come back with each result (`doc` with the path, `server` with the id) and are shown
 next to the answer. The capability layer re-checks scopes on every call; the registry hides
@@ -32,8 +32,9 @@ everything but `search_docs` from a principal without org read.
 | `run_command(server, command)` | Propose a console command through the bridge | `server:<id>:moderate` | server, command (≤512) |
 | `moderate_player(action, server, player, reason)` | Propose kick/ban through the bridge | `server:<id>:moderate` | action, server, player, reason |
 | `write_file(server, path, content)` | Propose writing a text file; records a revision | `server:<id>:update` | server, path, content (≤1 MiB) |
+| `update_server(server)` | Propose installing available plugin updates, restarting, and boot-checking with rollback | `server:<id>:update` | server |
 
-Ten registered tools in total (five read, five approval-gated).
+Twelve registered tools in total (seven read, five approval-gated).
 
 Calling a write tool creates a pending approval, not a mutation. The user approves or rejects
 the card; approval executes as that user with their current scopes, then the model resumes

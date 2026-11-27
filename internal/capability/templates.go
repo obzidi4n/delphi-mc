@@ -36,6 +36,7 @@ type Templates struct {
 	Servers  ServerCreator
 	Ports    PortAllocator
 	Resolver mc.Resolver
+	Plugins  *Updates
 }
 
 // TemplateList is a page of stored templates.
@@ -183,6 +184,13 @@ func (t *Templates) CreateServer(ctx context.Context, p Principal, req Instantia
 		return store.Server{}, invalid("%v", err)
 	}
 	acceptEULA := req.AcceptEULA || tpl.Base == "velocity"
+	var managed []store.ServerPlugin
+	if t.Plugins != nil && len(tpl.Plugins) > 0 {
+		managed, err = t.Plugins.Install(ctx, artifact.Version, tpl.Plugins)
+		if err != nil {
+			return store.Server{}, invalid("resolve plugins: %v", err)
+		}
+	}
 
 	created, err := t.Servers.Create(ctx, p, CreateRequest{
 		Name:            req.Name,
@@ -201,6 +209,8 @@ func (t *Templates) CreateServer(ctx context.Context, p Principal, req Instantia
 		TemplateVersion: row.Revision,
 		Variables:       inst.Variables,
 		Files:           inst.Files,
+		MCVersion:       artifact.Version,
+		Plugins:         managed,
 	})
 	if err != nil {
 		return store.Server{}, err

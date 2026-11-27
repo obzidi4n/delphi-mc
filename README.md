@@ -5,11 +5,12 @@ automated updates, templates, backups, scheduled automation, a first-party Paper
 plugin, and an AI operator — behind a web UI and a scriptable CLI, in one binary plus
 Postgres.
 
-**Status: M2 container lifecycle.** One binary with `panel`, `agent`, `nodes`, `init`, and
-`version`; an org CA and per-node certificates; a mutually authenticated WebSocket carrying
-desired state; a node registry with health and revocation; and servers that are created with a
-pinned jar, booted in a hardened container, and observed — start, stop, restart, kill. The web
-UI, capability scopes and templates land at M3a.
+**Status: M9 artifacts and plugins.** One binary with `panel`, `agent`, `nodes`, `init`, and
+`version`. Servers come from templates, boot in hardened containers, stream console/metrics,
+and run a self-installed bridge plugin. Modrinth/Hangar/GitHub plugins are resolved into a
+sha256 artifact store, installed on create, updated with a guarded restart and rollback, and
+garbage-collected. The panel has a file manager with revisions/diff/restore, an AI operator
+with read tools and approval-gated actions, and a scriptable API/CLI.
 
 ## Try it
 

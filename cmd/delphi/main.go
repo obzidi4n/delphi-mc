@@ -33,11 +33,13 @@ import (
 	"delphi.dev/delphi/internal/api"
 	"delphi.dev/delphi/internal/apiclient"
 	"delphi.dev/delphi/internal/apitypes"
+	"delphi.dev/delphi/internal/artifact"
 	"delphi.dev/delphi/internal/auth"
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/config"
 	"delphi.dev/delphi/internal/mc"
 	"delphi.dev/delphi/internal/pki"
+	"delphi.dev/delphi/internal/plugins"
 	"delphi.dev/delphi/internal/store"
 	"delphi.dev/delphi/internal/template"
 	"delphi.dev/delphi/internal/version"
@@ -159,11 +161,20 @@ func runPanel(ctx context.Context, args []string) error {
 	var services *capability.Services
 	var aiService *ai.Service
 	var files *api.FileService
+	var artifacts *artifact.Store
 	var identity api.IdentityStore
 	if db != nil {
 		identity = db
 		files = api.NewFileService(db, hub, db.Audit)
 		servers := &capability.Servers{Store: db, Notify: hub}
+		artifacts, err = artifact.New(filepath.Join(cfg.DataDir, "artifacts"))
+		if err != nil {
+			return err
+		}
+		updates := &capability.Updates{
+			Store: db, Resolver: plugins.NewResolver(nil), Artifacts: artifacts,
+			HTTP: &http.Client{Timeout: 5 * time.Minute}, Notify: hub, Log: log,
+		}
 		services = &capability.Services{
 			Servers: servers,
 			Fleet:   &capability.Fleet{Store: db},
@@ -172,8 +183,9 @@ func runPanel(ctx context.Context, args []string) error {
 			Keys:    &capability.Keys{Store: db},
 			Users:   &capability.Users{Store: db},
 			Templates: &capability.Templates{
-				Store: db, Servers: servers, Ports: db, Resolver: mc.NewClient(nil),
+				Store: db, Servers: servers, Ports: db, Resolver: mc.NewClient(nil), Plugins: updates,
 			},
+			Updates: updates,
 		}
 		if err := seedBuiltinTemplates(ctx, db); err != nil {
 			log.Warn("could not seed built-in templates", "err", err)
@@ -233,6 +245,7 @@ func runPanel(ctx context.Context, args []string) error {
 		Console:    console,
 		AI:         aiService,
 		Files:      files,
+		Artifacts:  artifacts,
 		CA:         ca,
 		Hub:        hub,
 		BridgeSender: func(ctx context.Context, nodeID string, frame wire.BridgeCommandFrame) error {
@@ -931,6 +944,21 @@ func buildToolbox(services *capability.Services, console *api.ConsoleHub, db *st
 				out[i] = entry.Text
 			}
 			return out, nil
+		},
+		Plugins: func(ctx context.Context, p capability.Principal, ref string) ([]store.ServerPlugin, error) {
+			srv, err := resolve(ctx, p, ref)
+			if err != nil {
+				return nil, err
+			}
+			return services.Updates.List(ctx, p, srv.ID)
+		},
+		Updates: func(ctx context.Context, p capability.Principal, ref string) ([]capability.PluginUpdate, error) {
+			srv, err := resolve(ctx, p, ref)
+			if err != nil {
+				return nil, err
+			}
+			updates, _, err := services.Updates.Detect(ctx, p, srv.ID)
+			return updates, err
 		},
 	}
 }

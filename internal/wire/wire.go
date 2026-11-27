@@ -22,9 +22,20 @@ type ServerSpec struct {
 	Base string `json:"base,omitempty"`
 	// Files are rendered template files, written on first boot only.
 	Files map[string]string `json:"files,omitempty"`
+	// MCVersion is the resolved Minecraft version.
+	MCVersion string `json:"mc_version,omitempty"`
+	// Plugins are managed plugin jars downloaded from the panel's artifact
+	// store, named stably per project.
+	Plugins []PluginSpec `json:"plugins,omitempty"`
 	// Deleted asks the node to stop and remove the container; files stay for
 	// the retention window.
 	Deleted bool `json:"deleted,omitempty"`
+}
+
+// PluginSpec is one managed plugin jar.
+type PluginSpec struct {
+	Name   string `json:"name"`
+	SHA256 string `json:"sha256"`
 }
 
 // ServersFrame replaces the node's full desired set. Reconciliation is

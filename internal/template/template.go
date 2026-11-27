@@ -111,7 +111,7 @@ func (t Template) Validate() error {
 	switch t.Base {
 	case "paper", "velocity":
 	case "purpur":
-		return errors.New("base purpur is not resolvable yet; provider plugins land at M9")
+		return errors.New("base purpur is not resolvable yet")
 	default:
 		return errors.New("base must be paper or velocity")
 	}

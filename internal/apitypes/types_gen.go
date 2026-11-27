@@ -226,6 +226,12 @@ type FileWriteResultDTO struct {
 	SHA256   string `json:"sha256"`
 }
 
+// GCResultDTO is generated from the spec.
+type GCResultDTO struct {
+	FreedBytes int64 `json:"freed_bytes"`
+	Removed    int   `json:"removed"`
+}
+
 // GroupCreateRequest is generated from the spec.
 type GroupCreateRequest struct {
 	Description *string `json:"description,omitempty"`
@@ -296,6 +302,33 @@ type NodeListDTO struct {
 	NextCursor *string   `json:"next_cursor"`
 }
 
+// PluginListDTO is generated from the spec.
+type PluginListDTO struct {
+	Items []ServerPlugin `json:"items"`
+}
+
+// PluginUpdate is generated from the spec.
+type PluginUpdate struct {
+	Current  string  `json:"current"`
+	Error    *string `json:"error,omitempty"`
+	Latest   *string `json:"latest,omitempty"`
+	Project  string  `json:"project"`
+	Provider string  `json:"provider"`
+}
+
+// PluginUpdateApplyDTO is generated from the spec.
+type PluginUpdateApplyDTO struct {
+	Applied   []PluginUpdate `json:"applied"`
+	BootCheck string         `json:"boot_check"`
+	Revision  int64          `json:"revision"`
+}
+
+// PluginUpdateListDTO is generated from the spec.
+type PluginUpdateListDTO struct {
+	Items    []PluginUpdate `json:"items"`
+	Revision int64          `json:"revision"`
+}
+
 // PowerRequest is generated from the spec.
 type PowerRequest struct {
 	Action string `json:"action"`
@@ -339,27 +372,29 @@ type ServerCreateRequest struct {
 
 // ServerDTO is generated from the spec.
 type ServerDTO struct {
-	AppliedRevision int64      `json:"applied_revision"`
-	Base            string     `json:"base"`
-	CPUCores        float64    `json:"cpu_cores"`
-	CreatedAt       time.Time  `json:"created_at"`
-	DeletedAt       *time.Time `json:"deleted_at,omitempty"`
-	DesiredRevision int64      `json:"desired_revision"`
-	DesiredState    string     `json:"desired_state"`
-	ID              string     `json:"id"`
-	Image           string     `json:"image"`
-	JavaVersion     int        `json:"java_version"`
-	KillRequested   bool       `json:"kill_requested"`
-	LastError       *string    `json:"last_error,omitempty"`
-	MemoryMB        int        `json:"memory_mb"`
-	Name            string     `json:"name"`
-	NodeID          string     `json:"node_id"`
-	ObservedState   string     `json:"observed_state"`
-	Port            int        `json:"port"`
-	PurgeAfter      *time.Time `json:"purge_after,omitempty"`
-	SummaryState    string     `json:"summary_state"`
-	TemplateID      string     `json:"template_id"`
-	TemplateVersion int        `json:"template_version"`
+	AppliedRevision int64          `json:"applied_revision"`
+	Base            string         `json:"base"`
+	CPUCores        float64        `json:"cpu_cores"`
+	CreatedAt       time.Time      `json:"created_at"`
+	DeletedAt       *time.Time     `json:"deleted_at,omitempty"`
+	DesiredRevision int64          `json:"desired_revision"`
+	DesiredState    string         `json:"desired_state"`
+	ID              string         `json:"id"`
+	Image           string         `json:"image"`
+	JavaVersion     int            `json:"java_version"`
+	KillRequested   bool           `json:"kill_requested"`
+	LastError       *string        `json:"last_error,omitempty"`
+	MCVersion       *string        `json:"mc_version,omitempty"`
+	MemoryMB        int            `json:"memory_mb"`
+	Name            string         `json:"name"`
+	NodeID          string         `json:"node_id"`
+	ObservedState   string         `json:"observed_state"`
+	Plugins         []ServerPlugin `json:"plugins,omitempty"`
+	Port            int            `json:"port"`
+	PurgeAfter      *time.Time     `json:"purge_after,omitempty"`
+	SummaryState    string         `json:"summary_state"`
+	TemplateID      string         `json:"template_id"`
+	TemplateVersion int            `json:"template_version"`
 }
 
 // ServerListDTO is generated from the spec.
@@ -372,6 +407,18 @@ type ServerListDTO struct {
 type ServerMetricsDTO struct {
 	Items      []MetricPointDTO `json:"items"`
 	Resolution string           `json:"resolution"`
+}
+
+// ServerPlugin is generated from the spec.
+type ServerPlugin struct {
+	Name     string  `json:"name"`
+	Policy   string  `json:"policy"`
+	Project  string  `json:"project"`
+	Provider string  `json:"provider"`
+	Range    *string `json:"range,omitempty"`
+	SHA256   string  `json:"sha256"`
+	Size     *int64  `json:"size,omitempty"`
+	Version  string  `json:"version"`
 }
 
 // TemplateDTO is generated from the spec.

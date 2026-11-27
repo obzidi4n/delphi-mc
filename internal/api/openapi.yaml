@@ -164,6 +164,75 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/plugins:
+    get:
+      operationId: listServerPlugins
+      summary: List managed plugins
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Installed plugins
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PluginListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/updates:
+    get:
+      operationId: listServerUpdates
+      summary: Detect available plugin updates
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Available updates
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PluginUpdateListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/updates/apply:
+    post:
+      operationId: applyServerUpdates
+      summary: Install available plugin updates and boot-check the result
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Applied updates; a running server is checked and rolled back on failure
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PluginUpdateApplyDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /api/v1/artifacts/gc:
+    post:
+      operationId: gcArtifacts
+      summary: Delete unreferenced plugin artifacts
+      parameters:
+        - name: min_age_seconds
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Garbage collection result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GCResultDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Problem" }
   /api/v1/servers/{id}/files:
     get:
       operationId: listServerFiles
@@ -867,6 +936,61 @@ components:
         created_at: { type: string, format: date-time }
         deleted_at: { type: string, format: date-time, nullable: true }
         purge_after: { type: string, format: date-time, nullable: true }
+        mc_version: { type: string }
+        plugins:
+          type: array
+          items: { $ref: "#/components/schemas/ServerPlugin" }
+    ServerPlugin:
+      type: object
+      required: [project, provider, version, policy, name, sha256]
+      properties:
+        project: { type: string }
+        provider: { type: string }
+        version: { type: string }
+        policy: { type: string, enum: [latest, pinned, range] }
+        range: { type: string }
+        name: { type: string }
+        sha256: { type: string }
+        size: { type: integer, format: int64 }
+    PluginUpdate:
+      type: object
+      required: [project, provider, current]
+      properties:
+        project: { type: string }
+        provider: { type: string }
+        current: { type: string }
+        latest: { type: string }
+        error: { type: string }
+    PluginListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ServerPlugin" }
+    PluginUpdateListDTO:
+      type: object
+      required: [items, revision]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PluginUpdate" }
+        revision: { type: integer, format: int64 }
+    PluginUpdateApplyDTO:
+      type: object
+      required: [applied, revision, boot_check]
+      properties:
+        applied:
+          type: array
+          items: { $ref: "#/components/schemas/PluginUpdate" }
+        revision: { type: integer, format: int64 }
+        boot_check: { type: string, enum: [pending, skipped] }
+    GCResultDTO:
+      type: object
+      required: [removed, freed_bytes]
+      properties:
+        removed: { type: integer }
+        freed_bytes: { type: integer, format: int64 }
     ServerCreateRequest:
       type: object
       required: [name, node_id, image, memory_mb, jar_url, jar_sha256, accept_eula]

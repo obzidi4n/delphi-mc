@@ -119,6 +119,17 @@ The panel sends the node's full desired server set; the agent converges it
 - Revisions and rollback are panel-side: the UI/API can diff two stored revisions and restore
   one by writing it back as a new revision. The node never sees revision numbers.
 
+## Plugins
+
+- The panel resolves plugin versions, downloads each artifact into its sha256 CAS, and sends
+  `{name, sha256}` in the server spec. The node fetches `GET /agent/blobs/{sha256}` with its
+  node certificate, verifies the hash, and atomically installs `plugins/<name>`.
+- Names are stable per project (`luckperms.jar`), so an update replaces a jar instead of
+  stacking versions. Existing plugins whose hash already matches are not downloaded again.
+- Paths are flat filenames ending in `.jar`; slashes, traversal and dotfiles are refused.
+- A plain jar fetch from upstream is still used for the server jar itself; plugins always come
+  through the panel so an egress-restricted node can install them.
+
 ## Metrics
 
 - M4 samples with one `stats --no-stream` call per second for all containers and parses both

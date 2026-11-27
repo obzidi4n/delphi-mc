@@ -28,8 +28,8 @@ criteria can be demonstrated on a clean host.
 
 - **M3b** — template schema and validation, five embedded built-ins, PaperMC v3 channel/build
   resolution with sha256, instantiation that renders files and records `template_id`/
-  `template_version`, and JSON/YAML import/export. Plugin downloads (provider manager) remain
-  M9. Exit: a Paper server created from the Survival template boots.
+  `template_version`, and JSON/YAML import/export. Plugin downloads landed at M9. Exit: a
+  Paper server created from the Survival template boots.
 
 - **M4** — realtime console: agent tailing with per-line sequence numbers, 16 ms binary
   batches, a 5k ring in the agent and panel, browser WebSocket fan-out (20 viewers tested
@@ -46,6 +46,14 @@ criteria can be demonstrated on a clean host.
   and `file_revisions` rollback. The AI gains `write_file` (10 tools). Live: edited
   `server.properties` through the UI, diffed r3→r4, restored r1 as r3 via API, and an AI
   approval created `ai-note.txt`.
+- **M9** — artifacts and plugins: a panel-side sha256 CAS with an authenticated
+  `/agent/blobs/{sha}` endpoint, Modrinth/Hangar/GitHub resolution (pins and version-prefix
+  ranges), plugins installed at template instantiation under stable project names, update
+  detection, guarded apply with restart/boot-check rollback, artifact GC, and the `plugins`
+  (read) and `update_server` (approval) tools. Live: Plugins-Demo booted with LuckPerms,
+  Chunky and ViaVersion; two pinned builds updated to current with the server still running;
+  unreferenced old artifacts were collected. Staging-clone boot-checks and `auto-*` policies
+  remain deferred.
 - **M7** — AI actions: create_server, power, run_command, moderate_player as two-phase
   tools; durable approval plans, approval cards in the chat UI, approve/reject that executes
   as the user and resumes the model, and audit entries. Live: a group restart plan approved

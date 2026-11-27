@@ -27,7 +27,7 @@ alert_rules      (id, org_id, scope, kind, metric, comparator, threshold, durati
 alert_channels   (id, org_id, kind: discord|email|webhook, config, secret_ref)
 alerts           (rule_id, server_id, state: firing|resolved, started_at)
 maintenance_windows (org_id, scope, starts_at, ends_at, suppress_alerts, block_updates)
-artifacts        (sha256, size, kind, source, refcount, last_referenced)
+artifacts        (sha256 pk, filename, size, kind, source, created_at)
 conversations    (id, org_id, user_id, title, created_at, updated_at)
 messages         (id, conversation_id, role, content, tool_calls jsonb, tool_call_id, created_at)
 docs_chunks      (path, ordinal, heading, content, tsv)       # GIN FTS, replaced on startup when the corpus changed
@@ -35,8 +35,6 @@ docs_meta        (id=1, hash)
 ai_approvals     (id, org_id, user_id, conversation_id, status, plan jsonb, results jsonb,
                   created_at, decided_at, executed_at)
 file_revisions   (id, org_id, server_id, path, revision, content, sha256, author, created_at)
-plugins          (server_id, project, provider, installed_version, installed_hash,
-                  previous_version, previous_hash, pinned_version, policy)
 file_revisions   (server_id, path, revision, sha256, author, via, created_at)
 snapshots, backups          # storage location, size, encryption key ref, retention
 jobs             (kind, target, state, priority, idempotency_key, attempts,
@@ -67,10 +65,12 @@ FK. The rule is enforced with composite FKs where it matters, not by discipline.
   Nothing refreshes it on read.
 - **`servers.deleted_at` / `purge_after`** back the seven-day retention: deletion is a
   tombstone plus a purge job, never a synchronous `rm`.
-- **`plugins`** stores installed version *and* hash; update detection is impossible without
-  both, and rollback is impossible without the previous hash.
-- **`artifacts`** carries a refcount/last-referenced pair so the CAS can be garbage-collected;
-  an unreferenced blob is deletable, a referenced one never is.
+- **Managed plugins** live in `servers.plugins` (jsonb): project, provider, version, policy,
+  range, stable jar name and sha256. Detection compares versions; apply swaps the hash and
+  keeps the previous set in the server row for rollback.
+- **`artifacts`** is the panel CAS registry; references are computed at GC time from
+  `servers.plugins`, so no refcount can drift. Unreferenced blobs older than the cutoff are
+  deleted from disk and the table.
 - **`file_revisions`** backs diff, rollback, and the audit of who wrote what.
 - **`alert_rules.kind`** exists because "server down", "crash loop" and "update available" are
   not metric comparisons; a generic comparator column alone cannot express them.

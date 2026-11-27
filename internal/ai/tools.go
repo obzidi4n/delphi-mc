@@ -54,6 +54,8 @@ type Toolbox struct {
 	GetServer   func(ctx context.Context, p capability.Principal, ref string) (ServerInfo, error)
 	Health      func(ctx context.Context, p capability.Principal, ref string) (HealthInfo, error)
 	ConsoleTail func(ctx context.Context, p capability.Principal, ref string, lines int) ([]string, error)
+	Plugins     func(ctx context.Context, p capability.Principal, ref string) ([]store.ServerPlugin, error)
+	Updates     func(ctx context.Context, p capability.Principal, ref string) ([]capability.PluginUpdate, error)
 }
 
 // Tool is one executable tool.
@@ -90,6 +92,7 @@ func (tb *Toolbox) Tools(p capability.Principal) []Tool {
 		Tool{Name: "get_server", Description: "Get one server by name or id: state, template, port, node, last error.", Parameters: serverSchema, Run: tb.runGetServer},
 		Tool{Name: "get_server_health", Description: "Get live TPS, player count, CPU and memory for one server.", Parameters: serverSchema, Run: tb.runHealth},
 		Tool{Name: "get_console_tail", Description: "Read the most recent console lines of one server (for diagnosing lag or crashes).", Parameters: consoleSchema, Run: tb.runConsoleTail},
+		Tool{Name: "plugins", Description: "List managed plugins for one server and any available updates.", Parameters: serverSchema, Run: tb.runPlugins},
 	)
 }
 
@@ -217,6 +220,44 @@ func (tb *Toolbox) runConsoleTail(ctx context.Context, p capability.Principal, a
 		Text:      strings.Join(lines, "\n"),
 		Citations: []Citation{{Kind: "server", Ref: in.Server, Title: in.Server + " console"}},
 	}, nil
+}
+
+func (tb *Toolbox) runPlugins(ctx context.Context, p capability.Principal, args json.RawMessage) (ToolResult, error) {
+	if tb.Plugins == nil || tb.Updates == nil {
+		return ToolResult{}, fmt.Errorf("plugin data is unavailable")
+	}
+	ref, err := serverRef(args)
+	if err != nil {
+		return ToolResult{}, err
+	}
+	installed, err := tb.Plugins(ctx, p, ref)
+	if err != nil {
+		return ToolResult{}, err
+	}
+	updates, err := tb.Updates(ctx, p, ref)
+	if err != nil {
+		return ToolResult{}, err
+	}
+	if len(installed) == 0 {
+		return ToolResult{Text: "No managed plugins on that server."}, nil
+	}
+	var b strings.Builder
+	for _, p := range installed {
+		fmt.Fprintf(&b, "- %s %s (%s, policy=%s)\n", p.Project, p.Version, p.Provider, p.Policy)
+	}
+	if len(updates) == 0 {
+		b.WriteString("No updates available.")
+	} else {
+		b.WriteString("Updates available:\n")
+		for _, u := range updates {
+			if u.Error != "" {
+				fmt.Fprintf(&b, "- %s: check failed: %s\n", u.Project, u.Error)
+				continue
+			}
+			fmt.Fprintf(&b, "- %s: %s -> %s\n", u.Project, u.Current, u.Latest)
+		}
+	}
+	return ToolResult{Text: b.String(), Citations: []Citation{{Kind: "server", Ref: ref, Title: ref + " plugins"}}}, nil
 }
 
 func serverRef(args json.RawMessage) (string, error) {

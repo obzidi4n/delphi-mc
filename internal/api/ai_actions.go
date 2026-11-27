@@ -181,6 +181,37 @@ func (e *actionExecutor) Preview(ctx context.Context, p capability.Principal, to
 			Tool: "write_file", Summary: fmt.Sprintf("write %s on %s (%d bytes)", path, srv.Name, len(in.Content)),
 			ServerID: srv.ID, ServerName: srv.Name, Path: path, Content: in.Content,
 		}}, nil
+	case "update_server":
+		var in struct {
+			Server string `json:"server"`
+		}
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, fmt.Errorf("invalid arguments: %w", err)
+		}
+		if e.services.Updates == nil {
+			return nil, fmt.Errorf("the update service is not configured")
+		}
+		srv, err := e.resolve(ctx, p, in.Server)
+		if err != nil {
+			return nil, err
+		}
+		updates, _, err := e.services.Updates.Detect(ctx, p, srv.ID)
+		if err != nil {
+			return nil, err
+		}
+		parts := make([]string, 0, len(updates))
+		for _, u := range updates {
+			if u.Error == "" && u.Latest != "" {
+				parts = append(parts, fmt.Sprintf("%s %s -> %s", u.Project, u.Current, u.Latest))
+			}
+		}
+		if len(parts) == 0 {
+			return nil, fmt.Errorf("no updates are available")
+		}
+		return []ai.Action{{
+			Tool: "update_server", Summary: fmt.Sprintf("update %s on %s: %s", strings.Join(parts, ", "), srv.Name, "restart + boot check"),
+			ServerID: srv.ID, ServerName: srv.Name,
+		}}, nil
 	case "moderate_player":
 		var in struct {
 			Action string `json:"action"`
@@ -269,6 +300,19 @@ func (e *actionExecutor) Execute(ctx context.Context, p capability.Principal, ac
 			return "", err
 		}
 		out = fmt.Sprintf("wrote %s (revision %d)", action.Path, revision)
+	case "update_server":
+		if e.services.Updates == nil {
+			return "", fmt.Errorf("the update service is not configured")
+		}
+		srv, err := e.resolve(ctx, p, action.ServerID)
+		if err != nil {
+			return "", err
+		}
+		result, err := e.services.Updates.Apply(ctx, p, srv.ID)
+		if err != nil {
+			return "", err
+		}
+		out = fmt.Sprintf("applied %d update(s), revision %d, boot check %s", len(result.Applied), result.Revision, result.BootCheck)
 	case "moderate_player":
 		srv, err := e.resolve(ctx, p, action.ServerID)
 		if err != nil {

@@ -1,86 +1,74 @@
 # Artifacts and updates
 
-**Status:** current design · implementation target M9. AI tools `plugins` and `update_server`
-unlock here.
+**Status:** M9 implemented. AI tools `plugins` (read) and `update_server` (approval) landed
+here. The node-local CAS, staging-clone boot-check, `auto-*` policies, and Spigot upload are
+deferred; the sections below say what the code does today.
 
 ## Artifact store
 
-- Content-addressed on the node: `sha256 -> blob`, reflinked/hardlinked into server dirs, so
-  forty servers on one Paper build share one file.
-- The CAS is a **node-local cache**. Cross-node restore and S3 offload reuse the same blob
-  endpoint in reverse.
-- Hardlinking is safe only for immutable files (jars). Anything the server writes in place is
-  copied, never linked.
-- Artifacts carry `refcount`/`last_referenced` so a GC job can reclaim them; a blob is not
-  deleted while any server or backup references it.
+- The panel keeps a **content-addressed store** at `<data_dir>/artifacts/<sha256>`. Every
+  plugin artifact is downloaded once, hashed, recorded in `artifacts`, and never written twice.
+- Nodes do not have their own CAS yet. The panel serves immutable blobs at
+  `GET /agent/blobs/{sha256}`; a node must present an enrolled, non-revoked certificate and
+  re-hashes the body before installing it into `plugins/<name>`.
+- The server jar still comes from its resolved upstream URL + sha256. Plugin downloads always
+  go through the panel, so an egress-restricted node can install them without provider access.
+- A later milestone moves the CAS onto nodes (reflink/hardlink) and adds `pull` mode; both
+  reuse the same blob endpoint and digest checks.
 
 ## Resolution and delivery
 
-Resolution happens in the panel (`internal/mc`); blobs never ride the agent channel.
-
-| Mode | Behaviour | Use |
+| Provider | Project form | Selection |
 |---|---|---|
-| `pull` | Agent fetches upstream directly from the panel-pinned URL + hash; requires egress | Default |
-| `proxy` | Agent downloads from the panel's authenticated `/agent/blobs/<sha256>` | Egress-restricted nodes |
+| Modrinth | slug | newest paper build compatible with the MC version (major-family fallback) |
+| Hangar | `owner/slug` | newest PAPER download for the MC version |
+| GitHub | `owner/repo` | latest release, preferring a `paper` jar asset |
 
-The panel decides what a version *is*; the node decides whether it can reach it. Both paths
-verify the digest before the blob enters the CAS.
+A template may pin an exact `version` or set a **version-prefix range** (`5.5`, `v5.5`,
+`5.5.71`). Both are resolved to a concrete version and sha256 at server creation. Semver
+range expressions are not interpreted.
 
-## Providers
-
-One interface: `Resolve(project, channel) -> Version{url, hash, deps}`.
-
-| Provider | Notes |
-|---|---|
-| Modrinth | Good API; the default for plugins |
-| Hangar | PaperMC plugins |
-| GitHub releases | Good, needs rate-limit care |
-| SpigotMC | **No API** — manual upload via `POST /artifacts` (sha256-addressed), supported from day one |
-
-Velocity version resolution arrives with networks at M14.
-
-## Applying an update
-
-Download → verify digest → fsync → rename. The previous jar is kept for rollback; servers
-are never patched in place while running.
-
-Update policy per plugin:
+## Policies
 
 | Policy | Meaning |
 |---|---|
-| `pin` | Never move; the owner updates explicitly |
-| `notify` | Surface the update, apply on request |
-| `auto-minor` | Apply non-breaking updates (see caveat) |
-| `auto-any` | Apply anything the provider publishes |
+| `pinned` | Excluded from automatic updates; detection still shows it and an explicit apply moves it |
+| `range` | Move within the prefix |
+| `latest` | Follow the newest compatible build |
 
-**Caveat:** many plugins do not publish semantic versions. When the version scheme cannot be
-classified, `auto-minor` degrades to `notify` rather than guessing — an update that cannot be
-classified is not automatically minor.
+`auto-minor`/`auto-any` and version-scheme classification are deferred until the staged
+boot-check exists.
 
-## Staging boot-check
+## Applying an update
 
-The trust mechanism for `auto-*`:
+`POST /servers/{id}/updates/apply`:
 
-1. Clone the server (requires `reflink`/`zfs`; a full copy per update is too expensive).
-2. Apply the update to the clone.
-3. Boot it on a **scratch port assigned by the panel** (part of the boot-check job, counted
-   against node capacity until teardown), with proxy registration suppressed and its own
-   bridge token — a staged backend must never announce itself to the network.
-4. Wait for `Done (x.xxs)!`, scan startup output for errors.
-5. Promote atomically; on failure, discard the clone and alert.
+1. Resolve every non-pinned plugin and compare versions/hashes.
+2. Download changed artifacts into the CAS and record the new managed set on the server.
+3. Bump the revision and sync the node. A running server restarts.
+4. Boot-check: watch the new revision for up to 180 s. `running` verifies the update;
+   `exited`/`error`/timeout restores the previous jar + plugin set, restarts it, and audits
+   `server.update.rollback`.
 
-Defaults: **on for `auto-*`**, off for `notify`, gated on filesystem capability. The UI must
-show why a boot-check is unavailable instead of silently skipping it.
+The response returns before the boot-check finishes (`boot_check: pending`); the outcome is
+audited as `server.update.verified` or `server.update.rollback`. This is an **in-place guarded
+apply**, not the staged clone in the original design: a bad update can start the real server
+before it is rolled back. A staged clone (scratch port, bridge registration suppressed,
+reflink required) remains the gate for automatic policies.
 
-On a `copy` node (ext4) the boot-check is unavailable, so **`auto-*` policies cannot be
-selected** — the policy is downgraded to `notify` at set time, with the reason shown. An
-unchecked automatic update is never applied just because the check could not run.
+Rollback uses the previous plugin artifacts, which stay in the CAS as long as a live server or
+the GC age window references them. GC is admin-only and skips referenced and recent blobs.
 
-Boot-checks consume capacity: a bulk `auto-any` rollout across many servers is scheduled
-serially per node unless the operator raises concurrency.
+## Garbage collection
 
-## Rollback
+`POST /api/v1/artifacts/gc?min_age_seconds=3600` (default one hour) scans
+`servers.plugins` for live references, then deletes unreferenced blob files and rows. The
+default window protects a rollback that is still in flight. No refcount is stored, so it
+cannot drift.
 
-The previous artifact plus the previous config revision are both retained, so a failed update
-is reversible without a backup restore. A rollback is itself an update job, audited like any
-other mutation.
+## Deferred
+
+- Staged boot-checks and `auto-*` policies (gated on reflink/zfs capability).
+- Node-local CAS plus a `pull` delivery mode.
+- Release channels / Paper and Velocity jar update policy. M9 updates managed plugins only.
+- Manual SpigotMC upload.

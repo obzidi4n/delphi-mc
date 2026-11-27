@@ -25,7 +25,26 @@ func toServerDTO(sv store.Server) apitypes.ServerDTO {
 		Base: sv.Base, TemplateID: sv.TemplateID, TemplateVersion: sv.TemplateVersion,
 		LastError: lastErr, CreatedAt: sv.CreatedAt,
 		DeletedAt: sv.DeletedAt, PurgeAfter: sv.PurgeAfter,
+		MCVersion: strPtr(sv.MCVersion), Plugins: pluginDTOs(sv.Plugins),
 	}
+}
+
+func pluginDTOs(in []store.ServerPlugin) []apitypes.ServerPlugin {
+	out := make([]apitypes.ServerPlugin, 0, len(in))
+	for _, p := range in {
+		item := apitypes.ServerPlugin{
+			Project: p.Project, Provider: p.Provider, Version: p.Version,
+			Policy: p.Policy, Name: p.Name, SHA256: p.SHA256,
+		}
+		if p.Range != "" {
+			item.Range = strPtr(p.Range)
+		}
+		if p.Size > 0 {
+			item.Size = &p.Size
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func (s *server) serverService(w http.ResponseWriter) *capability.Servers {

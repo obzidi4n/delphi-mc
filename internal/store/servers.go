@@ -49,6 +49,20 @@ type Server struct {
 	TemplateVersion int
 	Variables       map[string]string
 	Files           map[string]string
+	MCVersion       string
+	Plugins         []ServerPlugin
+}
+
+// ServerPlugin is a managed plugin resolved for a server.
+type ServerPlugin struct {
+	Project  string `json:"project"`
+	Provider string `json:"provider"`
+	Version  string `json:"version"`
+	Policy   string `json:"policy"` // latest | pinned | range
+	Range    string `json:"range,omitempty"`
+	Name     string `json:"name"`
+	SHA256   string `json:"sha256"`
+	Size     int64  `json:"size,omitempty"`
 }
 
 const serverColumns = `s.id, s.org_id, s.node_id, s.name, s.desired_state, s.desired_revision,
@@ -56,7 +70,7 @@ const serverColumns = `s.id, s.org_id, s.node_id, s.name, s.desired_state, s.des
 	s.memory_mb, s.cpu_cores, s.port, s.jar_url, s.jar_sha256, s.last_error, s.created_at,
 	s.deleted_at, s.purge_after,
 	coalesce((select state from server_summary where server_id = s.id), s.observed_state),
-	s.base, s.template_id, s.template_version, s.variables, s.files`
+	s.base, s.template_id, s.template_version, s.variables, s.files, s.mc_version, s.plugins`
 
 func scanServer(row pgx.Row) (Server, error) {
 	var s Server
@@ -64,7 +78,8 @@ func scanServer(row pgx.Row) (Server, error) {
 		&s.ObservedState, &s.AppliedRevision, &s.KillRequested, &s.AcceptEULA, &s.Image,
 		&s.JavaVersion, &s.MemoryMB, &s.CPUCores, &s.Port, &s.JarURL, &s.JarSHA256,
 		&s.LastError, &s.CreatedAt, &s.DeletedAt, &s.PurgeAfter, &s.SummaryState,
-		&s.Base, &s.TemplateID, &s.TemplateVersion, &s.Variables, &s.Files)
+		&s.Base, &s.TemplateID, &s.TemplateVersion, &s.Variables, &s.Files,
+		&s.MCVersion, &s.Plugins)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Server{}, ErrNoServer
 	}
@@ -113,17 +128,20 @@ func (d *DB) CreateServer(ctx context.Context, s Server) (Server, error) {
 	if s.Files == nil {
 		s.Files = map[string]string{}
 	}
+	if s.Plugins == nil {
+		s.Plugins = []ServerPlugin{}
+	}
 	tag, err := d.pool.Exec(ctx, `
 		insert into servers (id, org_id, node_id, name, desired_state, desired_revision,
 			observed_state, applied_revision, kill_requested, accept_eula, image, java_version,
 			memory_mb, cpu_cores, port, jar_url, jar_sha256, base, template_id, template_version,
-			variables, files)
+			variables, files, mc_version, plugins)
 		select $1, n.org_id, n.id, $3, $4, 1, 'unknown', 0, false, $5, $6, $7, $8, $9, $10, $11, $12,
-			$13, $14, $15, $16, $17
+			$13, $14, $15, $16, $17, $18, $19
 		from nodes n where n.id = $2`,
 		s.ID, s.NodeID, s.Name, s.DesiredState, s.AcceptEULA, s.Image, s.JavaVersion,
 		s.MemoryMB, s.CPUCores, s.Port, s.JarURL, s.JarSHA256,
-		s.Base, s.TemplateID, s.TemplateVersion, s.Variables, s.Files)
+		s.Base, s.TemplateID, s.TemplateVersion, s.Variables, s.Files, s.MCVersion, s.Plugins)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -199,6 +217,28 @@ func (d *DB) queryServers(ctx context.Context, query string, args ...any) ([]Ser
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// SetArtifacts replaces the resolved jar and managed plugin set, bumps the
+// revision, and sets the desired lifecycle.
+func (d *DB) SetArtifacts(ctx context.Context, id, mcVersion, jarURL, jarSHA string, plugins []ServerPlugin, desired string) (Server, error) {
+	if plugins == nil {
+		plugins = []ServerPlugin{}
+	}
+	tag, err := d.pool.Exec(ctx, `
+		update servers
+		set mc_version = $2, jar_url = $3, jar_sha256 = $4, plugins = $5,
+			desired_state = $6, kill_requested = false,
+			desired_revision = desired_revision + 1
+		where id = $1 and deleted_at is null`,
+		id, mcVersion, jarURL, jarSHA, plugins, desired)
+	if err != nil {
+		return Server{}, fmt.Errorf("set artifacts: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return Server{}, ErrNoServer
+	}
+	return d.GetServer(ctx, id)
 }
 
 // SetDesiredState changes the desired lifecycle and bumps the revision.

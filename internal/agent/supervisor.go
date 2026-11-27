@@ -25,6 +25,11 @@ type Supervisor struct {
 	Runtime Runtime
 	HTTP    *http.Client
 	Log     *slog.Logger
+	// BlobBase is the panel base URL used to fetch managed plugin artifacts.
+	BlobBase string
+	// BlobHTTP carries the node certificate for panel blob requests; HTTP
+	// stays a normal client for upstream jar downloads.
+	BlobHTTP *http.Client
 }
 
 // NewSupervisor builds a supervisor with a long download timeout.
@@ -197,7 +202,10 @@ func (s *Supervisor) prepare(ctx context.Context, spec wire.ServerSpec, dir stri
 			return err
 		}
 	}
-	return s.ensureJar(ctx, spec, dir)
+	if err := s.ensureJar(ctx, spec, dir); err != nil {
+		return err
+	}
+	return s.ensurePlugins(ctx, spec, dir)
 }
 
 // writeTemplateFiles creates parent directories and writes each file only if
@@ -285,6 +293,80 @@ func (s *Supervisor) ensureJar(ctx context.Context, spec wire.ServerSpec, dir st
 	}
 	s.Log.Info("jar installed", "server", spec.ID, "sha256", spec.JarSHA256)
 	return nil
+}
+
+// ensurePlugins downloads managed plugin jars from the panel's artifact store
+// into plugins/<name>, replacing a jar whose hash changed.
+func (s *Supervisor) ensurePlugins(ctx context.Context, spec wire.ServerSpec, dir string) error {
+	if len(spec.Plugins) == 0 {
+		return nil
+	}
+	if s.BlobBase == "" {
+		return errors.New("plugin downloads need a panel URL")
+	}
+	pluginDir := filepath.Join(dir, "plugins")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		return fmt.Errorf("create plugins dir: %w", err)
+	}
+	for _, p := range spec.Plugins {
+		if !safePluginName(p.Name) || len(p.SHA256) != 64 {
+			return fmt.Errorf("plugin %q has an invalid name or hash", p.Name)
+		}
+		target := filepath.Join(pluginDir, p.Name)
+		if sum, err := fileSHA256(target); err == nil && sum == p.SHA256 {
+			continue
+		}
+		url := strings.TrimRight(s.BlobBase, "/") + "/agent/blobs/" + p.SHA256
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return fmt.Errorf("plugin request: %w", err)
+		}
+		client := s.BlobHTTP
+		if client == nil {
+			client = s.HTTP
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("download plugin %s: %w", p.Name, err)
+		}
+		tmp := target + ".tmp"
+		file, createErr := os.Create(tmp)
+		if createErr != nil {
+			resp.Body.Close()
+			return fmt.Errorf("create %s: %w", tmp, createErr)
+		}
+		hasher := sha256.New()
+		_, copyErr := io.Copy(io.MultiWriter(file, hasher), resp.Body)
+		closeErr := file.Close()
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			os.Remove(tmp)
+			return fmt.Errorf("download plugin %s: %s", p.Name, resp.Status)
+		}
+		if copyErr != nil {
+			os.Remove(tmp)
+			return fmt.Errorf("download plugin %s: %w", p.Name, copyErr)
+		}
+		if closeErr != nil {
+			os.Remove(tmp)
+			return fmt.Errorf("close %s: %w", tmp, closeErr)
+		}
+		if got := hex.EncodeToString(hasher.Sum(nil)); got != p.SHA256 {
+			os.Remove(tmp)
+			return fmt.Errorf("plugin %s sha256 mismatch: got %s, want %s", p.Name, got, p.SHA256)
+		}
+		if err := os.Rename(tmp, target); err != nil {
+			os.Remove(tmp)
+			return fmt.Errorf("install plugin %s: %w", p.Name, err)
+		}
+		s.Log.Info("plugin installed", "server", spec.ID, "name", p.Name, "sha256", p.SHA256)
+	}
+	return nil
+}
+
+func safePluginName(name string) bool {
+	return name != "" && len(name) <= 128 && strings.HasSuffix(name, ".jar") &&
+		!strings.ContainsAny(name, "/\\") && !strings.HasPrefix(name, ".")
 }
 
 // captureCrash keeps the container log and any JVM crash file once per

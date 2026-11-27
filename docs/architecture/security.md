@@ -26,6 +26,11 @@ WebSocket channel (console, metrics, claims) and the blob download endpoint. Rot
 days; revocation records `revoked_at` and is checked on every reconnect. Details in
 [node enrollment](../operations/node-enrollment.md).
 
+**Artifacts:** `GET /agent/blobs/{sha256}` requires a verified node certificate whose serial is
+enrolled and not revoked. The response is immutable, content-addressed content; the node
+re-hashes before installing. GC requires org admin and skips anything referenced by a live
+server or younger than the cutoff.
+
 **Bridge:** v0 has no network handshake: the plugin and the agent share the server directory
 (`.delphi-bridge/state.json` and per-command files), so the container's own filesystem
 permissions are the boundary. The plugin reads only its own server's bridge directory.

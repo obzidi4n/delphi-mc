@@ -3,10 +3,11 @@
 The map. Every page here is versioned with the code and changes in the same PR as the
 behavior it describes.
 
-**Status:** M8 landed — the file manager with revisions/diff/rollback and AI `write_file`, on
-top of M7 approvals and AI actions, M6 assistant, M5 bridge, M4 console, M3b templates, the
-M3a spec-first API, identity/RBAC, paginated lists, Team/Groups pages, and the CLI. See
-[`plan/roadmap.md`](plan/roadmap.md).
+**Status:** M9 landed — Modrinth/Hangar/GitHub plugin resolution, a sha256 artifact store,
+template-installed plugins, update detection with guarded apply/rollback, artifact GC, and AI
+`plugins`/`update_server`, on top of M8 files, M7 approvals and AI actions, M6 assistant, M5
+bridge, M4 console, M3b templates, the M3a spec-first API, identity/RBAC, paginated lists,
+Team/Groups pages, and the CLI. See [`plan/roadmap.md`](plan/roadmap.md).
 
 ## Architecture — what and how
 

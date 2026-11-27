@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"delphi.dev/delphi/internal/ai"
+	"delphi.dev/delphi/internal/artifact"
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/config"
 	"delphi.dev/delphi/internal/pki"
@@ -39,6 +40,7 @@ type Options struct {
 	Console    *ConsoleHub
 	AI         *ai.Service
 	Files      *FileService
+	Artifacts  *artifact.Store
 	Identity   IdentityStore
 	AdminToken string
 	CA         *pki.CA
@@ -111,6 +113,7 @@ func New(opts Options) (http.Handler, error) {
 
 	mux.HandleFunc("POST /agent/enroll", s.enroll)
 	mux.HandleFunc("GET /agent/ws", s.agentSocket)
+	mux.HandleFunc("GET /agent/blobs/{sha}", s.agentBlob)
 	mux.HandleFunc("GET "+s.base+"ws/servers/{id}", s.consoleSocket)
 
 	mux.HandleFunc("GET /api/v1/nodes", s.listNodes)
@@ -123,6 +126,10 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("PATCH /api/v1/servers/{id}", s.renameServer)
 	mux.HandleFunc("DELETE /api/v1/servers/{id}", s.deleteServer)
 	mux.HandleFunc("POST /api/v1/servers/{id}/power", s.powerServer)
+	mux.HandleFunc("GET /api/v1/servers/{id}/plugins", s.listPlugins)
+	mux.HandleFunc("GET /api/v1/servers/{id}/updates", s.listUpdates)
+	mux.HandleFunc("POST /api/v1/servers/{id}/updates/apply", s.applyUpdates)
+	mux.HandleFunc("POST /api/v1/artifacts/gc", s.gcArtifacts)
 
 	mux.HandleFunc("GET /api/v1/groups", s.listGroups)
 	mux.HandleFunc("POST /api/v1/groups", s.createGroup)

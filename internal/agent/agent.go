@@ -48,6 +48,10 @@ func Connect(ctx context.Context, opts ConnectOptions, log *slog.Logger) error {
 	client := &http.Client{Transport: &http.Transport{
 		TLSClientConfig: tlsClientConfig(cert, roots),
 	}}
+	// The supervisor downloads managed plugins from the panel over the same
+	// node identity that carries the channel.
+	opts.Supervisor.BlobHTTP = &http.Client{Transport: client.Transport, Timeout: 10 * time.Minute}
+	opts.Supervisor.BlobBase = strings.TrimRight(opts.PanelURL, "/")
 
 	endpoint, err := socketURL(opts.PanelURL)
 	if err != nil {

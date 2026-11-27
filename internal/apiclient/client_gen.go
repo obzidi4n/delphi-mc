@@ -207,6 +207,23 @@ func (c *Client) CreateAPIKey(ctx context.Context, body apitypes.APIKeyRequest) 
 	return &out, nil
 }
 
+// POST /api/v1/artifacts/gc
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) GcArtifacts(ctx context.Context, minAgeSeconds *int) (*apitypes.GCResultDTO, error) {
+	reqPath := "/api" + "/v1" + "/artifacts" + "/gc"
+	q := url.Values{}
+	if minAgeSeconds != nil {
+		q.Set("min_age_seconds", strconv.FormatInt(int64(*minAgeSeconds), 10))
+	}
+
+	var out apitypes.GCResultDTO
+	if err := c.do(ctx, "POST", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GET /api/v1/audit
 //
 // Requires a bearer token configured on the Client.
@@ -577,6 +594,20 @@ func (c *Client) ModeratePlayer(ctx context.Context, id string, body apitypes.Mo
 	return &out, nil
 }
 
+// GET /api/v1/servers/{id}/plugins
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListServerPlugins(ctx context.Context, id string) (*apitypes.PluginListDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/plugins"
+	var q url.Values
+
+	var out apitypes.PluginListDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // POST /api/v1/servers/{id}/power
 //
 // Requires a bearer token configured on the Client.
@@ -586,6 +617,34 @@ func (c *Client) PowerServer(ctx context.Context, id string, body apitypes.Power
 
 	var out apitypes.ServerDTO
 	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GET /api/v1/servers/{id}/updates
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListServerUpdates(ctx context.Context, id string) (*apitypes.PluginUpdateListDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/updates"
+	var q url.Values
+
+	var out apitypes.PluginUpdateListDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/servers/{id}/updates/apply
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ApplyServerUpdates(ctx context.Context, id string) (*apitypes.PluginUpdateApplyDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/updates" + "/apply"
+	var q url.Values
+
+	var out apitypes.PluginUpdateApplyDTO
+	if err := c.do(ctx, "POST", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

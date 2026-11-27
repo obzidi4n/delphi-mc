@@ -14,15 +14,27 @@ Template {
   java: 8 | 17 | 21 | 25
   defaults: memory_mb, cpu_cores, port (0 = allocate)
   files: map<relative path, content>   # small config sets only
-  plugins: [{project, provider, version|range, required}]  # metadata until M9
+  plugins: [{project, provider, version|range, required}]  # resolved and installed
   variables: map<name, {description, default, required}>
 }
 ```
 
 Built-ins are embedded JSON and seeded into `templates` with a null org; an org's imports sit
-next to them and both list through one cursor. `purpur` is rejected until provider plugins
-(M9) add a resolver with a sha256. Plugin jars are not downloaded yet: the provider manager
-lands at M9, so `plugins` is metadata that instantiation records but does not install.
+next to them and both list through one cursor. `purpur` is rejected until its provider path is
+wired.
+
+Plugins are resolved at instantiation through `internal/plugins`:
+
+| Provider | Project form | Selection |
+|---|---|---|
+| `modrinth` | slug (`luckperms`) | newest paper build whose `game_versions` include the server's MC version (major-family fallback), or a pin/range |
+| `hangar` | `owner/slug` (`ViaVersion/ViaVersion`) | newest PAPER download for the MC version, or a pin/range |
+| `github` | `owner/repo` | latest release (or the pinned tag), preferring a `paper` jar asset |
+
+Each artifact is downloaded once into the panel CAS (`<data_dir>/artifacts/<sha256>`), recorded
+in `artifacts`, and stored on the server as `servers.plugins` with the resolved version, stable
+name (`luckperms.jar`), and sha256. Nodes fetch it from `GET /agent/blobs/{sha256}` over their
+node certificate and verify the hash before install.
 
 Variables are flat strings with defaults — no variable schema, no form generator. Validation
 happens at instantiation and reports the variable name; that is enough for v1.0.
@@ -68,8 +80,8 @@ For Velocity, the agent skips `eula.txt`/`server.properties` and launches withou
   supply-chain burden.
 - **An imported template is not inert.** Import validates the whole body and the files are
   written on first boot; until the diff/approval flow lands, only org admins can import.
-  Plugin pins are validated but resolved only at M9.
-- When a template pins a range, M9 resolves it and records the resolved hash; the range is
+  Plugin pins and ranges are resolved at creation.
+- When a template sets a range, resolution records the concrete version and hash; the prefix is
   documentation, the hash is the contract.
 
 ## AI
