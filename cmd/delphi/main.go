@@ -417,7 +417,7 @@ func runPanel(ctx context.Context, args []string) error {
 	}
 
 	if cfg.AdminToken == "" {
-		log.Warn("admin_token is empty; /api/v1 is disabled until it is set")
+		log.Warn("admin_token is empty; use a user API key (printed by init) for /api/v1")
 	}
 
 	handler, err := api.New(api.Options{
