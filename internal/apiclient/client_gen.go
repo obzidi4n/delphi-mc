@@ -332,6 +332,26 @@ func (c *Client) RenameServer(ctx context.Context, id string, body apitypes.Rena
 	return &out, nil
 }
 
+// GET /api/v1/servers/{id}/metrics
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) GetServerMetrics(ctx context.Context, id string, resolution *string, limit *int64) (*apitypes.ServerMetricsDTO, error) {
+	path := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(id) + "/metrics"
+	q := url.Values{}
+	if resolution != nil {
+		q.Set("resolution", *resolution)
+	}
+	if limit != nil {
+		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
+	}
+
+	var out apitypes.ServerMetricsDTO
+	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // POST /api/v1/servers/{id}/power
 //
 // Requires a bearer token configured on the Client.

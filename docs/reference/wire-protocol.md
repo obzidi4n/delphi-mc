@@ -47,26 +47,32 @@ Text frames carry a JSON envelope; console payloads are binary frames with a fix
 | `subscribe` | browser → panel | topics |
 | `error` | either | code, message, `reply_to` |
 
-**Implemented:** `hello`, `heartbeat`, `hello.ack` (M1); `servers` and `server.state` (M2).
-Console, metrics, claim and job frames remain the contract for M4/M3a; none of them are
-reserved differently.
+**Implemented:** `hello`, `heartbeat`, `hello.ack` (M1); `servers`, `server.state` (M2);
+binary console batches and `metrics.batch` (M4). Claim and job frames remain the contract for
+a later milestone.
 
 ## Console framing
 
-Console is the only high-frequency path, so it is binary and batched. A console batch never
-uses the JSON envelope; the server is implied by the subscription.
+Console is the only high-frequency path, so it is binary and batched; it never uses the JSON
+envelope. One agent channel carries a node's whole fleet, so the frame names the server.
 
 ```
-u8  kind           // 1 = console batch
-u64 seq            // monotonic per server — the only sequence source for console
+u8  kind             // 1 = console batch
+u16 server_id_len
+u8[] server_id
+u64 seq              // first line; each following line is seq+1
 u32 payload_len
-u8[] payload       // newline-delimited raw log lines
+u8[] payload         // newline-delimited raw log lines, no trailing newline
 ```
 
 Batches are emitted every ~16 ms. `seq` is the single sequence number for console traffic;
-the envelope's `seq` belongs to text topics and is never mixed with it. On reconnect the
-subscriber passes `since_seq`; the agent replays from its ring buffer, and the panel marks an
-explicit gap if the buffer no longer holds it. Dropped frames never block the log reader.
+the envelope's `seq` belongs to text topics and is never mixed with it. The panel keeps a 5k
+ring and marks overload gaps; a browser receiving a sequence greater than `last+1` inserts an
+explicit `[delphi] N line(s) missing` line. Dropped frames never block the log reader.
+
+Metrics ride the text envelope: `{"type":"metrics.batch","server_id","cpu_percent",
+"memory_bytes","at"}` once per second per running server. The browser dashboard receives the
+same facts as `{"type":"stats",...}` text frames over `<base>ws/servers/<id>`.
 
 ## Panel endpoints
 

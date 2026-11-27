@@ -1,7 +1,9 @@
 # Clients
 
-**Status:** web UI and CLI target v1.0; TUI at v1.1 (ADR
-[0008](../decisions/0008-native-tui-as-api-client.md)).
+**Status:** M4 ships the console page as a server-rendered HTML shell with a small vanilla
+JavaScript client (no build step yet). The React/Vite portal below remains the target; the
+API, WS route, and frame shapes are the ones it will consume. CLI is current; TUI is v1.1
+(ADR [0008](../decisions/0008-native-tui-as-api-client.md)).
 
 All three are consumers of the public API. If a client needs a private endpoint, the API is
 wrong. The **spec is the source**: `internal/api/openapi.yaml` is hand-written and reviewed;
@@ -14,13 +16,13 @@ React + Vite + TypeScript. TanStack Router and Query, Zustand for local UI state
 (WebGL) for console, TanStack Virtual for long lists, uPlot for metrics (canvas — Recharts
 chokes on live 5k-point series), CodeMirror 6 for configs, Tailwind + shadcn.
 
-- **One WebSocket per browser tab**, topic-multiplexed (`server:123:console`,
-  `server:123:stats`, `fleet:alerts`) with server-side rate limits.
-- **The panel subscribes upstream once per server, not once per viewer.** Twenty tabs on one
-  console share one `console.subscribe` to the agent; the panel fans frames out to topic
-  subscribers and applies backpressure per subscriber (a slow tab drops oldest, never the
-  agent). A subscriber joining mid-stream passes `since_seq`; the panel serves replay from the
-  agent ring buffer and marks an explicit gap when the sequence is gone.
+- At M4 the console page opens one WebSocket per tab at `<base>ws/servers/<id>`; it carries
+  binary console batches plus JSON stats. The topic-multiplexed single-socket design
+  (`server:<id>:console`, `server:<id>:stats`, `fleet:alerts`) is the target for the SPA.
+- The agent streams every running server's console to the panel; the panel keeps a 5k-line
+  ring per server and fans batches out to browsers. Twenty viewers of one server therefore
+  share one upstream stream. A slow subscriber is dropped, never allowed to block the agent;
+  it reconnects and receives the ring. Sequence gaps are rendered as an explicit line.
 - Config editing is a text editor with validation, diff and revision history — no
   JSON-Schema form generation in v1.0. Schema forms are a v1.1 candidate.
 - Virtualized file manager; the diff view is shared with AI approval cards. Small writes go
@@ -31,10 +33,15 @@ chokes on live 5k-point series), CodeMirror 6 for configs, Tailwind + shadcn.
 
 ### Premium console checklist
 
-The headline claim, made concrete:
+What M4 delivers in the vanilla page:
 
-- True-colour xterm.js with the WebGL renderer, smooth scroll, Ctrl+F search, select/copy
-  that does not fight the browser.
+- ANSI SGR colours (16-colour) with bold, smooth follow toggling, Ctrl+F search with hit
+  count and jump, pause that keeps buffering, copy all, clear, auto-reconnect with backoff,
+  connection and server-state badges, live CPU/memory from the stats stream, and power
+  buttons (start/restart/stop/kill) through the API.
+- Gaps are explicit; the DOM keeps the newest 5000 lines.
+- The xterm/WebGL renderer, timestamp toggle, level filter, and command input below are the
+  SPA target; command input waits for the bridge (M5).
 - Timestamp toggle, level filter, and **structured events rendered as events** (chat, join,
   death) rather than raw lines — the bridge paying off.
 - Command input with ↑ history, autocomplete from the plugin's command tree, paste safety for

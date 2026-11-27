@@ -34,6 +34,7 @@ type Options struct {
 	Ready      func(context.Context) error
 	Nodes      NodeStore
 	Services   *capability.Services
+	Console    *ConsoleHub
 	Identity   IdentityStore
 	AdminToken string
 	CA         *pki.CA
@@ -94,6 +95,7 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("GET "+s.base+"team", s.renderTeam)
 	mux.HandleFunc("POST "+s.base+"team", s.createUserForm)
 	mux.HandleFunc("POST "+s.base+"team/{id}/role", s.setUserRoleForm)
+	mux.HandleFunc("GET "+s.base+"servers/{id}", s.renderConsole)
 	mux.HandleFunc("GET "+s.base+"groups", s.renderGroups)
 	mux.HandleFunc("POST "+s.base+"groups", s.createGroupForm)
 	mux.HandleFunc("POST "+s.base+"groups/{id}/members", s.addGroupMemberForm)
@@ -101,6 +103,7 @@ func New(opts Options) (http.Handler, error) {
 
 	mux.HandleFunc("POST /agent/enroll", s.enroll)
 	mux.HandleFunc("GET /agent/ws", s.agentSocket)
+	mux.HandleFunc("GET "+s.base+"ws/servers/{id}", s.consoleSocket)
 
 	mux.HandleFunc("GET /api/v1/nodes", s.listNodes)
 	mux.HandleFunc("POST /api/v1/nodes/{id}/revoke", s.revokeNode)
@@ -121,6 +124,8 @@ func New(opts Options) (http.Handler, error) {
 
 	mux.HandleFunc("GET /api/v1/audit", s.listAudit)
 	mux.HandleFunc("POST /api/v1/api-keys", s.createAPIKey)
+
+	mux.HandleFunc("GET /api/v1/servers/{id}/metrics", s.getServerMetrics)
 
 	mux.HandleFunc("GET /api/v1/users", s.listUsers)
 	mux.HandleFunc("POST /api/v1/users", s.createUser)

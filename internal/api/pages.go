@@ -143,7 +143,7 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
   {{else}}
     <h2>Servers</h2>
     {{if .Servers}}<table><tr><th>Name</th><th>Desired</th><th>Observed</th><th>Port</th><th>Node</th><th>ID</th></tr>
-    {{range .Servers}}<tr><td>{{.Name}}</td><td>{{.DesiredState}}</td><td>{{.ObservedState}}</td><td>{{.Port}}</td><td>{{.NodeID}}</td><td class="muted">{{.ID}}</td></tr>{{end}}</table>
+    {{range .Servers}}<tr><td><a href="{{$base}}servers/{{.ID}}">{{.Name}}</a></td><td>{{.DesiredState}}</td><td>{{.ObservedState}}</td><td>{{.Port}}</td><td>{{.NodeID}}</td><td class="muted">{{.ID}}</td></tr>{{end}}</table>
     {{else}}<p class="muted">No servers yet. Create one with the API or CLI.</p>{{end}}
     <h2>Nodes</h2>
     {{if .Nodes}}<table><tr><th>Name</th><th>Status</th><th>Version</th><th>FS</th><th>Last seen</th></tr>

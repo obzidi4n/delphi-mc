@@ -152,6 +152,7 @@ func runPanel(ctx context.Context, args []string) error {
 	}
 
 	hub := api.NewHub()
+	console := api.NewConsoleHub()
 	var services *capability.Services
 	var identity api.IdentityStore
 	if db != nil {
@@ -207,6 +208,7 @@ func runPanel(ctx context.Context, args []string) error {
 		Services:   services,
 		Identity:   identity,
 		AdminToken: cfg.AdminToken,
+		Console:    console,
 		CA:         ca,
 		Hub:        hub,
 	})

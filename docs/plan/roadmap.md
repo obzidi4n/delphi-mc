@@ -31,6 +31,12 @@ criteria can be demonstrated on a clean host.
   `template_version`, and JSON/YAML import/export. Plugin downloads (provider manager) remain
   M9. Exit: a Paper server created from the Survival template boots.
 
+- **M4** — realtime console: agent tailing with per-line sequence numbers, 16 ms binary
+  batches, a 5k ring in the agent and panel, browser WebSocket fan-out (20 viewers tested
+  under 50 ms), a console page with ANSI colour, search, pause, follow, copy, reconnect and
+  power buttons, and 1s/15s/5m CPU+memory rollups exposed at `/servers/{id}/metrics`.
+  Command input waits for the bridge (M5).
+
 ## Alpha: the vertical slice (M0–M5)
 
 ```

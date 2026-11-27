@@ -53,7 +53,9 @@ revocable, and scoped like any other principal.
 - Only an owner can grant `owner`, and the last owner cannot be demoted. API keys store
   their scope set at mint time; session principals resolve scopes from `role_bindings`.
 - The UI enforces the same capabilities as the API: the Team page needs `user:read`/
-  `user:admin`, group mutation needs org `admin`. UI mutations are same-origin checked.
+  `user:admin`, group mutation needs org `admin`, and the console WebSocket needs
+  `server:<id>:read`. UI mutations are same-origin checked, and the WS upgrade is
+  origin-checked and accepts a session cookie or bearer key.
 - Every mutation is audited with `Via` (ui/cli/api/ai) and, for AI actions, `Model`.
 - The AI tool registry is filtered by scope and capability, and the capability layer checks
   again — two independent gates for the same rule.

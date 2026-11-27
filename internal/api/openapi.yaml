@@ -164,6 +164,31 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/metrics:
+    get:
+      operationId: getServerMetrics
+      summary: Read CPU and memory rollups
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: resolution
+          in: query
+          required: false
+          schema: { type: string, enum: [1s, 15s, 5m] }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Points, oldest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServerMetricsDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
   /api/v1/servers/{id}/power:
     post:
       operationId: powerServer
@@ -666,6 +691,21 @@ components:
       properties:
         user: { $ref: "#/components/schemas/UserDTO" }
         password: { type: string }
+    MetricPointDTO:
+      type: object
+      required: [at, cpu_percent, memory_bytes]
+      properties:
+        at: { type: string, format: date-time }
+        cpu_percent: { type: number, format: double }
+        memory_bytes: { type: integer, format: int64 }
+    ServerMetricsDTO:
+      type: object
+      required: [resolution, items]
+      properties:
+        resolution: { type: string }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MetricPointDTO" }
     TemplateDefaultsDTO:
       type: object
       required: [memory_mb, cpu_cores, port]

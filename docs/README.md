@@ -3,9 +3,9 @@
 The map. Every page here is versioned with the code and changes in the same PR as the
 behavior it describes.
 
-**Status:** M3b landed — templates (schema, five built-ins, PaperMC v3 resolution,
-instantiation, JSON/YAML import/export) on top of the M3a spec-first API, identity/RBAC,
-audit, cursor-paginated lists, Team/Groups pages, and the CLI. See
+**Status:** M4 landed — the realtime console (batched WS, ring buffer, browser fan-out),
+metrics rollups and a working console page, on top of the M3b templates, M3a spec-first API,
+identity/RBAC, audit, paginated lists, Team/Groups pages, and the CLI. See
 [`plan/roadmap.md`](plan/roadmap.md).
 
 ## Architecture — what and how

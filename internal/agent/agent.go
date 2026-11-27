@@ -111,10 +111,17 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 	}
 	log.Info("agent channel open", "panel", endpoint, "ack", string(ack))
 
+	console := NewConsole(opts.Supervisor.Runtime, log)
+	console.Send = func(serverID string, seq uint64, payload []byte) {
+		_ = writer.writeBinary(sctx, wire.EncodeConsole(serverID, seq, payload))
+	}
+	defer console.Close()
+
 	reconciler := &reconciler{
 		apply:   opts.Supervisor.Apply,
 		observe: opts.Supervisor.Observe,
 		send: func(ctx context.Context, frame wire.ServerStateFrame) error {
+			console.Sync(frame.ServerID, frame.State)
 			return writer.write(ctx, frame)
 		},
 		reported: make(map[string]string),
@@ -144,6 +151,10 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 			}
 		}
 	}()
+
+	go RunMetrics(sctx, opts.Supervisor.Runtime, time.Second, func(frame wire.MetricsFrame) {
+		_ = writer.write(sctx, frame)
+	}, log)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -184,6 +195,14 @@ func (w *connWriter) write(ctx context.Context, v any) error {
 	writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return w.conn.Write(writeCtx, websocket.MessageText, data)
+}
+
+func (w *connWriter) writeBinary(ctx context.Context, payload []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return w.conn.Write(writeCtx, websocket.MessageBinary, payload)
 }
 
 // reconciler coalesces desired-state frames and applies the latest one.

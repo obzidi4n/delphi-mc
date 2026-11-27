@@ -196,10 +196,16 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 	revoked := false
 	for {
 		readCtx, cancel := context.WithTimeout(r.Context(), 3*s.opts.Heartbeat)
-		_, data, err := conn.Read(readCtx)
+		typ, data, err := conn.Read(readCtx)
 		cancel()
 		if err != nil {
 			break
+		}
+		if typ == websocket.MessageBinary {
+			if s.opts.Console != nil {
+				s.opts.Console.IngestFrame(data)
+			}
+			continue
 		}
 
 		var envelope struct {
@@ -229,6 +235,11 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 		case wire.TypeHeartbeat:
 			if err := s.opts.Nodes.TouchNode(r.Context(), node.ID, s.opts.Now()); err != nil {
 				revoked = errors.Is(err, store.ErrNodeRevoked)
+			}
+		case wire.TypeMetrics:
+			var frame wire.MetricsFrame
+			if json.Unmarshal(data, &frame) == nil && frame.ServerID != "" && s.opts.Console != nil {
+				s.opts.Console.PublishStats(frame)
 			}
 		case wire.TypeServerState:
 			var frame wire.ServerStateFrame

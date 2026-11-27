@@ -50,4 +50,6 @@ const (
 	TypeHelloAck    = "hello.ack"
 	TypeServers     = "servers"
 	TypeServerState = "server.state"
+	TypeConsole     = "console.batch"
+	TypeMetrics     = "metrics.batch"
 )

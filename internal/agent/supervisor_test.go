@@ -10,12 +10,15 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"delphi.dev/delphi/internal/wire"
 )
 
 type fakeRuntime struct {
+	follow   io.ReadCloser
+	stats    []ContainerStat
 	state    map[string]string
 	revision map[string]int64
 	ensures  int
@@ -81,6 +84,15 @@ func (f *fakeRuntime) Remove(_ context.Context, id string) error {
 }
 
 func (f *fakeRuntime) Logs(context.Context, string, int) (string, error) { return f.logs, nil }
+
+func (f *fakeRuntime) FollowLogs(context.Context, string) (io.ReadCloser, error) {
+	if f.follow == nil {
+		return io.NopCloser(strings.NewReader("")), nil
+	}
+	return f.follow, nil
+}
+
+func (f *fakeRuntime) Stats(context.Context) ([]ContainerStat, error) { return f.stats, nil }
 
 func jarServer(t *testing.T, payload []byte) (*httptest.Server, string) {
 	t.Helper()

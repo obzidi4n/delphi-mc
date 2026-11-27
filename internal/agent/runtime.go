@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	goruntime "runtime"
@@ -27,6 +28,18 @@ type Runtime interface {
 	Remove(ctx context.Context, id string) error
 	AppliedRevision(ctx context.Context, id string) (int64, error)
 	Logs(ctx context.Context, id string, tail int) (string, error)
+	// FollowLogs streams new container output until the container exits or the
+	// context is cancelled.
+	FollowLogs(ctx context.Context, id string) (io.ReadCloser, error)
+	// Stats samples every container once (one process, not one per server).
+	Stats(ctx context.Context) ([]ContainerStat, error)
+}
+
+// ContainerStat is one container's resource sample.
+type ContainerStat struct {
+	Container   string
+	CPUPercent  float64
+	MemoryBytes int64
 }
 
 // DetectRuntime picks podman (default), docker, or the configured one.
@@ -56,6 +69,42 @@ type execRuntime struct {
 func (r *execRuntime) Name() string { return r.bin }
 
 func containerName(id string) string { return "delphi-" + id }
+
+// FollowLogs starts "logs -f" and returns its stdout.
+func (r *execRuntime) FollowLogs(ctx context.Context, id string) (io.ReadCloser, error) {
+	cmd := exec.CommandContext(ctx, r.bin, "logs", "-f", "--tail", "200", containerName(id))
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	return &followReader{cmd: cmd, reader: stdout}, nil
+}
+
+type followReader struct {
+	cmd    *exec.Cmd
+	reader io.ReadCloser
+}
+
+func (f *followReader) Read(p []byte) (int, error) { return f.reader.Read(p) }
+
+func (f *followReader) Close() error {
+	_ = f.cmd.Process.Kill()
+	_ = f.reader.Close()
+	_ = f.cmd.Wait()
+	return nil
+}
+
+// Stats samples all containers in one call.
+func (r *execRuntime) Stats(ctx context.Context) ([]ContainerStat, error) {
+	out, err := r.run(ctx, "stats", "--no-stream", "--format", "json")
+	if err != nil {
+		return nil, err
+	}
+	return ParseStats(out)
+}
 
 func (r *execRuntime) run(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, r.bin, args...)

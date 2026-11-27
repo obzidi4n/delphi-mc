@@ -67,15 +67,19 @@ The panel sends the node's full desired server set; the agent converges it
 
 ## Console pipeline
 
-- Tail `logs/latest.log` via inotify, handling rotation, partial lines and truncation —
-  identical for Paper and Velocity.
+- The agent follows container output (`logs -f`, one process per running server) instead of
+  tailing `logs/latest.log` with inotify: one cross-platform path for Paper and Velocity, and
+  it includes startup output before the file exists. Inotify tailing remains the lower-CPU
+  option on Linux; the reader is isolated behind `Runtime.FollowLogs`.
 - No log appender in v1.0. A log4j2 unix-socket appender is a v1.1 option only if
   measurements demand it: there is no upstream AF_UNIX appender, it couples the agent to
   log4j2 versions, and it adds a second console path for no user-visible gain at target load.
-- Per-server ring buffer (~5k lines) of **raw bytes** for instant attach; parse levels and
-  timestamps only when rendering or searching.
-- Batch outbound frames every ~16 ms as newline-delimited batches — never one frame per line.
-- Backpressure: drop oldest, never block the server's log reader.
+- Per-server ring buffer (~5k lines) in the agent and another in the panel; sequence numbers
+  are assigned per line, so a dropped batch is visible as a gap instead of silent truncation.
+- Batches leave every 16 ms as newline-delimited payloads in one binary frame (server id,
+  first seq, payload). One frame per line is never used.
+- Backpressure: the flusher drops the oldest line and the panel drops a slow browser
+  subscriber (which reconnects and gets the ring), never blocking the log reader.
 - **Crash artifacts are captured, not reconstructed**: container exit code,
   `hs_err_pid*.log`, `crash-reports/*.txt` and the tail of `latest.log` survive teardown for
   `diagnose` and crash triage. The bridge dies with the JVM; the agent is the only witness.
@@ -86,12 +90,14 @@ The panel sends the node's full desired server set; the agent converges it
 
 ## Metrics
 
-- cgroup v2 `cpu.stat`, `memory.current`, `io.stat` at 1 s. Near-free and exact.
-- Never shell out to `ps` in a loop.
-- Retention: 1 h @ 1 s, 24 h @ 15 s, 30 d @ 5 m, stored as rollups (rollup persistence starts
-  at M4).
-- While the panel is down, samples queue locally and a visible gap is reported on reconnect.
-  Metric history is **not** back-filled.
+- M4 samples with one `stats --no-stream` call per second for all containers and parses both
+  podman's JSON array and docker's per-line JSON. The cgroup v2 fast path (`cpu.stat`,
+  `memory.current`, `io.stat`) is the Linux optimization still to land; it must not change
+  the wire shape or the rollups.
+- Retention: 1 h @ 1 s, 24 h @ 15 s, 30 d @ 5 m as in-memory rollups in the panel. Rollup
+  persistence is not wired yet; a panel restart loses history rather than back-filling.
+- While the panel is down, the agent keeps streaming; the panel's sequence gaps are marked in
+  the console, and metrics history is **not** back-filled.
 
 ## Snapshots and backups
 

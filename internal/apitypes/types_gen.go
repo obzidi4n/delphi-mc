@@ -101,6 +101,13 @@ type MemberRequest struct {
 	ServerID string `json:"server_id"`
 }
 
+// MetricPointDTO is generated from the spec.
+type MetricPointDTO struct {
+	At          time.Time `json:"at"`
+	CPUPercent  float64   `json:"cpu_percent"`
+	MemoryBytes int64     `json:"memory_bytes"`
+}
+
 // NodeDTO is generated from the spec.
 type NodeDTO struct {
 	AgentVersion  string          `json:"agent_version"`
@@ -190,6 +197,12 @@ type ServerDTO struct {
 type ServerListDTO struct {
 	Items      []ServerDTO `json:"items"`
 	NextCursor *string     `json:"next_cursor"`
+}
+
+// ServerMetricsDTO is generated from the spec.
+type ServerMetricsDTO struct {
+	Items      []MetricPointDTO `json:"items"`
+	Resolution string           `json:"resolution"`
 }
 
 // TemplateDTO is generated from the spec.

@@ -1,0 +1,322 @@
+package api
+
+import (
+	"html/template"
+	"net/http"
+	"strings"
+)
+
+type consolePage struct {
+	BasePath string
+	Email    string
+	ID       string
+	Name     string
+	Base     string
+	State    string
+}
+
+func (s *server) renderConsole(w http.ResponseWriter, r *http.Request) {
+	principal, user, ok := s.pagePrincipal(w, r)
+	if !ok {
+		return
+	}
+	if s.opts.Services == nil || s.opts.Services.Servers == nil {
+		http.Error(w, "the database is not configured", http.StatusNotImplemented)
+		return
+	}
+	srv, err := s.opts.Services.Servers.Get(r.Context(), principal, r.PathValue("id"))
+	if err != nil {
+		status := http.StatusNotFound
+		if strings.Contains(err.Error(), "forbidden") {
+			status = http.StatusForbidden
+		}
+		http.Error(w, err.Error(), status)
+		return
+	}
+	data := consolePage{
+		BasePath: s.base, Email: user.Email, ID: srv.ID, Name: srv.Name,
+		Base: srv.Base, State: srv.SummaryState,
+	}
+	if data.State == "" {
+		data.State = srv.ObservedState
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	_ = consoleTemplate.Execute(w, data)
+}
+
+var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Name}} · DelphiMC</title>
+<style>
+ :root{color-scheme:dark}
+ *{box-sizing:border-box}
+ body{margin:0;background:#0d1117;color:#c9d1d9;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;height:100vh;display:flex;flex-direction:column}
+ header{display:flex;align-items:center;gap:.9rem;padding:.55rem .9rem;border-bottom:1px solid #21262d;background:#010409;flex-wrap:wrap}
+ header a{color:#79c0ff;text-decoration:none}
+ h1{font-size:.95rem;margin:0;font-weight:600;color:#e6edf3}
+ .pill{font-size:.72rem;padding:.15rem .5rem;border-radius:999px;border:1px solid #30363d;text-transform:uppercase;letter-spacing:.04em}
+ .pill.live{color:#3fb950;border-color:#238636}
+ .pill.off{color:#d29922;border-color:#9e6a03}
+ .wrap{flex:1;display:flex;flex-direction:column;min-height:0}
+ .toolbar{display:flex;align-items:center;gap:.5rem;padding:.45rem .9rem;border-bottom:1px solid #21262d;background:#0d1117;flex-wrap:wrap}
+ input[type=search]{flex:0 0 16rem;background:#010409;border:1px solid #30363d;border-radius:.35rem;color:inherit;padding:.3rem .5rem;font:inherit;outline:none}
+ input[type=search]:focus{border-color:#388bfd}
+ button{background:#21262d;border:1px solid #30363d;border-radius:.35rem;color:#c9d1d9;padding:.28rem .6rem;font:inherit;cursor:pointer}
+ button:hover{background:#30363d}
+ button.on{background:#1f6feb;border-color:#1f6feb;color:#fff}
+ button:disabled{opacity:.4;cursor:default}
+ label.check{display:inline-flex;align-items:center;gap:.3rem;color:#8b949e;cursor:pointer;user-select:none}
+ .spacer{flex:1}
+ .metrics{color:#8b949e;white-space:nowrap}
+ .metrics b{color:#c9d1d9;font-weight:600}
+ #term{flex:1;overflow:auto;padding:.5rem .9rem 1.2rem;white-space:pre-wrap;word-break:break-word;min-height:0}
+ .line{min-height:1.35em}
+ .line.sys{color:#d29922}
+ .line.hit{background:#3d2c00;outline:1px solid #9e6a03}
+ .dim{color:#6e7681}
+ .err{color:#f85149}
+ .warn{color:#d29922}
+ .ok{color:#3fb950}
+ .b{font-weight:600}
+ .count{color:#8b949e;font-size:.8rem;min-width:4rem}
+ footer{color:#6e7681;font-size:.75rem;padding:.25rem .9rem;border-top:1px solid #21262d;background:#010409}
+</style></head><body data-id="{{.ID}}" data-base="{{.BasePath}}" data-name="{{.Name}}" data-basekind="{{.Base}}">
+<header>
+  <a href="{{.BasePath}}">&larr; Fleet</a>
+  <h1>{{.Name}}</h1>
+  <span class="pill off" id="status">connecting</span>
+  <span class="pill" id="state">{{.State}}</span>
+  <span class="pill">{{.Base}}</span>
+  <span class="metrics" id="metrics">cpu – · mem –</span>
+  <span class="spacer"></span>
+  <button data-power="start">Start</button>
+  <button data-power="restart">Restart</button>
+  <button data-power="stop">Stop</button>
+  <button data-power="kill">Kill</button>
+</header>
+<div class="wrap">
+  <div class="toolbar">
+    <input id="search" type="search" placeholder="Search console (Ctrl+F)">
+    <span class="count" id="count"></span>
+    <button id="pause" title="Pause rendering (keeps buffering)">Pause</button>
+    <label class="check"><input type="checkbox" id="follow" checked> Follow</label>
+    <span class="spacer"></span>
+    <button id="copy">Copy</button>
+    <button id="clear">Clear</button>
+  </div>
+  <div id="term" tabindex="0"></div>
+</div>
+<footer>Line ring 5000 · gaps are marked · Ctrl+F search · Esc clears · Alt+P pause</footer>
+<script>
+(function () {
+  'use strict';
+  var body = document.body;
+  var id = body.dataset.id;
+  var base = body.dataset.base || '/';
+  var term = document.getElementById('term');
+  var statusEl = document.getElementById('status');
+  var stateEl = document.getElementById('state');
+  var metricsEl = document.getElementById('metrics');
+  var searchEl = document.getElementById('search');
+  var countEl = document.getElementById('count');
+  var pauseBtn = document.getElementById('pause');
+  var followEl = document.getElementById('follow');
+  var maxLines = 5000;
+  var seqLast = 0;
+  var paused = false;
+  var queued = [];
+  var retry = 600;
+  var ws = null;
+  var state = '';
+
+  function setStatus(text, live) {
+    statusEl.textContent = text;
+    statusEl.className = 'pill ' + (live ? 'live' : 'off');
+  }
+  function connect() {
+    setStatus('connecting', false);
+    var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    ws = new WebSocket(proto + location.host + base + 'ws/servers/' + encodeURIComponent(id));
+    ws.binaryType = 'arraybuffer';
+    ws.onopen = function () { retry = 600; setStatus('live', true); };
+    ws.onmessage = function (ev) {
+      if (typeof ev.data === 'string') { onText(ev.data); return; }
+      onBinary(new Uint8Array(ev.data));
+    };
+    ws.onclose = function () {
+      setStatus('offline · retrying', false);
+      window.setTimeout(connect, retry);
+      retry = Math.min(retry * 2, 5000);
+    };
+    ws.onerror = function () { try { ws.close(); } catch (e) {} };
+  }
+  function onText(text) {
+    var msg;
+    try { msg = JSON.parse(text); } catch (e) { return; }
+    if (msg.type === 'stats') {
+      metricsEl.innerHTML = 'cpu <b>' + (msg.cpu_percent || 0).toFixed(1) + '%</b> · mem <b>' +
+        formatBytes(msg.memory_bytes || 0) + '</b>';
+    }
+  }
+  function onBinary(bytes) {
+    if (bytes.length < 15 || bytes[0] !== 1) { return; }
+    var view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    var idLen = view.getUint16(1);
+    var off = 3 + idLen;
+    var seq = Number(view.getBigUint64(off)); off += 8;
+    var len = view.getUint32(off); off += 4;
+    var text = new TextDecoder().decode(bytes.subarray(off, off + len));
+    var lines = text.split('\n');
+    if (seqLast && seq > seqLast + 1) {
+      appendLine('[delphi] ' + (seq - seqLast - 1) + ' line(s) missing', 'sys');
+    }
+    lines.forEach(function (line, i) { appendLine(line, null, seq + i); });
+    seqLast = Math.max(seqLast, seq + lines.length - 1);
+    if (followEl.checked) { term.scrollTop = term.scrollHeight; }
+  }
+  function queueOrRender(line, cls, seq) {
+    if (paused) {
+      if (queued.length < 2000) { queued.push([line, cls, seq]); }
+      return;
+    }
+    render(line, cls);
+  }
+  function appendLine(line, cls, seq) { queueOrRender(line, cls, seq); }
+  function render(line, cls) {
+    var el = document.createElement('div');
+    el.className = 'line' + (cls ? ' ' + cls : '');
+    renderANSI(line, el);
+    if (searchEl.value) { markHit(el, searchEl.value); }
+    term.appendChild(el);
+    while (term.childElementCount > maxLines) { term.removeChild(term.firstElementChild); }
+  }
+  var colors = {30:'#6e7681',31:'#f85149',32:'#3fb950',33:'#d29922',34:'#58a6ff',35:'#bc8cff',36:'#39c5cf',37:'#c9d1d9',
+                90:'#6e7681',91:'#ff7b72',92:'#56d364',93:'#e3b341',94:'#79c0ff',95:'#d2a8ff',96:'#56d4dd',97:'#f0f6fc'};
+  function renderANSI(text, line) {
+    var re = /\u001b\[([0-9;]*)m/g;
+    var last = 0, match, st = { fg: null, bold: false };
+    while ((match = re.exec(text)) !== null) {
+      addSegment(line, text.slice(last, match.index), st);
+      applySGR(match[1], st);
+      last = re.lastIndex;
+    }
+    addSegment(line, text.slice(last), st);
+  }
+  function applySGR(codes, st) {
+    var parts = codes === '' ? ['0'] : codes.split(';');
+    for (var i = 0; i < parts.length; i++) {
+      var n = parseInt(parts[i], 10);
+      if (n === 0) { st.fg = null; st.bold = false; }
+      else if (n === 1) { st.bold = true; }
+      else if (n === 22) { st.bold = false; }
+      else if (colors[n]) { st.fg = colors[n]; }
+    }
+  }
+  function addSegment(line, text, st) {
+    if (!text) { return; }
+    var span = document.createElement('span');
+    if (st.fg) { span.style.color = st.fg; }
+    if (st.bold) { span.style.fontWeight = '600'; }
+    span.textContent = text;
+    line.appendChild(span);
+  }
+  function markHit(el, needle) {
+    var hay = el.textContent.toLowerCase();
+    if (hay.indexOf(needle.toLowerCase()) >= 0) { el.classList.add('hit'); }
+  }
+  function applySearch() {
+    var needle = searchEl.value.trim();
+    var lines = term.querySelectorAll('.line');
+    var hits = 0;
+    for (var i = 0; i < lines.length; i++) {
+      lines[i].classList.remove('hit');
+      if (!needle) { continue; }
+      var hay = lines[i].textContent.toLowerCase();
+      if (hay.indexOf(needle.toLowerCase()) >= 0) { lines[i].classList.add('hit'); hits++; }
+    }
+    countEl.textContent = needle ? hits + ' match' + (hits === 1 ? '' : 'es') : '';
+    if (needle && hits > 0) {
+      var first = term.querySelector('.line.hit');
+      if (first) { first.scrollIntoView({ block: 'center' }); }
+    }
+  }
+  function togglePause() {
+    paused = !paused;
+    pauseBtn.classList.toggle('on', paused);
+    pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+    if (!paused && queued.length) {
+      var frag = document.createDocumentFragment();
+      queued.forEach(function (item) {
+        var el = document.createElement('div');
+        el.className = 'line' + (item[1] ? ' ' + item[1] : '');
+        renderANSI(item[0], el);
+        frag.appendChild(el);
+      });
+      term.appendChild(frag);
+      queued = [];
+      while (term.childElementCount > maxLines) { term.removeChild(term.firstElementChild); }
+      if (followEl.checked) { term.scrollTop = term.scrollHeight; }
+      applySearch();
+    }
+  }
+  function formatBytes(n) {
+    if (n >= 1 << 30) { return (n / (1 << 30)).toFixed(1) + ' GiB'; }
+    if (n >= 1 << 20) { return (n / (1 << 20)).toFixed(0) + ' MiB'; }
+    if (n >= 1 << 10) { return (n / (1 << 10)).toFixed(0) + ' KiB'; }
+    return n + ' B';
+  }
+  function refreshState() {
+    fetch(base + 'api/v1/servers/' + encodeURIComponent(id), { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (srv) {
+        if (!srv) { return; }
+        state = srv.summary_state || srv.observed_state || 'unknown';
+        stateEl.textContent = state;
+        stateEl.className = 'pill ' + (state === 'running' ? 'live' : 'off');
+      })
+      .catch(function () {});
+  }
+  function power(action) {
+    stateEl.textContent = action + '…';
+    fetch(base + 'api/v1/servers/' + encodeURIComponent(id) + '/power', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: action })
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (srv) { if (srv) { stateEl.textContent = srv.desired_state; } })
+      .catch(function () {});
+    window.setTimeout(refreshState, 800);
+  }
+
+  document.querySelectorAll('[data-power]').forEach(function (btn) {
+    btn.addEventListener('click', function () { power(btn.dataset.power); });
+  });
+  searchEl.addEventListener('input', applySearch);
+  document.getElementById('copy').addEventListener('click', function () {
+    var text = Array.prototype.map.call(term.querySelectorAll('.line'), function (el) { return el.textContent; }).join('\n');
+    if (!navigator.clipboard) { return; }
+    navigator.clipboard.writeText(text).then(function () {
+      var b = document.getElementById('copy');
+      b.textContent = 'Copied';
+      window.setTimeout(function () { b.textContent = 'Copy'; }, 900);
+    });
+  });
+  document.getElementById('clear').addEventListener('click', function () {
+    term.textContent = ''; seqLast = 0; queued = []; countEl.textContent = '';
+  });
+  pauseBtn.addEventListener('click', togglePause);
+  document.addEventListener('keydown', function (ev) {
+    if (ev.ctrlKey && ev.key.toLowerCase() === 'f') { ev.preventDefault(); searchEl.focus(); return; }
+    if (ev.key === 'Escape') { searchEl.value = ''; applySearch(); term.focus(); return; }
+    if (ev.altKey && ev.key.toLowerCase() === 'p') { ev.preventDefault(); togglePause(); }
+  });
+
+  refreshState();
+  window.setInterval(refreshState, 5000);
+  connect();
+})();
+</script>
+</body></html>`))
