@@ -242,7 +242,7 @@ func TestPluginsPageRenders(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
 	}
-	for _, want := range []string{"Installed plugins", "Add a plugin", "Install from a GitHub repo", "Upload a Spigot jar", "Automated updates", "Check for updates"} {
+	for _, want := range []string{"Installed plugins", "Add a plugin", "Install from a GitHub repo", "Install from Jenkins", "Upload a Spigot jar", "Automated updates", "Check for updates"} {
 		if !strings.Contains(rec.Body.String(), want) {
 			t.Fatalf("plugins page missing %q", want)
 		}

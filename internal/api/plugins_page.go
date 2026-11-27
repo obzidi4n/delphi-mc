@@ -151,6 +151,14 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
      </div>
      <p class="hint">Fetches the latest GitHub release, preferring a <code>paper</code> jar asset when the release has several jars.</p>
     </details>
+    <details id="jenkinsbox">
+     <summary>Install from Jenkins</summary>
+     <div class="row" style="margin-top:.5rem">
+      <input id="jenkins-url" style="flex:1;min-width:14rem" placeholder="https://jenkins.example.com/job/my-plugin/">
+      <button id="jenkins-install" class="primary" type="button">Install last successful build</button>
+     </div>
+     <p class="hint">Reads the job's <code>lastSuccessfulBuild</code> API and installs a jar artifact. The Jenkins job must be readable without authentication; the panel does not store Jenkins credentials.</p>
+    </details>
     <details id="uploadbox">
      <summary>Upload a Spigot jar</summary>
      <form id="uploadform" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:.35rem;margin-top:.5rem">
@@ -187,6 +195,8 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
   var searchBtn = document.getElementById('search');
   var githubRepo = document.getElementById('github-repo');
   var githubInstall = document.getElementById('github-install');
+  var jenkinsURL = document.getElementById('jenkins-url');
+  var jenkinsInstall = document.getElementById('jenkins-install');
   var uploadForm = document.getElementById('uploadform');
   var uploadProject = document.getElementById('upload-project');
   var uploadVersion = document.getElementById('upload-version');
@@ -433,6 +443,14 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
       resultsEl.textContent = err.message;
     });
   }
+  jenkinsInstall.addEventListener('click', function () {
+    var job = jenkinsURL.value.trim();
+    if (!job) { toast('Enter a Jenkins job URL', true); return; }
+    jenkinsInstall.disabled = true;
+    install({provider: 'jenkins', project: job}).finally(function () {
+      jenkinsInstall.disabled = false;
+    });
+  });
   githubInstall.addEventListener('click', function () {
     var repo = githubRepo.value.trim();
     if (!repo) { toast('Enter a GitHub repository URL', true); return; }

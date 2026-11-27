@@ -183,8 +183,8 @@ func (u *Updates) Add(ctx context.Context, p Principal, id string, req PluginReq
 	}
 	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
 	req.Project = strings.TrimSpace(req.Project)
-	if req.Provider != "modrinth" && req.Provider != "hangar" && req.Provider != "github" {
-		return PluginAddResult{}, invalid("provider must be modrinth, hangar, or github")
+	if req.Provider != "modrinth" && req.Provider != "hangar" && req.Provider != "github" && req.Provider != "jenkins" {
+		return PluginAddResult{}, invalid("provider must be modrinth, hangar, github, or jenkins")
 	}
 	if req.Project == "" || len(req.Project) > 200 {
 		return PluginAddResult{}, invalid("project must be 1-200 characters")

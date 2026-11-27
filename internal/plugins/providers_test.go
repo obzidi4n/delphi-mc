@@ -194,3 +194,66 @@ func TestNormalizeGitHubProjectURLs(t *testing.T) {
 		}
 	}
 }
+
+func TestJenkinsResolvesLastSuccessfulBuildJar(t *testing.T) {
+	var jarURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/job/my-plugin/lastSuccessfulBuild/api/json":
+			fmt.Fprintf(w, `{"number":42,"displayName":"#42","result":"SUCCESS","url":%q,
+			 "artifacts":[
+			  {"fileName":"my-plugin-42-sources.jar","relativePath":"build/libs/my-plugin-42-sources.jar"},
+			  {"fileName":"my-plugin-42.jar","relativePath":"build/libs/my-plugin-42.jar"}
+			 ]}`, srvURL(r, "/job/my-plugin/42/"))
+		case "/job/my-plugin/42/artifact/build/libs/my-plugin-42.jar":
+			fmt.Fprint(w, "PK\x03\x04jenkins-jar")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	r := NewResolver(srv.Client())
+	got, err := r.Resolve(context.Background(), "jenkins", srv.URL+"/job/my-plugin/lastSuccessfulBuild/", "1.21.11", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Version != "#42" || got.Filename != "my-plugin-42.jar" || !strings.HasSuffix(got.URL, "/artifact/build/libs/my-plugin-42.jar") {
+		t.Fatalf("jenkins = %+v", got)
+	}
+	jarURL = got.URL
+	if _, err := r.Resolve(context.Background(), "jenkins", "https://jenkins.example.com/job/x/", "1.21.11", "not-a-number", ""); err == nil {
+		t.Fatal("non-numeric build pin should fail")
+	}
+	if _, err := NormalizeProject("jenkins", "https://user:pass@jenkins.example.com/job/x/"); err == nil {
+		t.Fatal("credential-bearing Jenkins URL should fail")
+	}
+	_ = jarURL
+}
+
+func srvURL(r *http.Request, path string) string {
+	return "http://" + r.Host + path
+}
+
+func TestNormalizeJenkinsJobURLs(t *testing.T) {
+	cases := map[string]string{
+		"https://jenkins.example.com/job/my-plugin/":                             "https://jenkins.example.com/job/my-plugin",
+		"https://jenkins.example.com/job/my-plugin/lastSuccessfulBuild/":         "https://jenkins.example.com/job/my-plugin",
+		"https://jenkins.example.com/job/my-plugin/lastSuccessfulBuild/api/json": "https://jenkins.example.com/job/my-plugin",
+	}
+	for in, want := range cases {
+		got, err := NormalizeProject("jenkins", in)
+		if err != nil {
+			t.Errorf("NormalizeProject(%q): %v", in, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("NormalizeProject(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for _, bad := range []string{"", "jenkins.example.com/job/x", "https://jenkins.example.com/"} {
+		if _, err := NormalizeProject("jenkins", bad); err == nil {
+			t.Errorf("NormalizeProject(%q) should fail", bad)
+		}
+	}
+}

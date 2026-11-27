@@ -1418,7 +1418,7 @@ components:
       type: object
       required: [provider, project]
       properties:
-        provider: { type: string, enum: [modrinth, hangar, github] }
+        provider: { type: string, enum: [modrinth, hangar, github, jenkins] }
         project: { type: string }
         version: { type: string }
         range: { type: string }

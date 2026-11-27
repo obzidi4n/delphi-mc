@@ -1,5 +1,5 @@
-// Package plugins resolves plugin versions from Modrinth, Hangar, and GitHub
-// releases, and names the resulting jars stably per project.
+// Package plugins resolves plugin versions from Modrinth, Hangar, GitHub
+// releases, and Jenkins CI jobs, and names the resulting jars stably per project.
 package plugins
 
 import (
@@ -54,6 +54,8 @@ func NormalizeProject(provider, project string) (string, error) {
 	switch provider {
 	case "github":
 		return githubProject(project)
+	case "jenkins":
+		return jenkinsJobURL(project)
 	default:
 		return strings.TrimSpace(project), nil
 	}
@@ -87,6 +89,33 @@ func githubProject(project string) (string, error) {
 	return parts[0] + "/" + parts[1], nil
 }
 
+func jenkinsJobURL(project string) (string, error) {
+	raw := strings.TrimSpace(project)
+	if raw == "" {
+		return "", errors.New("plugins: Jenkins job URL is required")
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", errors.New("plugins: Jenkins URL must be an absolute http(s) job URL")
+	}
+	if u.User != nil {
+		return "", errors.New("plugins: put Jenkins credentials in the panel, not the URL")
+	}
+	u.RawQuery, u.Fragment = "", ""
+	path := strings.TrimRight(u.Path, "/")
+	for _, suffix := range []string{"/lastSuccessfulBuild/api/json", "/lastSuccessfulBuild", "/api/json"} {
+		if strings.HasSuffix(path, suffix) {
+			path = strings.TrimSuffix(path, suffix)
+			break
+		}
+	}
+	u.Path = strings.TrimRight(path, "/")
+	if u.Path == "" {
+		return "", errors.New("plugins: Jenkins URL must include a job path")
+	}
+	return u.String(), nil
+}
+
 // Resolve selects the newest compatible version, honoring an exact pin or a
 // version-prefix range.
 func (r *Resolver) Resolve(ctx context.Context, provider, project, mcVersion, pin, rng string) (Resolved, error) {
@@ -101,6 +130,8 @@ func (r *Resolver) Resolve(ctx context.Context, provider, project, mcVersion, pi
 		return r.hangar(ctx, project, mcVersion, pin, rng)
 	case "github":
 		return r.github(ctx, project, pin)
+	case "jenkins":
+		return r.jenkins(ctx, project, pin)
 	default:
 		return Resolved{}, fmt.Errorf("plugins: unsupported provider %q", provider)
 	}
@@ -465,6 +496,84 @@ func (r *Resolver) hangar(ctx context.Context, project, mcVersion, pin, rng stri
 		Provider: "hangar", Project: project, Version: v.Name,
 		Filename: paper.FileInfo.Name, URL: paper.DownloadURL,
 		SHA256: strings.ToLower(paper.FileInfo.SHA256Hash), Size: paper.FileInfo.SizeBytes,
+	}, nil
+}
+
+type jenkinsBuild struct {
+	Number      int    `json:"number"`
+	DisplayName string `json:"displayName"`
+	Result      string `json:"result"`
+	URL         string `json:"url"`
+	Artifacts   []struct {
+		FileName     string `json:"fileName"`
+		RelativePath string `json:"relativePath"`
+	} `json:"artifacts"`
+}
+
+// jenkins reads the latest successful build of a Jenkins job and picks a jar
+// artifact. Jenkins credentials are intentionally not supported in the URL;
+// a private Jenkins should expose a readable job or a token-backed mirror.
+func (r *Resolver) jenkins(ctx context.Context, project, pin string) (Resolved, error) {
+	job, err := jenkinsJobURL(project)
+	if err != nil {
+		return Resolved{}, err
+	}
+	buildRef := "lastSuccessfulBuild"
+	if pin != "" {
+		if !regexp.MustCompile(`^[0-9]+$`).MatchString(pin) {
+			return Resolved{}, fmt.Errorf("plugins: jenkins build must be a number, got %q", pin)
+		}
+		buildRef = pin
+	}
+	base := strings.TrimRight(job, "/") + "/" + buildRef + "/api/json"
+	var build jenkinsBuild
+	if err := r.get(ctx, base, &build); err != nil {
+		return Resolved{}, err
+	}
+	if build.Result != "" && build.Result != "SUCCESS" {
+		return Resolved{}, fmt.Errorf("plugins: jenkins build %d is %s", build.Number, build.Result)
+	}
+	if len(build.Artifacts) == 0 {
+		return Resolved{}, fmt.Errorf("plugins: jenkins build %d has no artifacts", build.Number)
+	}
+	var artifact struct {
+		FileName     string
+		RelativePath string
+	}
+	found := false
+	for _, candidate := range build.Artifacts {
+		name := strings.ToLower(candidate.FileName)
+		if !strings.HasSuffix(name, ".jar") || strings.Contains(name, "sources") || strings.Contains(name, "javadoc") || strings.Contains(name, "dev") {
+			continue
+		}
+		artifact = struct {
+			FileName     string
+			RelativePath string
+		}{candidate.FileName, candidate.RelativePath}
+		found = true
+		if strings.Contains(name, "paper") {
+			break
+		}
+	}
+	if !found {
+		return Resolved{}, fmt.Errorf("plugins: jenkins build %d has no jar artifact", build.Number)
+	}
+	artifactURL := strings.TrimRight(build.URL, "/")
+	if artifactURL == "" {
+		artifactURL = strings.TrimRight(job, "/") + "/" + buildRef
+	}
+	u, err := url.Parse(artifactURL)
+	if err != nil {
+		return Resolved{}, fmt.Errorf("plugins: jenkins build URL: %w", err)
+	}
+	u.Path = strings.TrimRight(u.Path, "/") + "/artifact/" + artifact.RelativePath
+	version := build.DisplayName
+	if version == "" {
+		version = strconv.Itoa(build.Number)
+	}
+	return Resolved{
+		Provider: "jenkins", Project: job, Version: version,
+		Filename: artifact.FileName, URL: u.String(),
 	}, nil
 }
 
