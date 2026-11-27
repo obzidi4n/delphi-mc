@@ -61,7 +61,7 @@ Watch `servers/<id>/logs/latest.log` for `Done (…)` and connect on the allocat
 ## Check
 
 ```sh
-make check   # vet + test + build
+make check   # vet + config lint + test + build
 ```
 
 ## Database

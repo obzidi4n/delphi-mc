@@ -41,6 +41,20 @@ them proves nothing about installation, which is alpha criterion 1.
 - Fan-out: one agent subscription, 20 subscribers, assert constant per-server upstream cost.
 - Fleet list: one aggregate query, asserted with `pg_stat_statements` in the integration run.
 
+## Static config checks
+
+`make lint` runs `go vet` and `cmd/check-config`. The latter parses every non-ignored
+YAML, TOML, and JSON file in the checkout, including untracked files, and applies the real
+validators where they exist:
+
+- `panel.example.toml` and `agent.example.toml`: loaders plus unknown-key checks.
+- `internal/template/builtin/*.json`: template schema validation plus unknown-field checks.
+- `internal/api/openapi.yaml`: required OpenAPI 3 fields and path shape.
+- `plugin/bridge/plugin.yml`: required Paper plugin fields.
+
+`make check` includes the lint target, so a malformed config fails before tests run. Add a file
+in a new format only with a parser and a semantic check here.
+
 ## Rules
 
 - Tests may not depend on the network except the pinned jar download and recorded AI fixtures.
