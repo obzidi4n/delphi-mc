@@ -153,6 +153,7 @@ func runPanel(ctx context.Context, args []string) error {
 			Groups:  &capability.Groups{Store: db},
 			Audit:   &capability.Audit{Store: db},
 			Keys:    &capability.Keys{Store: db},
+			Users:   &capability.Users{Store: db},
 		}
 		hub.Build = servers.SpecsForNode
 	}

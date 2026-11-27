@@ -41,13 +41,28 @@ func TestAllows(t *testing.T) {
 }
 
 func TestScopesForRole(t *testing.T) {
-	if !Allows(ScopesForRole("owner"), "org:default:admin") {
+	if !Allows(ScopesForRole("owner", "default"), "org:default:admin") {
 		t.Fatal("owner lacks org admin")
 	}
-	if Allows(ScopesForRole("viewer"), "server:s_1:power") {
+	if Allows(ScopesForRole("viewer", "default"), "server:s_1:power") {
 		t.Fatal("viewer can power servers")
 	}
-	if !Allows(ScopesForRole("viewer"), "server:s_1:read") {
+	if !Allows(ScopesForRole("viewer", "default"), "server:s_1:read") {
 		t.Fatal("viewer cannot read servers")
+	}
+	if !Allows(ScopesForRole("developer", "default"), "server:s_9:power") {
+		t.Fatal("developer cannot power servers")
+	}
+	if Allows(ScopesForRole("developer", "default"), "org:default:admin") {
+		t.Fatal("developer can administer the org")
+	}
+	if !Allows(ScopesForRole("admin", "default"), "org:default:user:admin") {
+		t.Fatal("admin cannot manage users")
+	}
+	if !Allows(ScopesForServer("viewer", "s_9"), "server:s_9:read") {
+		t.Fatal("server viewer cannot read its server")
+	}
+	if Allows(ScopesForServer("viewer", "s_9"), "server:s_8:read") {
+		t.Fatal("server binding leaks to another server")
 	}
 }

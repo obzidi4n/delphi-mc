@@ -21,8 +21,10 @@ criteria can be demonstrated on a clean host.
 - **M2** — container lifecycle on rootless Podman (create/start/stop/kill, limits, crash
   artifacts, pinned jar).
 - **M3a** — spec-first OpenAPI with generated DTOs and Go client, users/API keys/sessions,
-  RBAC scopes, audit (write + read), server CRUD with rename and soft delete, groups,
-  `server_summary`, and the first CLI commands (`nodes`, `servers`, `audit`).
+  role→scope profiles (owner/admin/developer/viewer, server and group bindings), user
+  management (API + Team page), audit (write + read), server CRUD with rename and soft
+  delete, groups (API + page), `server_summary`, and the first CLI commands (`nodes`,
+  `servers`, `audit`).
 
 ## Alpha: the vertical slice (M0–M5)
 

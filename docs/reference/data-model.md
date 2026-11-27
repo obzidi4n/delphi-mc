@@ -14,6 +14,8 @@ servers          (id, org_id, node_id, name, image, java_version, memory_mb, cpu
                   template_id, template_version, network_id, network_role, tags[],
                   deleted_at, purge_after)
 server_groups    (id, org_id, name, description)          # targeting (many-to-many)
+role_bindings    (user_id, org_id, scope_kind: org|group|server, scope_id,
+                  role: owner|admin|developer|viewer)     # scopes derive from the role
 server_group_members (group_id, server_id)
 server_summary   (server_id, state, updated_at)            # per-server state rollup
 templates        (id, org_id, name, base, mc_version, java, defaults, files, plugins,

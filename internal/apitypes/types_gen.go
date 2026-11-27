@@ -37,6 +37,12 @@ type AuditListDTO struct {
 	Items []AuditEntryDTO `json:"items"`
 }
 
+// CreatedUserDTO is generated from the spec.
+type CreatedUserDTO struct {
+	Password string  `json:"password"`
+	User     UserDTO `json:"user"`
+}
+
 // EnrollRequest is generated from the spec.
 type EnrollRequest struct {
 	CSR   string `json:"csr"`
@@ -129,6 +135,11 @@ type RenameRequest struct {
 	Name string `json:"name"`
 }
 
+// RoleRequest is generated from the spec.
+type RoleRequest struct {
+	Role string `json:"role"`
+}
+
 // ServerCreateRequest is generated from the spec.
 type ServerCreateRequest struct {
 	AcceptEULA   bool     `json:"accept_eula"`
@@ -169,4 +180,24 @@ type ServerDTO struct {
 // ServerListDTO is generated from the spec.
 type ServerListDTO struct {
 	Items []ServerDTO `json:"items"`
+}
+
+// UserCreateRequest is generated from the spec.
+type UserCreateRequest struct {
+	Email string  `json:"email"`
+	Role  *string `json:"role,omitempty"`
+}
+
+// UserDTO is generated from the spec.
+type UserDTO struct {
+	CreatedAt time.Time `json:"created_at"`
+	Email     string    `json:"email"`
+	ID        string    `json:"id"`
+	OrgID     string    `json:"org_id"`
+	Role      string    `json:"role"`
+}
+
+// UserListDTO is generated from the spec.
+type UserListDTO struct {
+	Items []UserDTO `json:"items"`
 }

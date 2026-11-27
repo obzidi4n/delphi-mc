@@ -92,6 +92,13 @@ func New(opts Options) (http.Handler, error) {
 	})
 	mux.HandleFunc("POST "+s.base+"login", s.login)
 	mux.HandleFunc("POST "+s.base+"logout", s.logout)
+	mux.HandleFunc("GET "+s.base+"team", s.renderTeam)
+	mux.HandleFunc("POST "+s.base+"team", s.createUserForm)
+	mux.HandleFunc("POST "+s.base+"team/{id}/role", s.setUserRoleForm)
+	mux.HandleFunc("GET "+s.base+"groups", s.renderGroups)
+	mux.HandleFunc("POST "+s.base+"groups", s.createGroupForm)
+	mux.HandleFunc("POST "+s.base+"groups/{id}/members", s.addGroupMemberForm)
+	mux.HandleFunc("POST "+s.base+"groups/{id}/members/{sid}/remove", s.removeGroupMemberForm)
 
 	mux.HandleFunc("POST /agent/enroll", s.enroll)
 	mux.HandleFunc("GET /agent/ws", s.agentSocket)
@@ -115,6 +122,10 @@ func New(opts Options) (http.Handler, error) {
 
 	mux.HandleFunc("GET /api/v1/audit", s.listAudit)
 	mux.HandleFunc("POST /api/v1/api-keys", s.createAPIKey)
+
+	mux.HandleFunc("GET /api/v1/users", s.listUsers)
+	mux.HandleFunc("POST /api/v1/users", s.createUser)
+	mux.HandleFunc("PATCH /api/v1/users/{id}/role", s.setUserRole)
 
 	return mux, nil
 }

@@ -15,6 +15,7 @@ type Services struct {
 	Groups  *Groups
 	Audit   *Audit
 	Keys    *Keys
+	Users   *Users
 }
 
 // FleetStore is node and enrollment persistence.

@@ -321,3 +321,45 @@ func (c *Client) PowerServer(ctx context.Context, id string, body apitypes.Power
 	}
 	return &out, nil
 }
+
+// GET /api/v1/users
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListUsers(ctx context.Context) (*apitypes.UserListDTO, error) {
+	path := "/api" + "/v1" + "/users"
+	var q url.Values
+
+	var out apitypes.UserListDTO
+	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/users
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) CreateUser(ctx context.Context, body apitypes.UserCreateRequest) (*apitypes.CreatedUserDTO, error) {
+	path := "/api" + "/v1" + "/users"
+	var q url.Values
+
+	var out apitypes.CreatedUserDTO
+	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PATCH /api/v1/users/{id}/role
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) SetUserRole(ctx context.Context, id string, body apitypes.RoleRequest) (*apitypes.UserDTO, error) {
+	path := "/api" + "/v1" + "/users" + "/" + url.PathEscape(id) + "/role"
+	var q url.Values
+
+	var out apitypes.UserDTO
+	if err := c.do(ctx, "PATCH", path, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}

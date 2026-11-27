@@ -198,8 +198,14 @@ func writeCapabilityError(w http.ResponseWriter, err error) {
 		writeProblem(w, http.StatusForbidden, "forbidden", err.Error())
 	case errors.Is(err, capability.ErrInvalid):
 		writeProblem(w, http.StatusBadRequest, "invalid_request", err.Error())
+	case errors.Is(err, capability.ErrLastOwner):
+		writeProblem(w, http.StatusConflict, "last_owner", err.Error())
 	case errors.Is(err, store.ErrNoServer):
 		writeProblem(w, http.StatusNotFound, "server_not_found", "no such server")
+	case errors.Is(err, store.ErrNoUser):
+		writeProblem(w, http.StatusNotFound, "user_not_found", "no such user")
+	case errors.Is(err, store.ErrEmailInUse):
+		writeProblem(w, http.StatusConflict, "email_in_use", "that email is already registered")
 	case errors.Is(err, store.ErrNoNode):
 		writeProblem(w, http.StatusBadRequest, "node_not_found", "no such node")
 	case errors.Is(err, store.ErrPortInUse):

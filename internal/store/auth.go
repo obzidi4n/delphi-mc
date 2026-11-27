@@ -185,13 +185,89 @@ func (d *DB) SetOrgRole(ctx context.Context, userID, orgID, role string) error {
 	return nil
 }
 
-// ScopesForUser unions the scopes of all of a user's role bindings.
+// UserWithRole is a user plus their org-level role ("" when none is bound).
+type UserWithRole struct {
+	User
+	Role string
+}
+
+// ListUsers returns the org's accounts ordered by email.
+func (d *DB) ListUsers(ctx context.Context, orgID string) ([]UserWithRole, error) {
+	rows, err := d.pool.Query(ctx, `
+		select u.id, u.org_id, u.email, u.password_hash, u.created_at, coalesce(rb.role, '')
+		from users u
+		left join role_bindings rb
+		  on rb.user_id = u.id and rb.org_id = u.org_id
+		 and rb.scope_kind = 'org' and rb.scope_id = ''
+		where u.org_id = $1
+		order by u.email`, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []UserWithRole
+	for rows.Next() {
+		var u UserWithRole
+		if err := rows.Scan(&u.ID, &u.OrgID, &u.Email, &u.PasswordHash, &u.CreatedAt, &u.Role); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// UserByID returns one account in the org with its org-level role.
+func (d *DB) UserByID(ctx context.Context, orgID, id string) (UserWithRole, error) {
+	var u UserWithRole
+	err := d.pool.QueryRow(ctx, `
+		select u.id, u.org_id, u.email, u.password_hash, u.created_at, coalesce(rb.role, '')
+		from users u
+		left join role_bindings rb
+		  on rb.user_id = u.id and rb.org_id = u.org_id
+		 and rb.scope_kind = 'org' and rb.scope_id = ''
+		where u.org_id = $1 and u.id = $2`, orgID, id).
+		Scan(&u.ID, &u.OrgID, &u.Email, &u.PasswordHash, &u.CreatedAt, &u.Role)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UserWithRole{}, ErrNoUser
+	}
+	return u, err
+}
+
+// CountOwners counts the org's owner bindings.
+func (d *DB) CountOwners(ctx context.Context, orgID string) (int, error) {
+	var n int
+	err := d.pool.QueryRow(ctx, `
+		select count(*) from role_bindings
+		where org_id = $1 and scope_kind = 'org' and role = 'owner'`, orgID).Scan(&n)
+	return n, err
+}
+
+// ScopesForUser unions the scopes of every role binding. Org bindings grant
+// wildcard scopes; server bindings grant that server only; group bindings
+// expand to their member servers.
 func (d *DB) ScopesForUser(ctx context.Context, userID string) ([]string, error) {
-	rows, err := d.pool.Query(ctx, `select role from role_bindings where user_id = $1`, userID)
+	rows, err := d.pool.Query(ctx, `
+		select org_id, scope_kind, scope_id, role
+		from role_bindings where user_id = $1`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("read roles: %w", err)
 	}
-	defer rows.Close()
+	type binding struct{ orgID, kind, scopeID, role string }
+	var bindings []binding
+	for rows.Next() {
+		var b binding
+		if err := rows.Scan(&b.orgID, &b.kind, &b.scopeID, &b.role); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		bindings = append(bindings, b)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
 
 	seen := map[string]bool{}
 	var scopes []string
@@ -203,14 +279,40 @@ func (d *DB) ScopesForUser(ctx context.Context, userID string) ([]string, error)
 			}
 		}
 	}
+	for _, b := range bindings {
+		switch b.kind {
+		case "org":
+			add(auth.ScopesForRole(b.role, b.orgID))
+		case "server":
+			add(auth.ScopesForServer(b.role, b.scopeID))
+		case "group":
+			ids, err := d.groupServerIDs(ctx, b.scopeID)
+			if err != nil {
+				return nil, err
+			}
+			for _, id := range ids {
+				add(auth.ScopesForServer(b.role, id))
+			}
+		}
+	}
+	return scopes, nil
+}
+
+func (d *DB) groupServerIDs(ctx context.Context, groupID string) ([]string, error) {
+	rows, err := d.pool.Query(ctx, `select server_id from server_group_members where group_id = $1`, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("read group members: %w", err)
+	}
+	defer rows.Close()
+	var ids []string
 	for rows.Next() {
-		var role string
-		if err := rows.Scan(&role); err != nil {
+		var id string
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		add(auth.ScopesForRole(role))
+		ids = append(ids, id)
 	}
-	return scopes, rows.Err()
+	return ids, rows.Err()
 }
 
 // Audit appends a mutation record.

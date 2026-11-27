@@ -122,19 +122,52 @@ func Allows(scopes []string, want string) bool {
 	return false
 }
 
-// ScopesForRole maps a role to the scope set it grants.
-func ScopesForRole(role string) []string {
+// ValidRole reports whether role is a role a user can hold.
+func ValidRole(role string) bool {
+	switch role {
+	case "owner", "admin", "developer", "viewer":
+		return true
+	}
+	return false
+}
+
+// ScopesForRole maps an org-level role to the scope set it grants. Org roles
+// carry wildcards across the org's servers; a server binding narrows them.
+func ScopesForRole(role, orgID string) []string {
 	switch role {
 	case "owner":
 		return []string{"*"}
 	case "admin":
 		return []string{
-			"org:*:read", "org:*:server:create",
-			"server:*:*", "group:*:*", "node:*:*", "artifact:*:*", "backup:*:*",
+			"org:" + orgID + ":read",
+			"org:" + orgID + ":admin",
+			"org:" + orgID + ":server:create",
+			"org:" + orgID + ":user:read",
+			"org:" + orgID + ":user:admin",
+			"server:*:*",
+		}
+	case "developer":
+		return []string{
+			"org:" + orgID + ":read",
+			"org:" + orgID + ":server:create",
+			"server:*:read", "server:*:update", "server:*:power",
 		}
 	case "viewer":
-		return []string{"org:*:read", "server:*:read", "server:*:logs", "group:*:read", "node:*:read"}
-	default:
-		return nil
+		return []string{"org:" + orgID + ":read", "server:*:read"}
 	}
+	return nil
+}
+
+// ScopesForServer maps a role bound to one server to explicit server scopes.
+func ScopesForServer(role, serverID string) []string {
+	scope := func(verb string) string { return "server:" + serverID + ":" + verb }
+	switch role {
+	case "owner", "admin":
+		return []string{scope("*")}
+	case "developer":
+		return []string{scope("read"), scope("update"), scope("power")}
+	case "viewer":
+		return []string{scope("read")}
+	}
+	return nil
 }

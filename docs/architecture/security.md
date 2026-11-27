@@ -42,12 +42,18 @@ revocable, and scoped like any other principal.
 
 ## Authorization
 
-- Scopes are `org:<org>:<resource>:<id>:<verb>`; `*` matches one segment, so
-  `org:*:server:*:read` grants reads on every server. The owner's bootstrap key and the
-  break-glass `admin_token` carry `*`. API keys store their scope set at mint time; session
-  principals resolve scopes from `role_bindings` ([capability layer](capability-layer.md)).
-  Default role→scope profiles are not seeded yet: only `owner` is granted scopes at
-  bootstrap, and other users get what their bindings grant.
+- Two scope shapes: `org:<org>:<verb>` for org-wide actions (`read`, `admin`,
+  `server:create`, `user:read`, `user:admin`) and `server:<id>:<verb>` (`read`, `update`,
+  `power`, `delete`). `*` matches one segment, so `server:*:read` grants reads on every
+  server and `server:s_1:*` grants everything on one ([capability layer](capability-layer.md)).
+- Roles map to profiles: `owner` = `*`; `admin` = org read/admin/create plus `server:*:*`;
+  `developer` = org read/create plus server read/update/power; `viewer` = org read plus
+  server read. An org binding applies the profile with wildcards; a server binding narrows
+  it to that id; a group binding expands to the group's member servers.
+- Only an owner can grant `owner`, and the last owner cannot be demoted. API keys store
+  their scope set at mint time; session principals resolve scopes from `role_bindings`.
+- The UI enforces the same capabilities as the API: the Team page needs `user:read`/
+  `user:admin`, group mutation needs org `admin`. UI mutations are same-origin checked.
 - Every mutation is audited with `Via` (ui/cli/api/ai) and, for AI actions, `Model`.
 - The AI tool registry is filtered by scope and capability, and the capability layer checks
   again — two independent gates for the same rule.
