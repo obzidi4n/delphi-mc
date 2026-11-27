@@ -23,8 +23,20 @@ Citations come back with each result (`doc` with the path, `server` with the id)
 next to the answer. The capability layer re-checks scopes on every call; the registry hides
 everything but `search_docs` from a principal without org read.
 
-Planned in later milestones (not registered yet): `inspect`, `diagnose`, `search_logs`
-(M7/M8) and `write_file` (M8, approval-gated).
+## Write tools (M7, approval-gated)
+
+| Tool | Purpose | Scope | Inputs |
+|---|---|---|---|
+| `create_server(template, name, node, …)` | Propose creating a server from a template | `server:create` + template read | template, name, node, optional memory/port/desired_state |
+| `power(action, server \| group)` | Propose start/stop/restart/kill; a group expands to member servers | `server:<id>:power` per target | action, server or group |
+| `run_command(server, command)` | Propose a console command through the bridge | `server:<id>:moderate` | server, command (≤512) |
+| `moderate_player(action, server, player, reason)` | Propose kick/ban through the bridge | `server:<id>:moderate` | action, server, player, reason |
+
+Calling a write tool creates a pending approval, not a mutation. The user approves or rejects
+the card; approval executes as that user with their current scopes, then the model resumes
+with the results. Every plan and execution is stored (`ai_approvals`) and audited.
+
+Planned later (not registered yet): `diagnose`, `search_logs`, `inspect`, `write_file`.
 
 ## Mutating (always an approval card)
 

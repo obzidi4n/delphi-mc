@@ -78,6 +78,7 @@ public final class DelphiBridge extends JavaPlugin implements Listener {
         String action;
         String player;
         String reason;
+        String command;
     }
 
     @Override
@@ -220,6 +221,23 @@ public final class DelphiBridge extends JavaPlugin implements Listener {
                     online.kickPlayer(reason.isEmpty() ? "Banned by an operator" : reason);
                 }
                 break;
+            }
+            case "command": {
+                String line = command.command == null ? "" : command.command.trim();
+                if (line.startsWith("/")) {
+                    line = line.substring(1);
+                }
+                if (line.isBlank()) {
+                    ok = false;
+                    error = "command is required";
+                    break;
+                }
+                ok = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), line);
+                if (!ok) {
+                    error = "the server rejected the command";
+                }
+                record("command", null, line, "command", ok, error, command.id);
+                return;
             }
             default:
                 ok = false;

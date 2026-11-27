@@ -32,6 +32,8 @@ conversations    (id, org_id, user_id, title, created_at, updated_at)
 messages         (id, conversation_id, role, content, tool_calls jsonb, tool_call_id, created_at)
 docs_chunks      (path, ordinal, heading, content, tsv)       # GIN FTS, replaced on startup when the corpus changed
 docs_meta        (id=1, hash)
+ai_approvals     (id, org_id, user_id, conversation_id, status, plan jsonb, results jsonb,
+                  created_at, decided_at, executed_at)
 plugins          (server_id, project, provider, installed_version, installed_hash,
                   previous_version, previous_hash, pinned_version, policy)
 file_revisions   (server_id, path, revision, sha256, author, via, created_at)

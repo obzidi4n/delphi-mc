@@ -502,6 +502,59 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
+  /api/v1/ai/approvals:
+    get:
+      operationId: listAIApprovals
+      summary: Pending AI plans for one conversation
+      parameters:
+        - name: conversation_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Pending approvals
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIApprovalListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /api/v1/ai/approvals/{id}/approve:
+    post:
+      operationId: approveAIPlan
+      summary: Execute a pending plan and resume the assistant (SSE)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: SSE resume stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /api/v1/ai/approvals/{id}/reject:
+    post:
+      operationId: rejectAIPlan
+      summary: Reject a pending plan and resume the assistant (SSE)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: SSE resume stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
   /api/v1/ai/chat:
     post:
       operationId: chatWithAI
@@ -837,12 +890,60 @@ components:
           items: { $ref: "#/components/schemas/ConversationDTO" }
     ConversationDetailDTO:
       type: object
-      required: [conversation, messages]
+      required: [conversation, messages, approvals]
       properties:
         conversation: { $ref: "#/components/schemas/ConversationDTO" }
         messages:
           type: array
           items: { $ref: "#/components/schemas/AIMessageDTO" }
+        approvals:
+          type: array
+          items: { $ref: "#/components/schemas/AIApprovalDTO" }
+    AIActionDTO:
+      type: object
+      required: [tool, summary]
+      properties:
+        tool: { type: string }
+        summary: { type: string }
+        server_id: { type: string }
+        server_name: { type: string }
+        action: { type: string }
+        command: { type: string }
+        player: { type: string }
+        reason: { type: string }
+        template_id: { type: string }
+        new_name: { type: string }
+        node_id: { type: string }
+        desired_state: { type: string }
+        memory_mb: { type: integer }
+        port: { type: integer }
+    AIProposedCallDTO:
+      type: object
+      required: [call_id, tool, summary, actions]
+      properties:
+        call_id: { type: string }
+        tool: { type: string }
+        summary: { type: string }
+        actions:
+          type: array
+          items: { $ref: "#/components/schemas/AIActionDTO" }
+    AIApprovalDTO:
+      type: object
+      required: [id, status, created_at, calls]
+      properties:
+        id: { type: string }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+        calls:
+          type: array
+          items: { $ref: "#/components/schemas/AIProposedCallDTO" }
+    AIApprovalListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AIApprovalDTO" }
     BridgePlayerDTO:
       type: object
       required: [name, uuid]

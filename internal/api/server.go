@@ -135,6 +135,9 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("GET /api/v1/ai/conversations", s.listAIConversations)
 	mux.HandleFunc("GET /api/v1/ai/conversations/{id}", s.getAIConversation)
 	mux.HandleFunc("POST /api/v1/ai/chat", s.aiChat)
+	mux.HandleFunc("GET /api/v1/ai/approvals", s.listAIApprovals)
+	mux.HandleFunc("POST /api/v1/ai/approvals/{id}/approve", s.approveAIPlan)
+	mux.HandleFunc("POST /api/v1/ai/approvals/{id}/reject", s.rejectAIPlan)
 
 	mux.HandleFunc("GET /api/v1/servers/{id}/metrics", s.getServerMetrics)
 	mux.HandleFunc("GET /api/v1/servers/{id}/bridge", s.getServerBridge)

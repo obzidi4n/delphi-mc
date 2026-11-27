@@ -103,6 +103,41 @@ func (c *Client) EnrollNode(ctx context.Context, body apitypes.EnrollRequest) (*
 	return &out, nil
 }
 
+// GET /api/v1/ai/approvals
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListAIApprovals(ctx context.Context, conversationID string) (*apitypes.AIApprovalListDTO, error) {
+	path := "/api" + "/v1" + "/ai" + "/approvals"
+	q := url.Values{}
+	q.Set("conversation_id", conversationID)
+
+	var out apitypes.AIApprovalListDTO
+	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/ai/approvals/{id}/approve
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ApproveAIPlan(ctx context.Context, id string) error {
+	path := "/api" + "/v1" + "/ai" + "/approvals" + "/" + url.PathEscape(id) + "/approve"
+	var q url.Values
+
+	return c.do(ctx, "POST", path, q, nil, nil)
+}
+
+// POST /api/v1/ai/approvals/{id}/reject
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) RejectAIPlan(ctx context.Context, id string) error {
+	path := "/api" + "/v1" + "/ai" + "/approvals" + "/" + url.PathEscape(id) + "/reject"
+	var q url.Values
+
+	return c.do(ctx, "POST", path, q, nil, nil)
+}
+
 // POST /api/v1/ai/chat
 //
 // Requires a bearer token configured on the Client.

@@ -24,6 +24,23 @@ chat UI ──WS──> panel/api/ai ──> ai loop ──> ai/tools ──> ca
 
 One Go package (`internal/ai`) until an import cycle forces a split.
 
+### M7 as built: two-phase actions
+
+- Write tools — `create_server`, `power`, `run_command`, `moderate_player` — are registered
+  only when an executor exists and the principal has org read. Calling one never mutates:
+  the executor validates the arguments and expands targets (a group becomes one action per
+  member server), then the service stores a durable `ai_approvals` row and stops. The SSE
+  `done` event carries the plan; the UI renders an approval card.
+- Approve executes every action as the requesting user with their current scopes, then writes
+  one tool message per call (so the provider sees the results) and resumes the same loop for
+  the summary. Reject writes explicit rejection results and resumes too; nothing is retried.
+- Audit: capability mutations keep their own records (`server.power`, `server.create`); the
+  executor adds `ai.<tool>` entries with the plan summary and result. `run_command` and
+  `moderate_player` go through the bridge (`bridge.command` action `command`/`kick`/`ban`) and
+  are audited the same way.
+- Approvals survive panel restarts; conversations expose pending plans, so the card can be
+  decided later. Resumed summaries are no longer labelled chat-only.
+
 ### M6 as built
 
 - **Provider:** OpenAI-compatible `/chat/completions`, one completion per step (token

@@ -60,8 +60,10 @@ revocable, and scoped like any other principal.
 - Every mutation is audited with `Via` (ui/cli/api/ai) and, for AI actions, `Model`.
 - The AI tool registry is filtered by scope and capability, and the capability layer checks
   again — two independent gates for the same rule. In M6 the assistant is read-only: five
-  retrieval/diagnostic tools, no writes, no approvals. A model that cannot call tools is
-  retried without them and the answer is labelled chat-only.
+  retrieval/diagnostic tools plus four write tools that only create approval plans. Approval
+  executes as the requesting user with their current scopes, is stored in `ai_approvals`, and
+  is audited (`ai.<tool>` plus the capability's own record). A model that cannot call tools
+  is retried without them and the answer is labelled chat-only.
 
 ## Secrets at rest
 

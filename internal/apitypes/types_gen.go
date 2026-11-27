@@ -7,12 +7,51 @@ import (
 	"time"
 )
 
+// AIActionDTO is generated from the spec.
+type AIActionDTO struct {
+	Action       *string `json:"action,omitempty"`
+	Command      *string `json:"command,omitempty"`
+	DesiredState *string `json:"desired_state,omitempty"`
+	MemoryMB     *int    `json:"memory_mb,omitempty"`
+	NewName      *string `json:"new_name,omitempty"`
+	NodeID       *string `json:"node_id,omitempty"`
+	Player       *string `json:"player,omitempty"`
+	Port         *int    `json:"port,omitempty"`
+	Reason       *string `json:"reason,omitempty"`
+	ServerID     *string `json:"server_id,omitempty"`
+	ServerName   *string `json:"server_name,omitempty"`
+	Summary      string  `json:"summary"`
+	TemplateID   *string `json:"template_id,omitempty"`
+	Tool         string  `json:"tool"`
+}
+
+// AIApprovalDTO is generated from the spec.
+type AIApprovalDTO struct {
+	Calls     []AIProposedCallDTO `json:"calls"`
+	CreatedAt time.Time           `json:"created_at"`
+	ID        string              `json:"id"`
+	Status    string              `json:"status"`
+}
+
+// AIApprovalListDTO is generated from the spec.
+type AIApprovalListDTO struct {
+	Items []AIApprovalDTO `json:"items"`
+}
+
 // AIMessageDTO is generated from the spec.
 type AIMessageDTO struct {
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
 	ID        string    `json:"id"`
 	Role      string    `json:"role"`
+}
+
+// AIProposedCallDTO is generated from the spec.
+type AIProposedCallDTO struct {
+	Actions []AIActionDTO `json:"actions"`
+	CallID  string        `json:"call_id"`
+	Summary string        `json:"summary"`
+	Tool    string        `json:"tool"`
 }
 
 // AIStatusDTO is generated from the spec.
@@ -82,6 +121,7 @@ type ConversationDTO struct {
 
 // ConversationDetailDTO is generated from the spec.
 type ConversationDetailDTO struct {
+	Approvals    []AIApprovalDTO `json:"approvals"`
 	Conversation ConversationDTO `json:"conversation"`
 	Messages     []AIMessageDTO  `json:"messages"`
 }

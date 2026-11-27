@@ -41,6 +41,11 @@ criteria can be demonstrated on a clean host.
   state/commands, chat events, online players, TPS, the root command tree, and kick/ban
   moderation through `POST /servers/{id}/moderation`. A console sidebar shows TPS, players,
   chat and the command tree. Live chat with a real player is the remaining manual check.
+- **M7** — AI actions: create_server, power, run_command, moderate_player as two-phase
+  tools; durable approval plans, approval cards in the chat UI, approve/reject that executes
+  as the user and resumes the model, and audit entries. Live: a group restart plan approved
+  to two server restarts, `run_command "list"` executed by the plugin, and an AI ban issued
+  through the bridge.
 - **M6** — AI foundation: OpenAI-compatible provider, conversations and messages in
   Postgres, docs FTS over the embedded corpus (288 chunks), five read-only tools (docs
   search, servers, server detail, health, console tail), a 48k-character context broker, and

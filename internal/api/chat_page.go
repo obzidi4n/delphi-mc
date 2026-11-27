@@ -65,6 +65,11 @@ var chatTemplate = template.Must(template.New("chat").Parse(`<!doctype html>
  .banner{padding:.5rem 1rem;background:#3d2c00;color:#e3b341;font-size:.82rem;border-bottom:1px solid #9e6a03}
  .err{color:#f85149}
  .muted{color:#6e7681}
+ .approval{border:1px solid #9e6a03;background:#1c1608;border-radius:.5rem;padding:.7rem .8rem;margin:.6rem 0}
+ .approval h4{margin:0 0 .4rem;font-size:.82rem;color:#e3b341}
+ .approval ul{margin:.2rem 0 .5rem;padding-left:1.1rem}
+ .approval li{margin:.15rem 0}
+ .approval .acts{color:#8b949e;font-size:.8rem}
 </style></head><body data-base="{{.BasePath}}" data-enabled="{{if .Enabled}}1{{else}}0{{end}}">
 <header>
   <a href="{{.BasePath}}">&larr; Fleet</a><h1>AI operator</h1>
@@ -179,6 +184,7 @@ var chatTemplate = template.Must(template.New("chat").Parse(`<!doctype html>
         pending.wrap.appendChild(badge);
       }
       if (ev.citations) { ev.citations.forEach(addCitation); }
+      if (ev.approval) { renderApproval(ev.approval); }
       pending = null;
     } else if (ev.type === 'error') {
       addChip('error', true);
@@ -208,23 +214,7 @@ var chatTemplate = template.Must(template.New("chat").Parse(`<!doctype html>
         handleEvent({ type: 'error', message: 'HTTP ' + res.status + ': ' + (await res.text()).slice(0, 200) });
         return;
       }
-      var reader = res.body.getReader();
-      var decoder = new TextDecoder();
-      var buffer = '';
-      for (;;) {
-        var step = await reader.read();
-        if (step.done) { break; }
-        buffer += decoder.decode(step.value, { stream: true });
-        var idx;
-        while ((idx = buffer.indexOf('\n\n')) >= 0) {
-          var chunk = buffer.slice(0, idx);
-          buffer = buffer.slice(idx + 2);
-          chunk.split('\n').forEach(function (line) {
-            if (line.indexOf('data: ') !== 0) { return; }
-            try { handleEvent(JSON.parse(line.slice(6))); } catch (e) {}
-          });
-        }
-      }
+      await readSSE(res);
     } catch (e) {
       handleEvent({ type: 'error', message: String(e) });
     } finally {
@@ -232,6 +222,88 @@ var chatTemplate = template.Must(template.New("chat").Parse(`<!doctype html>
       setBusy(false);
       loadConversations();
       input.focus();
+    }
+  }
+  async function readSSE(res) {
+    var reader = res.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+    for (;;) {
+      var step = await reader.read();
+      if (step.done) { break; }
+      buffer += decoder.decode(step.value, { stream: true });
+      var idx;
+      while ((idx = buffer.indexOf('\n\n')) >= 0) {
+        var chunk = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        chunk.split('\n').forEach(function (line) {
+          if (line.indexOf('data: ') !== 0) { return; }
+          try { handleEvent(JSON.parse(line.slice(6))); } catch (e) {}
+        });
+      }
+    }
+  }
+  function renderApproval(approval) {
+    var card = document.createElement('div');
+    card.className = 'approval';
+    var title = document.createElement('h4');
+    title.textContent = 'Approval required';
+    card.appendChild(title);
+    var list = document.createElement('ul');
+    (approval.calls || []).forEach(function (call) {
+      var li = document.createElement('li');
+      var strong = document.createElement('strong');
+      strong.textContent = call.tool;
+      li.appendChild(strong);
+      li.appendChild(document.createTextNode(' — ' + call.summary));
+      if (call.actions && call.actions.length) {
+        var sub = document.createElement('div');
+        sub.className = 'acts';
+        sub.textContent = call.actions.map(function (a) { return a.summary; }).join(' · ');
+        li.appendChild(sub);
+      }
+      list.appendChild(li);
+    });
+    card.appendChild(list);
+    var approve = document.createElement('button');
+    approve.textContent = 'Approve';
+    var reject = document.createElement('button');
+    reject.textContent = 'Reject';
+    reject.style.marginLeft = '.4rem';
+    function decide(ok) {
+      approve.disabled = true;
+      reject.disabled = true;
+      var status = document.createElement('div');
+      status.className = 'acts';
+      status.textContent = ok ? 'Approved' : 'Rejected';
+      card.appendChild(status);
+      decideApproval(approval.id, ok);
+    }
+    approve.addEventListener('click', function () { decide(true); });
+    reject.addEventListener('click', function () { decide(false); });
+    card.appendChild(approve);
+    card.appendChild(reject);
+    log.appendChild(card);
+    log.scrollTop = log.scrollHeight;
+  }
+  async function decideApproval(id, ok) {
+    if (busy) { return; }
+    setBusy(true);
+    beginPending();
+    try {
+      var url = base + 'api/v1/ai/approvals/' + encodeURIComponent(id) + (ok ? '/approve' : '/reject');
+      var res = await fetch(url, { method: 'POST', credentials: 'same-origin' });
+      if (!res.ok) {
+        handleEvent({ type: 'error', message: 'HTTP ' + res.status + ': ' + (await res.text()).slice(0, 200) });
+        return;
+      }
+      await readSSE(res);
+    } catch (e) {
+      handleEvent({ type: 'error', message: String(e) });
+    } finally {
+      pending = null;
+      setBusy(false);
+      loadConversations();
     }
   }
   async function loadConversation(id) {
@@ -244,6 +316,7 @@ var chatTemplate = template.Must(template.New("chat").Parse(`<!doctype html>
       if (m.role === 'user') { addMessage('user', m.content); }
       else if (m.role === 'assistant' && m.content) { addMessage('assistant', m.content); }
     });
+    (data.approvals || []).forEach(renderApproval);
     Array.prototype.forEach.call(convsEl.children, function (el) { el.classList.toggle('on', el.dataset.id === id); });
     pending = null;
   }

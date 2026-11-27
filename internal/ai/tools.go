@@ -61,6 +61,7 @@ type Tool struct {
 	Name        string
 	Description string
 	Parameters  json.RawMessage
+	Write       bool
 	Run         func(ctx context.Context, p capability.Principal, args json.RawMessage) (ToolResult, error)
 }
 

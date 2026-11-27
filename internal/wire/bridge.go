@@ -49,7 +49,8 @@ type BridgeCommandFrame struct {
 	Type     string `json:"type"`
 	ServerID string `json:"server_id"`
 	ID       string `json:"id"`
-	Action   string `json:"action"` // kick | ban
-	Player   string `json:"player"`
+	Action   string `json:"action"` // kick | ban | command
+	Player   string `json:"player,omitempty"`
 	Reason   string `json:"reason,omitempty"`
+	Command  string `json:"command,omitempty"`
 }

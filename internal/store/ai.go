@@ -209,3 +209,84 @@ func (d *DB) SearchDocs(ctx context.Context, query string, limit int) ([]DocChun
 	}
 	return out, rows.Err()
 }
+
+// Approval errors.
+var ErrNoApproval = errors.New("approval not found")
+
+// Approval is one pending or decided two-phase plan.
+type Approval struct {
+	ID             string
+	OrgID          string
+	UserID         string
+	ConversationID string
+	Status         string
+	Plan           json.RawMessage
+	Results        json.RawMessage
+	CreatedAt      time.Time
+	DecidedAt      *time.Time
+	ExecutedAt     *time.Time
+}
+
+const approvalColumns = `id, org_id, user_id, conversation_id, status, plan, coalesce(results, 'null'::jsonb), created_at, decided_at, executed_at`
+
+func scanApproval(row pgx.Row) (Approval, error) {
+	var a Approval
+	err := row.Scan(&a.ID, &a.OrgID, &a.UserID, &a.ConversationID, &a.Status, &a.Plan, &a.Results, &a.CreatedAt, &a.DecidedAt, &a.ExecutedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Approval{}, ErrNoApproval
+	}
+	return a, err
+}
+
+// CreateApproval stores a pending plan.
+func (d *DB) CreateApproval(ctx context.Context, orgID, userID, conversationID string, plan []byte) (Approval, error) {
+	return scanApproval(d.pool.QueryRow(ctx, `
+		insert into ai_approvals (id, org_id, user_id, conversation_id, status, plan)
+		values ($1, $2, $3, $4, 'pending', $5)
+		returning `+approvalColumns, newID("ap"), orgID, userID, conversationID, plan))
+}
+
+// Approval loads one owned approval.
+func (d *DB) Approval(ctx context.Context, orgID, userID, id string) (Approval, error) {
+	return scanApproval(d.pool.QueryRow(ctx, `
+		select `+approvalColumns+` from ai_approvals
+		where id = $1 and org_id = $2 and user_id = $3`, id, orgID, userID))
+}
+
+// PendingApprovals lists an owned conversation's pending plans, oldest first.
+func (d *DB) PendingApprovals(ctx context.Context, orgID, userID, conversationID string) ([]Approval, error) {
+	rows, err := d.pool.Query(ctx, `
+		select `+approvalColumns+` from ai_approvals
+		where conversation_id = $1 and org_id = $2 and user_id = $3 and status = 'pending'
+		order by created_at`, conversationID, orgID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Approval
+	for rows.Next() {
+		a, err := scanApproval(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// SetApprovalStatus moves an approval and stamps the matching timestamp.
+func (d *DB) SetApprovalStatus(ctx context.Context, id, status string) error {
+	_, err := d.pool.Exec(ctx, `
+		update ai_approvals
+		set status = $2,
+		    decided_at = case when $2 in ('approved','rejected') then now() else decided_at end,
+		    executed_at = case when $2 in ('executed','failed') then now() else executed_at end
+		where id = $1`, id, status)
+	return err
+}
+
+// SetApprovalResults records execution output.
+func (d *DB) SetApprovalResults(ctx context.Context, id string, results []byte) error {
+	_, err := d.pool.Exec(ctx, `update ai_approvals set results = $2 where id = $1`, id, results)
+	return err
+}

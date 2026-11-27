@@ -165,3 +165,97 @@ func TestChatFallsBackWhenModelRejectsTools(t *testing.T) {
 		t.Fatalf("fallback did not drop tools")
 	}
 }
+
+type fakeExecutor struct {
+	preview    []Action
+	previewErr error
+	executed   []Action
+}
+
+func (f *fakeExecutor) Preview(_ context.Context, _ capability.Principal, _ string, _ json.RawMessage) ([]Action, error) {
+	if f.previewErr != nil {
+		return nil, f.previewErr
+	}
+	return f.preview, nil
+}
+func (f *fakeExecutor) Execute(_ context.Context, _ capability.Principal, action Action) (string, error) {
+	f.executed = append(f.executed, action)
+	return "ok: " + action.Summary, nil
+}
+
+type fakeApprovals struct {
+	plan   []byte
+	status string
+}
+
+func (f *fakeApprovals) CreateApproval(_ context.Context, org, user, conv string, plan []byte) (store.Approval, error) {
+	f.plan = plan
+	f.status = "pending"
+	return store.Approval{ID: "ap_1", Status: "pending", Plan: plan, CreatedAt: time.Now()}, nil
+}
+func (f *fakeApprovals) Approval(_ context.Context, _, _, id string) (store.Approval, error) {
+	if id != "ap_1" {
+		return store.Approval{}, store.ErrNoApproval
+	}
+	return store.Approval{ID: id, Status: f.status, Plan: f.plan, ConversationID: "conv_1", CreatedAt: time.Now()}, nil
+}
+func (f *fakeApprovals) PendingApprovals(context.Context, string, string, string) ([]store.Approval, error) {
+	return nil, nil
+}
+func (f *fakeApprovals) SetApprovalStatus(_ context.Context, _ string, status string) error {
+	f.status = status
+	return nil
+}
+func (f *fakeApprovals) SetApprovalResults(context.Context, string, []byte) error { return nil }
+
+func TestWriteToolPausesForApprovalThenExecutes(t *testing.T) {
+	fs := &fakeStore{}
+	executor := &fakeExecutor{preview: []Action{{Tool: "power", Summary: "restart SMP", ServerID: "s_1", Action: "restart"}}}
+	approvals := &fakeApprovals{}
+	provider := &scriptedProvider{responses: [][]Event{
+		{{Done: true, ToolCalls: []ToolCall{{ID: "c1", Name: "power", Arguments: `{"action":"restart","server":"SMP"}`}}}},
+		{{Done: true, Delta: "Restarted SMP."}},
+	}}
+	svc := testService(fs, provider, nil)
+	svc.Executor = executor
+	svc.Approvals = approvals
+
+	result, err := svc.Chat(context.Background(), owner(), "", "restart SMP", Stream{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Approval == nil || len(result.Approval.Calls) != 1 || len(executor.executed) != 0 {
+		t.Fatalf("pause result = %+v, executed = %d", result.Approval, len(executor.executed))
+	}
+	resumed, err := svc.Approve(context.Background(), owner(), result.Approval.ID, true, Stream{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(executor.executed) != 1 || resumed.Text != "Restarted SMP." || approvals.status != "executed" {
+		t.Fatalf("executed=%d text=%q status=%q", len(executor.executed), resumed.Text, approvals.status)
+	}
+}
+
+func TestRejectPlanDoesNotExecute(t *testing.T) {
+	fs := &fakeStore{}
+	executor := &fakeExecutor{preview: []Action{{Tool: "power", Summary: "stop SMP", ServerID: "s_1", Action: "stop"}}}
+	approvals := &fakeApprovals{}
+	provider := &scriptedProvider{responses: [][]Event{
+		{{Done: true, ToolCalls: []ToolCall{{ID: "c1", Name: "power", Arguments: `{"action":"stop","server":"SMP"}`}}}},
+		{{Done: true, Delta: "Understood, nothing changed."}},
+	}}
+	svc := testService(fs, provider, nil)
+	svc.Executor = executor
+	svc.Approvals = approvals
+	result, err := svc.Chat(context.Background(), owner(), "", "stop SMP", Stream{})
+	if err != nil || result.Approval == nil {
+		t.Fatalf("result = %+v, err = %v", result, err)
+	}
+	resumed, err := svc.Approve(context.Background(), owner(), result.Approval.ID, false, Stream{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(executor.executed) != 0 || approvals.status != "rejected" || resumed.Text != "Understood, nothing changed." {
+		t.Fatalf("executed=%d status=%q text=%q", len(executor.executed), approvals.status, resumed.Text)
+	}
+}

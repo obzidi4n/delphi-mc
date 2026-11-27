@@ -128,11 +128,15 @@ func (b *Bridge) Command(cmd wire.BridgeCommandFrame) error {
 	}
 	switch cmd.Action {
 	case "kick", "ban":
+		if strings.TrimSpace(cmd.Player) == "" || len(cmd.Player) > 64 {
+			return errors.New("player must be 1-64 characters")
+		}
+	case "command":
+		if strings.TrimSpace(cmd.Command) == "" || len(cmd.Command) > 512 {
+			return errors.New("command must be 1-512 characters")
+		}
 	default:
-		return fmt.Errorf("unsupported moderation action %q", cmd.Action)
-	}
-	if strings.TrimSpace(cmd.Player) == "" || len(cmd.Player) > 64 {
-		return errors.New("player must be 1-64 characters")
+		return fmt.Errorf("unsupported bridge action %q", cmd.Action)
 	}
 	if len(cmd.Reason) > 256 {
 		return errors.New("reason must be at most 256 characters")
@@ -148,7 +152,8 @@ func (b *Bridge) Command(cmd wire.BridgeCommandFrame) error {
 		return err
 	}
 	payload, err := json.Marshal(map[string]string{
-		"id": cmd.ID, "action": cmd.Action, "player": cmd.Player, "reason": cmd.Reason,
+		"id": cmd.ID, "action": cmd.Action, "player": cmd.Player,
+		"reason": cmd.Reason, "command": cmd.Command,
 	})
 	if err != nil {
 		return err

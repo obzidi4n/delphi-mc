@@ -184,11 +184,13 @@ func runPanel(ctx context.Context, args []string) error {
 		hub.Build = servers.SpecsForNode
 		if cfg.AI.Enabled() {
 			aiService = &ai.Service{
-				Store:    db,
-				Provider: ai.NewOpenAI(cfg.AI.BaseURL, cfg.AI.APIKey, cfg.AI.Model),
-				Model:    cfg.AI.Model,
-				Tools:    buildToolbox(services, console, db),
-				MaxSteps: 4,
+				Store:     db,
+				Provider:  ai.NewOpenAI(cfg.AI.BaseURL, cfg.AI.APIKey, cfg.AI.Model),
+				Model:     cfg.AI.Model,
+				Tools:     buildToolbox(services, console, db),
+				MaxSteps:  4,
+				Executor:  api.NewActionExecutor(services, hub, db.Audit),
+				Approvals: db,
 			}
 		}
 	}

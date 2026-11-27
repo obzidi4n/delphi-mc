@@ -3,10 +3,10 @@
 The map. Every page here is versioned with the code and changes in the same PR as the
 behavior it describes.
 
-**Status:** M6 landed — the AI foundation (OpenAI-compatible provider, conversation store,
-docs FTS, five read-only tools, chat page with citations and chat-only fallback) on top of the
-M5 bridge, M4 realtime console, M3b templates, the M3a spec-first API, identity/RBAC, audit,
-paginated lists, Team/Groups pages, and the CLI. See
+**Status:** M7 landed — AI actions with durable approvals (create_server, power,
+run_command, moderate_player), approval cards and resumable execution, audited as the user,
+on top of the M6 assistant, M5 bridge, M4 console, M3b templates, the M3a spec-first API,
+identity/RBAC, paginated lists, Team/Groups pages, and the CLI. See
 [`plan/roadmap.md`](plan/roadmap.md).
 
 ## Architecture — what and how

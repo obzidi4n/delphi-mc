@@ -159,6 +159,11 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 				if json.Unmarshal(data, &frame) == nil {
 					if err := bridge.Command(frame); err != nil {
 						log.Warn("bridge command rejected", "server", frame.ServerID, "err", err)
+						_ = writer.write(sctx, wire.BridgeEventFrame{
+							Type: wire.TypeBridgeEvent, ServerID: frame.ServerID,
+							Event: wire.BridgeEvent{Kind: "command", Action: frame.Action, ID: frame.ID,
+								Error: err.Error()},
+						})
 					}
 				}
 			}
