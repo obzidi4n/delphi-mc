@@ -361,6 +361,20 @@ func (c *Client) RestoreBackup(ctx context.Context, id string) (*apitypes.Backup
 	return &out, nil
 }
 
+// POST /api/v1/config/format
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) FormatConfigFile(ctx context.Context, body apitypes.ConfigFormatRequest) (*apitypes.ConfigFormatDTO, error) {
+	reqPath := "/api" + "/v1" + "/config" + "/format"
+	var q url.Values
+
+	var out apitypes.ConfigFormatDTO
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // POST /api/v1/enrollment-tokens
 //
 // Requires a bearer token configured on the Client.

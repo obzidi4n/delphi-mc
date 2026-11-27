@@ -24,7 +24,10 @@ chokes on live 5k-point series), CodeMirror 6 for configs, Tailwind + shadcn.
   share one upstream stream. A slow subscriber is dropped, never allowed to block the agent;
   it reconnects and receives the ring. Sequence gaps are rendered as an explicit line.
 - Config editing is a text editor with validation, diff and revision history — no
-  JSON-Schema form generation in v1.0. Schema forms are a v1.1 candidate.
+  JSON-Schema form generation in v1.0. Schema forms are a v1.1 candidate. The editor parses
+  `.json`, `.yaml`/`.yml`, and `.toml` on open and edit, shows parser errors with a line
+  reference, and disables Save while the file is invalid. JSON is indented on open and save;
+  YAML/TOML keep comments and ordering.
 - The fleet page explains degraded operation: a banner names offline nodes and a recent panel
   restart, states that servers keep running and restarts are agent-local, and the node table
   shows status and last-seen. Actions stay unavailable while the panel is down; there is no

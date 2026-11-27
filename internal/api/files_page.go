@@ -70,6 +70,12 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
  .status{color:#8b949e;font-size:.8rem}
  .status.ok{color:#3fb950}
  .status.err{color:#f85149}
+ .lint{display:none;font-size:.75rem;border:1px solid #30363d;border-radius:999px;padding:.1rem .45rem}
+ .lint.checking{display:inline-block;color:#8b949e}
+ .lint.ok{display:inline-block;color:#3fb950;border-color:#238636}
+ .lint.err{display:inline-block;color:#f85149;border-color:#6e2c2c}
+ .lintmsg{display:none;padding:.4rem .8rem;border-bottom:1px solid #6e2c2c;background:#2d0f10;color:#ff7b72;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}
+ .lintmsg.show{display:block}
 </style></head><body data-id="{{.ID}}" data-base="{{.BasePath}}">
 <header>
   <a href="{{.BasePath}}">&larr; Fleet</a>
@@ -89,8 +95,10 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
       <button id="open">Open</button>
       <button id="save" disabled>Save</button>
       <button id="diffBtn" disabled>Diff latest</button>
+      <span class="lint" id="lint"></span>
       <span class="status" id="status"></span>
     </div>
+    <div class="lintmsg" id="lintmsg"></div>
     <textarea id="editor" spellcheck="false" placeholder="Open a file from the list, or type a path and press Open."></textarea>
     <pre id="diff"></pre>
   </section>
@@ -114,11 +122,16 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   var statusEl = document.getElementById('status');
   var revisionsEl = document.getElementById('revisions');
   var diffEl = document.getElementById('diff');
+  var lintEl = document.getElementById('lint');
+  var lintMsg = document.getElementById('lintmsg');
   var dir = '';
   var currentPath = '';
   var currentSHA = '';
   var latestRevision = 0;
   var dirty = false;
+  var lintTimer = null;
+  var lintSeq = 0;
+  var openSeq = 0;
 
   function enc(value) { return encodeURIComponent(value); }
   function setStatus(text, ok) {
@@ -126,6 +139,67 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     statusEl.className = 'status' + (ok === true ? ' ok' : ok === false ? ' err' : '');
   }
   function join(parent, name) { return parent ? parent + '/' + name : name; }
+  function configKind(path) {
+    var m = /\.([A-Za-z0-9]+)$/.exec(path || '');
+    if (!m) { return ''; }
+    var ext = m[1].toLowerCase();
+    if (ext === 'yml') { return 'yaml'; }
+    return ext === 'yaml' || ext === 'json' || ext === 'toml' ? ext : '';
+  }
+  function clearLint() {
+    lintEl.textContent = '';
+    lintEl.className = 'lint';
+    lintEl.title = '';
+    lintMsg.textContent = '';
+    lintMsg.className = 'lintmsg';
+    if (currentPath) { saveBtn.disabled = false; }
+  }
+  function applyLint(result) {
+    if (!result) { clearLint(); return; }
+    var valid = !!result.valid;
+    var kind = (result.format || configKind(currentPath) || 'config').toUpperCase();
+    lintEl.textContent = kind + (valid ? ' valid' : ' error');
+    lintEl.className = 'lint ' + (valid ? 'ok' : 'err');
+    lintEl.title = result.error || '';
+    lintMsg.textContent = valid ? '' : (result.error || 'invalid ' + kind);
+    lintMsg.className = 'lintmsg' + (valid ? '' : ' show');
+    saveBtn.disabled = !valid;
+  }
+  async function checkConfig(path, content) {
+    try {
+      var res = await fetch(base + 'api/v1/config/format', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path: path, content: content })
+      });
+      if (!res.ok) {
+        return { format: configKind(path), valid: false, error: 'lint failed: HTTP ' + res.status + ' ' + (await res.text()).slice(0, 300) };
+      }
+      return await res.json();
+    } catch (e) {
+      return { format: configKind(path), valid: false, error: 'lint unavailable: ' + String(e) };
+    }
+  }
+  function scheduleLint() {
+    if (lintTimer) { clearTimeout(lintTimer); lintTimer = null; }
+    var kind = configKind(currentPath);
+    if (!kind) { clearLint(); return; }
+    lintEl.textContent = 'checking ' + kind.toUpperCase() + '…';
+    lintEl.className = 'lint checking';
+    lintEl.title = '';
+    lintMsg.textContent = '';
+    lintMsg.className = 'lintmsg';
+    saveBtn.disabled = true;
+    lintTimer = setTimeout(lintCurrent, 300);
+  }
+  async function lintCurrent() {
+    var path = currentPath;
+    if (!path || !configKind(path)) { return; }
+    var seq = ++lintSeq;
+    var result = await checkConfig(path, editor.value);
+    if (seq !== lintSeq || path !== currentPath) { return; }
+    applyLint(result);
+  }
 
   async function loadDir(path) {
     try {
@@ -171,33 +245,55 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   async function openFile(path) {
     pathInput.value = path;
     setStatus('loading ' + path);
+    var seq = ++openSeq;
     var res = await fetch(api + '/content?path=' + enc(path), { credentials: 'same-origin' });
+    if (seq !== openSeq) { return; }
     if (!res.ok) {
       editor.value = '';
       currentPath = path;
       currentSHA = '';
       latestRevision = 0;
       dirty = false;
-      saveBtn.disabled = false;
       diffBtn.disabled = true;
       revisionsEl.textContent = '';
       var note = document.createElement('p');
       note.className = 'status';
       note.textContent = 'New file (nothing stored yet).';
       revisionsEl.appendChild(note);
+      showEditor();
+      if (configKind(path)) {
+        var emptyLint = await checkConfig(path, '');
+        if (seq !== openSeq) { return; }
+        applyLint(emptyLint);
+      } else {
+        clearLint();
+        saveBtn.disabled = false;
+      }
       setStatus('new file: ' + path);
       return;
     }
     var data = await res.json();
-    editor.value = data.content;
+    if (seq !== openSeq) { return; }
+    var content = data.content;
+    var lint = null;
+    if (configKind(path)) {
+      setStatus('linting ' + path);
+      lint = await checkConfig(path, content);
+      if (seq !== openSeq) { return; }
+      if (lint && lint.valid && lint.format === 'json' && lint.formatted) {
+        content = lint.formatted;
+      }
+    }
+    editor.value = content;
     currentPath = path;
     currentSHA = data.sha256;
     latestRevision = 0;
     dirty = false;
-    saveBtn.disabled = false;
     diffBtn.disabled = true;
     showEditor();
-    setStatus('loaded ' + path + ' (' + data.size + ' B)');
+    if (lint) { applyLint(lint); } else { clearLint(); }
+    setStatus('loaded ' + path + ' (' + data.size + ' B)' +
+      (content !== data.content ? ' · JSON formatted' : ''));
     loadRevisions(path);
   }
   function showEditor() {
@@ -207,8 +303,21 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   async function save() {
     var path = (currentPath || pathInput.value).trim();
     if (!path) { setStatus('path is required', false); return; }
+    var content = editor.value;
+    var lint = null;
+    if (configKind(path)) {
+      setStatus('linting ' + path + ' before save');
+      lint = await checkConfig(path, content);
+      if (!lint || !lint.valid) {
+        applyLint(lint);
+        setStatus('fix lint errors before saving', false);
+        return;
+      }
+      if (lint.format === 'json' && lint.formatted) { content = lint.formatted; }
+      applyLint(lint);
+    }
     setStatus('saving…');
-    var body = { path: path, content: editor.value };
+    var body = { path: path, content: content };
     if (currentSHA) { body.expected_sha256 = currentSHA; }
     var res = await fetch(api + '/content', {
       method: 'PUT', credentials: 'same-origin',
@@ -218,11 +327,14 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     if (res.status === 409) { setStatus('conflict: the file changed on disk; reopen it', false); return; }
     if (!res.ok) { setStatus('save failed: HTTP ' + res.status + ' ' + (await res.text()).slice(0, 160), false); return; }
     var result = await res.json();
+    if (content !== editor.value) { editor.value = content; }
     currentPath = path;
     currentSHA = result.sha256;
     latestRevision = result.revision;
     dirty = false;
-    setStatus('saved ' + path + ' (revision ' + result.revision + ')', true);
+    if (lint) { applyLint(lint); }
+    setStatus('saved ' + path + ' (revision ' + result.revision + ')' +
+      (lint && lint.format === 'json' ? ' · JSON formatted' : ''), true);
     loadRevisions(path);
   }
   async function loadRevisions(path) {
@@ -302,7 +414,12 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   diffBtn.addEventListener('click', function () {
     if (latestRevision >= 2) { showDiff(latestRevision - 1, latestRevision); }
   });
-  editor.addEventListener('input', function () { setStatus('unsaved changes'); });
+  editor.addEventListener('input', function () {
+    dirty = true;
+    setStatus('unsaved changes');
+    if (configKind(currentPath)) { scheduleLint(); }
+    else { clearLint(); }
+  });
   editor.addEventListener('keydown', function (event) {
     if (event.key === 'Tab') {
       event.preventDefault();

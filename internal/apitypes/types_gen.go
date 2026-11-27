@@ -188,6 +188,20 @@ type ChatRequestDTO struct {
 	Message        string  `json:"message"`
 }
 
+// ConfigFormatDTO is generated from the spec.
+type ConfigFormatDTO struct {
+	Error     string `json:"error"`
+	Format    string `json:"format"`
+	Formatted string `json:"formatted"`
+	Valid     bool   `json:"valid"`
+}
+
+// ConfigFormatRequest is generated from the spec.
+type ConfigFormatRequest struct {
+	Content string `json:"content"`
+	Path    string `json:"path"`
+}
+
 // ConversationDTO is generated from the spec.
 type ConversationDTO struct {
 	CreatedAt time.Time `json:"created_at"`

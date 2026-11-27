@@ -516,6 +516,23 @@ paths:
               schema: { $ref: "#/components/schemas/GCResultDTO" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Problem" }
+  /api/v1/config/format:
+    post:
+      operationId: formatConfigFile
+      summary: Validate a config file and pretty-print JSON
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConfigFormatRequest" }
+      responses:
+        "200":
+          description: Validation and formatting result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConfigFormatDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/v1/servers/{id}/files:
     get:
       operationId: listServerFiles
@@ -1690,6 +1707,20 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/AIApprovalDTO" }
+    ConfigFormatRequest:
+      type: object
+      required: [path, content]
+      properties:
+        path: { type: string }
+        content: { type: string }
+    ConfigFormatDTO:
+      type: object
+      required: [format, valid, error, formatted]
+      properties:
+        format: { type: string }
+        valid: { type: boolean }
+        error: { type: string }
+        formatted: { type: string }
     FileEntryDTO:
       type: object
       required: [name, dir, size, mod_time]

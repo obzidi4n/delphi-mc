@@ -182,6 +182,7 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("POST "+s.base+"api/v1/ai/approvals/{id}/approve", s.approveAIPlan)
 	mux.HandleFunc("POST "+s.base+"api/v1/ai/approvals/{id}/reject", s.rejectAIPlan)
 
+	mux.HandleFunc("POST "+s.base+"api/v1/config/format", s.formatConfigFile)
 	mux.HandleFunc("GET "+s.base+"api/v1/servers/{id}/files", s.listFiles)
 	mux.HandleFunc("GET "+s.base+"api/v1/servers/{id}/files/content", s.readFile)
 	mux.HandleFunc("PUT "+s.base+"api/v1/servers/{id}/files/content", s.writeFile)
