@@ -347,3 +347,43 @@ func TestTemplateFilesApplyOnce(t *testing.T) {
 		t.Fatalf("nested file = %q, err = %v", data, err)
 	}
 }
+
+func TestApplyStagesPluginWithoutRestart(t *testing.T) {
+	rt := newFakeRuntime()
+	sup, spec, dir := newTestSupervisor(t, rt, []byte("jar-bytes"))
+	if state, detail := sup.Apply(context.Background(), spec); state != "running" {
+		t.Fatalf("initial apply: %s %s", state, detail)
+	}
+
+	pluginBody := []byte("PK\x03\x04plugin")
+	sum := sha256.Sum256(pluginBody)
+	sha := hex.EncodeToString(sum[:])
+	blob := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(pluginBody)
+	}))
+	defer blob.Close()
+	sup.BlobBase = blob.URL
+	sup.BlobHTTP = blob.Client()
+
+	spec.Plugins = []wire.PluginSpec{{Name: "staged.jar", SHA256: sha}}
+	if state, detail := sup.Apply(context.Background(), spec); state != "running" {
+		t.Fatalf("plugin apply: %s %s", state, detail)
+	}
+	if rt.restarts != 0 {
+		t.Fatalf("plugin add restarted %d times", rt.restarts)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "plugins", "staged.jar")); err != nil {
+		t.Fatalf("staged plugin missing: %v", err)
+	}
+
+	spec.Plugins = nil
+	if state, detail := sup.Apply(context.Background(), spec); state != "running" {
+		t.Fatalf("plugin remove: %s %s", state, detail)
+	}
+	if rt.restarts != 0 {
+		t.Fatalf("plugin remove restarted %d times", rt.restarts)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "plugins", "staged.jar")); !os.IsNotExist(err) {
+		t.Fatal("staged plugin still exists after removal")
+	}
+}

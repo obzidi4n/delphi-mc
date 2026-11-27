@@ -84,8 +84,10 @@ What M4 delivers in the vanilla page:
 
 `/servers/{id}/plugins` lists the managed plugin set and offers a Modrinth/Hangar
 catalog search. Installing resolves the newest Paper-compatible build for the
-server's Minecraft version, downloads it into the artifact store, and syncs the
-node; removing a plugin does the same in reverse. A running server restarts.
+server's Minecraft version, downloads it into the artifact store, and stages it
+on the node; removing a plugin does the same in reverse. A running server does
+not restart automatically; the owner restarts when ready to load or unload the
+change. Applying updates is the explicit restart/boot-check action.
 
 The page also accepts a GitHub repository or release URL and installs the latest
 release asset, and a Jenkins job URL to install the last successful build's jar

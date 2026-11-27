@@ -34,6 +34,10 @@ type ServerSpec struct {
 	// Plugins are managed plugin jars downloaded from the panel's artifact
 	// store, named stably per project.
 	Plugins []PluginSpec `json:"plugins,omitempty"`
+	// PreviousPlugins is agent-local bookkeeping: the managed jar names from
+	// the previous desired set. It lets a no-revision plugin sync remove stale
+	// jars even before a manifest exists.
+	PreviousPlugins []string `json:"-"`
 	// Deleted asks the node to stop and remove the container; files stay for
 	// the retention window.
 	Deleted bool `json:"deleted,omitempty"`

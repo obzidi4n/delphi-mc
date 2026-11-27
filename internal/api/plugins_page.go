@@ -116,7 +116,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
      </div>
     </div>
     <div id="installed" class="meta">Loading…</div>
-    <p class="hint">Checking runs automatically while this page is open. Installing or removing a plugin restarts a running server; applying updates installs the newest compatible jars first, then boot-checks the restart.</p>
+    <p class="hint">Checking runs automatically while this page is open. Installing, removing, or uploading a plugin stages the jar on disk without restarting the server; restart it when you are ready to load the change. Apply updates is an explicit restart with a boot check.</p>
    </section>
    <section>
     <h2>Available updates</h2>
@@ -265,7 +265,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
       actions.appendChild(button('Remove', 'danger', function () {
         if (!window.confirm('Remove ' + item.project + ' from this server?')) { return; }
         request(api + '/plugins?project=' + encodeURIComponent(item.project), {method: 'DELETE'})
-          .then(function () { toast('Removed ' + item.project); return refreshAll(); })
+          .then(function () { toast('Removed ' + item.project + ' — restart the server to unload it'); return refreshAll(); })
           .catch(function (err) { toast(err.message, true); });
       }));
       tr.appendChild(actions);
@@ -380,7 +380,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({provider: entry.provider, project: entry.project})
     }).then(function (result) {
-      toast('Installed ' + result.plugin.project + ' ' + result.plugin.version);
+      toast('Installed ' + result.plugin.project + ' ' + result.plugin.version + ' — restart the server to load it');
       return refreshAll();
     }).catch(function (err) {
       toast(err.message, true);
@@ -470,7 +470,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
     submit.disabled = true;
     request(api + '/plugins/upload', {method: 'POST', body: form})
       .then(function (result) {
-        toast('Installed ' + result.plugin.project + ' ' + result.plugin.version);
+        toast('Installed ' + result.plugin.project + ' ' + result.plugin.version + ' — restart the server to load it');
         uploadForm.reset();
         return refreshAll();
       })

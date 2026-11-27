@@ -378,20 +378,31 @@ func (s *Supervisor) ensureJar(ctx context.Context, spec wire.ServerSpec, dir st
 // ensurePlugins downloads managed plugin jars from the panel's artifact store
 // into plugins/<name>, replacing a jar whose hash changed.
 func (s *Supervisor) ensurePlugins(ctx context.Context, spec wire.ServerSpec, dir string) error {
-	if len(spec.Plugins) == 0 {
-		return nil
-	}
-	if s.BlobBase == "" {
-		return errors.New("plugin downloads need a panel URL")
-	}
 	pluginDir := filepath.Join(dir, "plugins")
 	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 		return fmt.Errorf("create plugins dir: %w", err)
 	}
+	if len(spec.Plugins) > 0 && s.BlobBase == "" {
+		return errors.New("plugin downloads need a panel URL")
+	}
+	managed, err := readManagedPlugins(pluginDir)
+	if err != nil {
+		return fmt.Errorf("read plugin manifest: %w", err)
+	}
+	if len(managed) == 0 && len(spec.PreviousPlugins) > 0 {
+		managed = append(managed, spec.PreviousPlugins...)
+	}
+	current := make([]string, 0, len(spec.Plugins))
+	seen := make(map[string]bool, len(spec.Plugins))
 	for _, p := range spec.Plugins {
 		if !safePluginName(p.Name) || len(p.SHA256) != 64 {
 			return fmt.Errorf("plugin %q has an invalid name or hash", p.Name)
 		}
+		if seen[p.Name] {
+			continue
+		}
+		seen[p.Name] = true
+		current = append(current, p.Name)
 		target := filepath.Join(pluginDir, p.Name)
 		if sum, err := fileSHA256(target); err == nil && sum == p.SHA256 {
 			continue
@@ -441,7 +452,48 @@ func (s *Supervisor) ensurePlugins(ctx context.Context, spec wire.ServerSpec, di
 		}
 		s.Log.Info("plugin installed", "server", spec.ID, "name", p.Name, "sha256", p.SHA256)
 	}
+	if err := writeManagedPlugins(pluginDir, current); err != nil {
+		return fmt.Errorf("write plugin manifest: %w", err)
+	}
+	for _, name := range managed {
+		if seen[name] || !safePluginName(name) {
+			continue
+		}
+		if err := os.Remove(filepath.Join(pluginDir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove old plugin %s: %w", name, err)
+		}
+		s.Log.Info("plugin removed", "server", spec.ID, "name", name)
+	}
 	return nil
+}
+
+const managedPluginsFile = ".delphi-managed.json"
+
+func readManagedPlugins(dir string) ([]string, error) {
+	data, err := os.ReadFile(filepath.Join(dir, managedPluginsFile))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	if err := json.Unmarshal(data, &names); err != nil {
+		return nil, err
+	}
+	return names, nil
+}
+
+func writeManagedPlugins(dir string, names []string) error {
+	data, err := json.Marshal(names)
+	if err != nil {
+		return err
+	}
+	tmp := filepath.Join(dir, managedPluginsFile+".tmp")
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, filepath.Join(dir, managedPluginsFile))
 }
 
 func safePluginName(name string) bool {

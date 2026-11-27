@@ -38,9 +38,10 @@ The Plugins page for a server has two jobs:
   compatible with that server's Minecraft version and downloads it into the
   artifact store.
 - **Installed management** lists the managed set, checks for newer builds, applies
-  all updates, and removes individual projects. Installing, removing, or applying
-  bumps the desired revision; a running server restarts through the normal
-  reconciliation path.
+  all updates, and removes individual projects. Installing, removing, or uploading
+  stages jars on disk without bumping the desired revision, so a running server keeps
+  running; restart it when ready to load or unload the change. Applying updates is an
+  explicit restart with the guarded boot check.
 
 `POST /api/v1/servers/{id}/plugins` accepts `{provider, project, version?, range?}`.
 `DELETE /api/v1/servers/{id}/plugins?project=...` removes one project. Both are

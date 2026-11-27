@@ -245,6 +245,25 @@ func (d *DB) SetArtifacts(ctx context.Context, id, mcVersion, jarURL, jarSHA str
 	return d.GetServer(ctx, id)
 }
 
+// SetPlugins replaces the managed plugin set without bumping the desired
+// revision. A running server installs the jars on disk but keeps running; the
+// owner restarts when ready to load them.
+func (d *DB) SetPlugins(ctx context.Context, id string, plugins []ServerPlugin) (Server, error) {
+	if plugins == nil {
+		plugins = []ServerPlugin{}
+	}
+	tag, err := d.pool.Exec(ctx, `
+		update servers set plugins = $2
+		where id = $1 and deleted_at is null`, id, plugins)
+	if err != nil {
+		return Server{}, fmt.Errorf("set plugins: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return Server{}, ErrNoServer
+	}
+	return d.GetServer(ctx, id)
+}
+
 // SetDesiredState changes the desired lifecycle and bumps the revision.
 // Restart is expressed as desired running with a new revision.
 func (d *DB) SetDesiredState(ctx context.Context, id, desired string, kill bool) (Server, error) {

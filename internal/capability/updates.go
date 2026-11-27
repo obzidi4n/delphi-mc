@@ -24,6 +24,7 @@ var ErrNoUpdates = errors.New("no updates available")
 type UpdateStore interface {
 	GetServer(ctx context.Context, id string) (store.Server, error)
 	SetArtifacts(ctx context.Context, id, mcVersion, jarURL, jarSHA string, plugins []store.ServerPlugin, desired string) (store.Server, error)
+	SetPlugins(ctx context.Context, id string, plugins []store.ServerPlugin) (store.Server, error)
 	RecordArtifact(ctx context.Context, a store.Artifact) error
 	ListArtifacts(ctx context.Context) ([]store.Artifact, error)
 	DeleteArtifact(ctx context.Context, sha string) error
@@ -175,8 +176,9 @@ type PluginAddResult struct {
 	Revision int64              `json:"revision"`
 }
 
-// Add resolves, downloads, and installs one plugin on a server. Reinstalling
+// Add resolves, downloads, and stages one plugin on a server. Reinstalling
 // the same project updates its resolved version instead of creating a duplicate.
+// A running server is not restarted; the owner restarts when ready to load it.
 func (u *Updates) Add(ctx context.Context, p Principal, id string, req PluginRequest) (PluginAddResult, error) {
 	if !p.Allows(serverScope(id, "update")) {
 		return PluginAddResult{}, forbidden(serverScope(id, "update"))
@@ -236,7 +238,7 @@ func (u *Updates) Add(ctx context.Context, p Principal, id string, req PluginReq
 	if !replaced {
 		next = append(next, plugin)
 	}
-	updated, err := u.Store.SetArtifacts(ctx, srv.ID, srv.MCVersion, srv.JarURL, srv.JarSHA256, next, srv.DesiredState)
+	updated, err := u.Store.SetPlugins(ctx, srv.ID, next)
 	if err != nil {
 		return PluginAddResult{}, err
 	}
@@ -319,7 +321,7 @@ func (u *Updates) Upload(ctx context.Context, p Principal, id, project, version 
 	if !replaced {
 		next = append(next, plugin)
 	}
-	updated, err := u.Store.SetArtifacts(ctx, srv.ID, srv.MCVersion, srv.JarURL, srv.JarSHA256, next, srv.DesiredState)
+	updated, err := u.Store.SetPlugins(ctx, srv.ID, next)
 	if err != nil {
 		return PluginAddResult{}, err
 	}
@@ -335,8 +337,8 @@ func (u *Updates) Upload(ctx context.Context, p Principal, id, project, version 
 	return PluginAddResult{Plugin: plugin, Revision: updated.DesiredRevision}, nil
 }
 
-// Remove deletes one managed plugin and syncs the server. The server restarts
-// if it is running.
+// Remove deletes one managed plugin and syncs the server. A running server is
+// not restarted; the owner restarts when ready to unload it.
 func (u *Updates) Remove(ctx context.Context, p Principal, id, project string) (int64, error) {
 	if !p.Allows(serverScope(id, "update")) {
 		return 0, forbidden(serverScope(id, "update"))
@@ -361,7 +363,7 @@ func (u *Updates) Remove(ctx context.Context, p Principal, id, project string) (
 	if !removed {
 		return 0, invalid("plugin %q is not installed", project)
 	}
-	updated, err := u.Store.SetArtifacts(ctx, srv.ID, srv.MCVersion, srv.JarURL, srv.JarSHA256, next, srv.DesiredState)
+	updated, err := u.Store.SetPlugins(ctx, srv.ID, next)
 	if err != nil {
 		return 0, err
 	}

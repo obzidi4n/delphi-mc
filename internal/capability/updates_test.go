@@ -33,6 +33,11 @@ func (f *fakeUpdateStore) SetArtifacts(_ context.Context, id, mcVersion, jarURL,
 	f.updated = &f.srv
 	return f.srv, nil
 }
+func (f *fakeUpdateStore) SetPlugins(_ context.Context, id string, list []store.ServerPlugin) (store.Server, error) {
+	f.srv.Plugins = list
+	f.updated = &f.srv
+	return f.srv, nil
+}
 func (f *fakeUpdateStore) RecordArtifact(context.Context, store.Artifact) error { return nil }
 func (f *fakeUpdateStore) ListArtifacts(context.Context) ([]store.Artifact, error) {
 	return nil, nil
@@ -196,11 +201,17 @@ func TestAddAndRemovePlugin(t *testing.T) {
 	if len(fake.updated.Plugins) != 2 {
 		t.Fatalf("installed = %+v", fake.updated.Plugins)
 	}
+	if fake.srv.DesiredRevision != 3 {
+		t.Fatalf("add bumped revision to %d", fake.srv.DesiredRevision)
+	}
 	if _, err := updates.Remove(context.Background(), p, "s_1", "added"); err != nil {
 		t.Fatal(err)
 	}
 	if len(fake.updated.Plugins) != 1 || fake.updated.Plugins[0].Project != "p" {
 		t.Fatalf("removed = %+v", fake.updated.Plugins)
+	}
+	if fake.srv.DesiredRevision != 3 {
+		t.Fatalf("remove bumped revision to %d", fake.srv.DesiredRevision)
 	}
 	if _, err := updates.Remove(context.Background(), p, "s_1", "nope"); err == nil {
 		t.Fatal("missing plugin should fail")

@@ -164,6 +164,18 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 			case wire.TypeServers:
 				var frame wire.ServersFrame
 				if json.Unmarshal(data, &frame) == nil {
+					previous, _ := loadDesired(opts.Supervisor.DataDir)
+					for i := range frame.Items {
+						for _, old := range previous {
+							if old.ID != frame.Items[i].ID {
+								continue
+							}
+							for _, p := range old.Plugins {
+								frame.Items[i].PreviousPlugins = append(frame.Items[i].PreviousPlugins, p.Name)
+							}
+							break
+						}
+					}
 					_ = saveDesired(opts.Supervisor.DataDir, frame.Items)
 					reconciler.submit(sctx, frame)
 				}
