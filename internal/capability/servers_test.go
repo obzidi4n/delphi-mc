@@ -40,7 +40,9 @@ func (f *fakeStore) GetServer(_ context.Context, id string) (store.Server, error
 	return store.Server{}, store.ErrNoServer
 }
 
-func (f *fakeStore) ListServers(context.Context) ([]store.Server, error) { return f.servers, nil }
+func (f *fakeStore) ListServers(context.Context, int, string) ([]store.Server, string, error) {
+	return f.servers, "", nil
+}
 
 func (f *fakeStore) ListServersByNode(_ context.Context, nodeID string) ([]store.Server, error) {
 	var out []store.Server

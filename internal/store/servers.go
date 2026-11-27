@@ -119,10 +119,25 @@ func (d *DB) GetServer(ctx context.Context, id string) (Server, error) {
 	return scanServer(d.pool.QueryRow(ctx, `select `+serverColumns+` from servers s where s.id = $1 and s.deleted_at is null`, id))
 }
 
-// ListServers returns all live servers, ordered by name.
-func (d *DB) ListServers(ctx context.Context) ([]Server, error) {
-	return d.queryServers(ctx,
-		`select `+serverColumns+` from servers s where s.deleted_at is null order by s.name, s.id`)
+// ListServers returns live servers ordered by name, one keyset page at a time.
+func (d *DB) ListServers(ctx context.Context, limit int, after string) ([]Server, string, error) {
+	parts, err := decodeCursor(after, 2)
+	if err != nil {
+		return nil, "", err
+	}
+	var afterName, afterID string
+	if parts != nil {
+		afterName, afterID = parts[0], parts[1]
+	}
+	servers, err := d.queryServers(ctx, `
+		select `+serverColumns+` from servers s
+		where s.deleted_at is null and ($1 = '' or (s.name, s.id) > ($1, $2))
+		order by s.name, s.id limit $3`, afterName, afterID, pageQuerySize(limit))
+	if err != nil {
+		return nil, "", err
+	}
+	kept, next := pageServers(servers, limit)
+	return kept, next, nil
 }
 
 // ListServersByNode returns the desired set for one node, including tombstones

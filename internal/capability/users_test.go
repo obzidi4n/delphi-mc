@@ -17,8 +17,8 @@ type fakeUsers struct {
 	audits []string
 }
 
-func (f *fakeUsers) ListUsers(context.Context, string) ([]store.UserWithRole, error) {
-	return f.users, nil
+func (f *fakeUsers) ListUsers(context.Context, string, int, string) ([]store.UserWithRole, string, error) {
+	return f.users, "", nil
 }
 
 func (f *fakeUsers) UserByID(_ context.Context, _, id string) (store.UserWithRole, error) {

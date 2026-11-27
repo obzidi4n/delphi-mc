@@ -177,10 +177,21 @@ func (d *DB) SetNodeStatus(ctx context.Context, id, status string) error {
 }
 
 // ListNodes returns the fleet ordered by name.
-func (d *DB) ListNodes(ctx context.Context) ([]Node, error) {
-	rows, err := d.pool.Query(ctx, `select `+nodeColumns+` from nodes order by name, id`)
+func (d *DB) ListNodes(ctx context.Context, limit int, after string) ([]Node, string, error) {
+	parts, err := decodeCursor(after, 2)
 	if err != nil {
-		return nil, fmt.Errorf("list nodes: %w", err)
+		return nil, "", err
+	}
+	var afterName, afterID string
+	if parts != nil {
+		afterName, afterID = parts[0], parts[1]
+	}
+	rows, err := d.pool.Query(ctx, `
+		select `+nodeColumns+` from nodes
+		where ($1 = '' or (name, id) > ($1, $2))
+		order by name, id limit $3`, afterName, afterID, pageQuerySize(limit))
+	if err != nil {
+		return nil, "", fmt.Errorf("list nodes: %w", err)
 	}
 	defer rows.Close()
 
@@ -188,11 +199,19 @@ func (d *DB) ListNodes(ctx context.Context) ([]Node, error) {
 	for rows.Next() {
 		n, err := scanNode(rows)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		out = append(out, n)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	if len(out) <= pageLimit(limit) {
+		return out, "", nil
+	}
+	kept := out[:pageLimit(limit)]
+	last := kept[len(kept)-1]
+	return kept, encodeCursor(last.Name, last.ID), nil
 }
 
 // RevokeNode permanently revokes a node's certificate.

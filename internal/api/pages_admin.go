@@ -53,11 +53,14 @@ func (s *server) renderTeamPage(w http.ResponseWriter, r *http.Request, data pag
 		s.writePage(w, data)
 		return
 	}
-	users, err := s.opts.Services.Users.List(r.Context(), principal)
+	users, next, err := s.opts.Services.Users.List(r.Context(), principal, 200, "")
 	if err != nil {
 		data.Notice = "Could not load users: " + err.Error()
 	} else {
 		data.Users = users
+		if next != "" {
+			data.Notice = "Showing the first 200 accounts; use the API for the rest."
+		}
 	}
 	s.writePage(w, data)
 }
@@ -131,26 +134,29 @@ func (s *server) renderGroupsPage(w http.ResponseWriter, r *http.Request, data p
 		s.writePage(w, data)
 		return
 	}
-	groups, err := s.opts.Services.Groups.List(r.Context(), principal)
+	groups, next, err := s.opts.Services.Groups.List(r.Context(), principal, 200, "")
 	if err != nil {
 		data.Notice = "Could not load groups: " + err.Error()
 		s.writePage(w, data)
 		return
 	}
-	servers, err := s.opts.Services.Servers.List(r.Context(), principal)
+	servers, _, err := s.opts.Services.Servers.List(r.Context(), principal, 200, "")
 	if err != nil {
 		data.Notice = "Could not load servers: " + err.Error()
 		s.writePage(w, data)
 		return
 	}
 	data.Servers = servers
+	if next != "" {
+		data.Notice = "Showing the first 200 groups; use the API for the rest."
+	}
 	byID := make(map[string]store.Server, len(servers))
 	for _, srv := range servers {
 		byID[srv.ID] = srv
 	}
 	for _, group := range groups {
 		view := groupView{Group: group}
-		if ids, err := s.opts.Services.Groups.Members(r.Context(), principal, group.ID); err == nil {
+		if ids, _, err := s.opts.Services.Groups.Members(r.Context(), principal, group.ID, 200, ""); err == nil {
 			for _, id := range ids {
 				if srv, ok := byID[id]; ok {
 					view.Members = append(view.Members, srv)

@@ -191,18 +191,27 @@ type UserWithRole struct {
 	Role string
 }
 
-// ListUsers returns the org's accounts ordered by email.
-func (d *DB) ListUsers(ctx context.Context, orgID string) ([]UserWithRole, error) {
+// ListUsers returns the org's accounts ordered by email, one keyset page at
+// a time.
+func (d *DB) ListUsers(ctx context.Context, orgID string, limit int, after string) ([]UserWithRole, string, error) {
+	parts, err := decodeCursor(after, 2)
+	if err != nil {
+		return nil, "", err
+	}
+	var afterEmail, afterID string
+	if parts != nil {
+		afterEmail, afterID = parts[0], parts[1]
+	}
 	rows, err := d.pool.Query(ctx, `
 		select u.id, u.org_id, u.email, u.password_hash, u.created_at, coalesce(rb.role, '')
 		from users u
 		left join role_bindings rb
 		  on rb.user_id = u.id and rb.org_id = u.org_id
 		 and rb.scope_kind = 'org' and rb.scope_id = ''
-		where u.org_id = $1
-		order by u.email`, orgID)
+		where u.org_id = $1 and ($2 = '' or (u.email, u.id) > ($2, $3))
+		order by u.email, u.id limit $4`, orgID, afterEmail, afterID, pageQuerySize(limit))
 	if err != nil {
-		return nil, fmt.Errorf("list users: %w", err)
+		return nil, "", fmt.Errorf("list users: %w", err)
 	}
 	defer rows.Close()
 
@@ -210,11 +219,19 @@ func (d *DB) ListUsers(ctx context.Context, orgID string) ([]UserWithRole, error
 	for rows.Next() {
 		var u UserWithRole
 		if err := rows.Scan(&u.ID, &u.OrgID, &u.Email, &u.PasswordHash, &u.CreatedAt, &u.Role); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		users = append(users, u)
 	}
-	return users, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	if len(users) <= pageLimit(limit) {
+		return users, "", nil
+	}
+	kept := users[:pageLimit(limit)]
+	last := kept[len(kept)-1]
+	return kept, encodeCursor(last.Email, last.ID), nil
 }
 
 // UserByID returns one account in the org with its org-level role.
@@ -334,17 +351,18 @@ func (d *DB) Audit(ctx context.Context, orgID, actor, via, action, target string
 }
 
 // ListAudit returns the newest entries first, before seq when non-zero.
-func (d *DB) ListAudit(ctx context.Context, orgID string, limit, beforeSeq int64) ([]AuditEntry, error) {
-	if limit <= 0 || limit > 200 {
-		limit = 50
+func (d *DB) ListAudit(ctx context.Context, orgID string, limit int, after string) ([]AuditEntry, string, error) {
+	afterSeq, err := decodeSeqCursor(after)
+	if err != nil {
+		return nil, "", err
 	}
 	rows, err := d.pool.Query(ctx, `
 		select seq, org_id, actor, via, action, target, diff, created_at
 		from audit_log
 		where org_id = $1 and ($2 = 0 or seq < $2)
-		order by seq desc limit $3`, orgID, beforeSeq, limit)
+		order by seq desc limit $3`, orgID, afterSeq, pageQuerySize(limit))
 	if err != nil {
-		return nil, fmt.Errorf("list audit: %w", err)
+		return nil, "", fmt.Errorf("list audit: %w", err)
 	}
 	defer rows.Close()
 
@@ -352,11 +370,18 @@ func (d *DB) ListAudit(ctx context.Context, orgID string, limit, beforeSeq int64
 	for rows.Next() {
 		var e AuditEntry
 		if err := rows.Scan(&e.Seq, &e.OrgID, &e.Actor, &e.Via, &e.Action, &e.Target, &e.Diff, &e.CreatedAt); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		out = append(out, e)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	if len(out) <= pageLimit(limit) {
+		return out, "", nil
+	}
+	kept := out[:pageLimit(limit)]
+	return kept, encodeSeqCursor(kept[len(kept)-1].Seq), nil
 }
 
 // CreateGroup inserts a targeting group.
@@ -379,12 +404,22 @@ func (d *DB) CreateGroup(ctx context.Context, orgID, name, description string) (
 }
 
 // ListGroups returns the org's groups.
-func (d *DB) ListGroups(ctx context.Context, orgID string) ([]Group, error) {
+func (d *DB) ListGroups(ctx context.Context, orgID string, limit int, after string) ([]Group, string, error) {
+	parts, err := decodeCursor(after, 2)
+	if err != nil {
+		return nil, "", err
+	}
+	var afterName, afterID string
+	if parts != nil {
+		afterName, afterID = parts[0], parts[1]
+	}
 	rows, err := d.pool.Query(ctx, `
 		select id, org_id, name, description, created_at
-		from server_groups where org_id = $1 order by name`, orgID)
+		from server_groups
+		where org_id = $1 and ($2 = '' or (name, id) > ($2, $3))
+		order by name, id limit $4`, orgID, afterName, afterID, pageQuerySize(limit))
 	if err != nil {
-		return nil, fmt.Errorf("list groups: %w", err)
+		return nil, "", fmt.Errorf("list groups: %w", err)
 	}
 	defer rows.Close()
 
@@ -392,11 +427,19 @@ func (d *DB) ListGroups(ctx context.Context, orgID string) ([]Group, error) {
 	for rows.Next() {
 		var g Group
 		if err := rows.Scan(&g.ID, &g.OrgID, &g.Name, &g.Description, &g.CreatedAt); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		out = append(out, g)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	if len(out) <= pageLimit(limit) {
+		return out, "", nil
+	}
+	kept := out[:pageLimit(limit)]
+	last := kept[len(kept)-1]
+	return kept, encodeCursor(last.Name, last.ID), nil
 }
 
 // AddGroupMember is idempotent and scoped to the org.
@@ -431,13 +474,22 @@ func (d *DB) RemoveGroupMember(ctx context.Context, orgID, groupID, serverID str
 }
 
 // ListGroupMembers returns server ids in a group.
-func (d *DB) ListGroupMembers(ctx context.Context, orgID, groupID string) ([]string, error) {
+func (d *DB) ListGroupMembers(ctx context.Context, orgID, groupID string, limit int, after string) ([]string, string, error) {
+	parts, err := decodeCursor(after, 1)
+	if err != nil {
+		return nil, "", err
+	}
+	var afterID string
+	if parts != nil {
+		afterID = parts[0]
+	}
 	rows, err := d.pool.Query(ctx, `
 		select m.server_id
 		from server_group_members m join server_groups g on g.id = m.group_id
-		where g.org_id = $1 and g.id = $2 order by m.server_id`, orgID, groupID)
+		where g.org_id = $1 and g.id = $2 and ($3 = '' or m.server_id > $3)
+		order by m.server_id limit $4`, orgID, groupID, afterID, pageQuerySize(limit))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer rows.Close()
 
@@ -445,11 +497,18 @@ func (d *DB) ListGroupMembers(ctx context.Context, orgID, groupID string) ([]str
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		out = append(out, id)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+	if len(out) <= pageLimit(limit) {
+		return out, "", nil
+	}
+	kept := out[:pageLimit(limit)]
+	return kept, encodeCursor(kept[len(kept)-1]), nil
 }
 
 func newID(prefix string) string {

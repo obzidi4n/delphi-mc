@@ -120,14 +120,14 @@ func (c *Client) CreateAPIKey(ctx context.Context, body apitypes.APIKeyRequest) 
 // GET /api/v1/audit
 //
 // Requires a bearer token configured on the Client.
-func (c *Client) ListAudit(ctx context.Context, limit *int64, before *int64) (*apitypes.AuditListDTO, error) {
+func (c *Client) ListAudit(ctx context.Context, limit *int64, after *string) (*apitypes.AuditListDTO, error) {
 	path := "/api" + "/v1" + "/audit"
 	q := url.Values{}
 	if limit != nil {
 		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
 	}
-	if before != nil {
-		q.Set("before", strconv.FormatInt(int64(*before), 10))
+	if after != nil {
+		q.Set("after", *after)
 	}
 
 	var out apitypes.AuditListDTO
@@ -154,9 +154,15 @@ func (c *Client) CreateEnrollmentToken(ctx context.Context, body apitypes.Enroll
 // GET /api/v1/groups
 //
 // Requires a bearer token configured on the Client.
-func (c *Client) ListGroups(ctx context.Context) (*apitypes.GroupListDTO, error) {
+func (c *Client) ListGroups(ctx context.Context, limit *int64, after *string) (*apitypes.GroupListDTO, error) {
 	path := "/api" + "/v1" + "/groups"
-	var q url.Values
+	q := url.Values{}
+	if limit != nil {
+		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
+	}
+	if after != nil {
+		q.Set("after", *after)
+	}
 
 	var out apitypes.GroupListDTO
 	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
@@ -182,9 +188,15 @@ func (c *Client) CreateGroup(ctx context.Context, body apitypes.GroupCreateReque
 // GET /api/v1/groups/{id}/members
 //
 // Requires a bearer token configured on the Client.
-func (c *Client) ListGroupMembers(ctx context.Context, id string) (*apitypes.MemberListDTO, error) {
+func (c *Client) ListGroupMembers(ctx context.Context, id string, limit *int64, after *string) (*apitypes.MemberListDTO, error) {
 	path := "/api" + "/v1" + "/groups" + "/" + url.PathEscape(id) + "/members"
-	var q url.Values
+	q := url.Values{}
+	if limit != nil {
+		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
+	}
+	if after != nil {
+		q.Set("after", *after)
+	}
 
 	var out apitypes.MemberListDTO
 	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
@@ -216,9 +228,15 @@ func (c *Client) RemoveGroupMember(ctx context.Context, id string, serverID stri
 // GET /api/v1/nodes
 //
 // Requires a bearer token configured on the Client.
-func (c *Client) ListNodes(ctx context.Context) (*apitypes.NodeListDTO, error) {
+func (c *Client) ListNodes(ctx context.Context, limit *int64, after *string) (*apitypes.NodeListDTO, error) {
 	path := "/api" + "/v1" + "/nodes"
-	var q url.Values
+	q := url.Values{}
+	if limit != nil {
+		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
+	}
+	if after != nil {
+		q.Set("after", *after)
+	}
 
 	var out apitypes.NodeListDTO
 	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
@@ -240,9 +258,15 @@ func (c *Client) RevokeNode(ctx context.Context, id string) error {
 // GET /api/v1/servers
 //
 // Requires a bearer token configured on the Client.
-func (c *Client) ListServers(ctx context.Context) (*apitypes.ServerListDTO, error) {
+func (c *Client) ListServers(ctx context.Context, limit *int64, after *string) (*apitypes.ServerListDTO, error) {
 	path := "/api" + "/v1" + "/servers"
-	var q url.Values
+	q := url.Values{}
+	if limit != nil {
+		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
+	}
+	if after != nil {
+		q.Set("after", *after)
+	}
 
 	var out apitypes.ServerListDTO
 	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
@@ -325,9 +349,15 @@ func (c *Client) PowerServer(ctx context.Context, id string, body apitypes.Power
 // GET /api/v1/users
 //
 // Requires a bearer token configured on the Client.
-func (c *Client) ListUsers(ctx context.Context) (*apitypes.UserListDTO, error) {
+func (c *Client) ListUsers(ctx context.Context, limit *int64, after *string) (*apitypes.UserListDTO, error) {
 	path := "/api" + "/v1" + "/users"
-	var q url.Values
+	q := url.Values{}
+	if limit != nil {
+		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
+	}
+	if after != nil {
+		q.Set("after", *after)
+	}
 
 	var out apitypes.UserListDTO
 	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {

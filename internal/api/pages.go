@@ -181,12 +181,15 @@ func (s *server) renderHome(w http.ResponseWriter, r *http.Request) {
 	if scopes, perr := s.opts.Identity.ScopesForUser(r.Context(), user.ID); perr == nil {
 		principal.Scopes = scopes
 	}
-	if servers, err := s.opts.Services.Servers.List(r.Context(), principal); err == nil {
+	if servers, next, err := s.opts.Services.Servers.List(r.Context(), principal, 200, ""); err == nil {
 		data.Servers = servers
+		if next != "" {
+			data.Notice = "Showing the first 200 servers; use the API for the rest."
+		}
 	} else {
 		data.Notice = "Could not load servers: " + err.Error()
 	}
-	if nodes, err := s.opts.Services.Fleet.ListNodes(r.Context(), principal); err == nil {
+	if nodes, _, err := s.opts.Services.Fleet.ListNodes(r.Context(), principal, 200, ""); err == nil {
 		data.Nodes = nodes
 	}
 	s.writePage(w, data)

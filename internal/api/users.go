@@ -31,7 +31,8 @@ func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
 	if service == nil {
 		return
 	}
-	users, err := service.List(r.Context(), principal)
+	limit, after := pageParams(r)
+	users, next, err := service.List(r.Context(), principal, limit, after)
 	if err != nil {
 		writeCapabilityError(w, err)
 		return
@@ -40,7 +41,7 @@ func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
 	for _, u := range users {
 		items = append(items, toUserDTO(u))
 	}
-	writeJSON(w, http.StatusOK, apitypes.UserListDTO{Items: items})
+	writeJSON(w, http.StatusOK, apitypes.UserListDTO{Items: items, NextCursor: cursorPtr(next)})
 }
 
 func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +92,7 @@ func (s *server) setUserRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Re-read so the response carries the applied role.
-	users, err := service.List(r.Context(), principal)
+	users, _, err := service.List(r.Context(), principal, 200, "")
 	if err != nil {
 		writeCapabilityError(w, err)
 		return

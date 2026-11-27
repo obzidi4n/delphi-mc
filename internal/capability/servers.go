@@ -48,7 +48,7 @@ func forbidden(scope string) error {
 type ServerStore interface {
 	CreateServer(ctx context.Context, s store.Server) (store.Server, error)
 	GetServer(ctx context.Context, id string) (store.Server, error)
-	ListServers(ctx context.Context) ([]store.Server, error)
+	ListServers(ctx context.Context, limit int, after string) ([]store.Server, string, error)
 	ListServersByNode(ctx context.Context, nodeID string) ([]store.Server, error)
 	SetDesiredState(ctx context.Context, id, desired string, kill bool) (store.Server, error)
 	RenameServer(ctx context.Context, id, name string) (store.Server, error)
@@ -235,11 +235,11 @@ func (c *Servers) Delete(ctx context.Context, p Principal, id string) (store.Ser
 }
 
 // List returns the fleet.
-func (c *Servers) List(ctx context.Context, p Principal) ([]store.Server, error) {
+func (c *Servers) List(ctx context.Context, p Principal, limit int, after string) ([]store.Server, string, error) {
 	if err := c.require(p, orgScope(p, "read")); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return c.Store.ListServers(ctx)
+	return c.Store.ListServers(ctx, limit, after)
 }
 
 // Get returns one server.

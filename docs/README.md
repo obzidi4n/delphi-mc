@@ -5,7 +5,8 @@ behavior it describes.
 
 **Status:** M3a landed — spec-first API (`internal/api/openapi.yaml` → generated DTOs and Go
 client), users/API keys/sessions, role→scope profiles, a Team page (accounts and roles), a
-Groups page (members), audit, server CRUD, and the first CLI commands. See
+Groups page (members), audit, cursor-paginated lists, server CRUD, and the first CLI
+commands. See
 [`plan/roadmap.md`](plan/roadmap.md).
 
 ## Architecture — what and how

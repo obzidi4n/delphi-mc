@@ -68,9 +68,9 @@ No stack traces, no internal identifiers, no secrets. `code` is stable and machi
 
 ## Not yet in the v1 spec
 
-Cursor pagination, `Idempotency-Key`, and `If-Match` preconditions are normative for the
-product but land with jobs and approvals (M6+). Until then, list endpoints return the whole
-collection and mutations are not replay-protected.
+`Idempotency-Key` and `If-Match` preconditions are normative for the product but land with
+jobs and approvals (M6+). Until then, mutations are not replay-protected. Cursor pagination
+(limit/after, `next_cursor`) is implemented on every list endpoint.
 
 ## Rate limits and quotas
 

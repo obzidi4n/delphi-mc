@@ -24,7 +24,6 @@ type NodeStore interface {
 	TouchNode(ctx context.Context, id string, at time.Time) error
 	UpdateNodeHello(ctx context.Context, id, agentVersion, fsCapability string, capacity []byte) error
 	SetNodeStatus(ctx context.Context, id, status string) error
-	ListNodes(ctx context.Context) ([]store.Node, error)
 	RevokeNode(ctx context.Context, id string) error
 }
 

@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"strconv"
 
 	"delphi.dev/delphi/internal/apitypes"
 	"delphi.dev/delphi/internal/store"
@@ -21,7 +20,8 @@ func (s *server) listGroups(w http.ResponseWriter, r *http.Request) {
 	if !ok || !s.groups(w) {
 		return
 	}
-	groups, err := s.opts.Services.Groups.List(r.Context(), principal)
+	limit, after := pageParams(r)
+	groups, next, err := s.opts.Services.Groups.List(r.Context(), principal, limit, after)
 	if err != nil {
 		writeCapabilityError(w, err)
 		return
@@ -30,7 +30,7 @@ func (s *server) listGroups(w http.ResponseWriter, r *http.Request) {
 	for _, g := range groups {
 		items = append(items, toGroupDTO(g))
 	}
-	writeJSON(w, http.StatusOK, apitypes.GroupListDTO{Items: items})
+	writeJSON(w, http.StatusOK, apitypes.GroupListDTO{Items: items, NextCursor: cursorPtr(next)})
 }
 
 func (s *server) createGroup(w http.ResponseWriter, r *http.Request) {
@@ -90,12 +90,13 @@ func (s *server) listGroupMembers(w http.ResponseWriter, r *http.Request) {
 	if !ok || !s.groups(w) {
 		return
 	}
-	ids, err := s.opts.Services.Groups.Members(r.Context(), principal, r.PathValue("id"))
+	limit, after := pageParams(r)
+	ids, next, err := s.opts.Services.Groups.Members(r.Context(), principal, r.PathValue("id"), limit, after)
 	if err != nil {
 		writeCapabilityError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, apitypes.MemberListDTO{Items: ids})
+	writeJSON(w, http.StatusOK, apitypes.MemberListDTO{Items: ids, NextCursor: cursorPtr(next)})
 }
 
 func (s *server) listAudit(w http.ResponseWriter, r *http.Request) {
@@ -108,10 +109,8 @@ func (s *server) listAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := r.URL.Query()
-	limit, _ := strconv.ParseInt(query.Get("limit"), 10, 64)
-	before, _ := strconv.ParseInt(query.Get("before"), 10, 64)
-	entries, err := s.opts.Services.Audit.List(r.Context(), principal, limit, before)
+	limit, after := pageParams(r)
+	entries, next, err := s.opts.Services.Audit.List(r.Context(), principal, limit, after)
 	if err != nil {
 		writeCapabilityError(w, err)
 		return
@@ -123,7 +122,7 @@ func (s *server) listAudit(w http.ResponseWriter, r *http.Request) {
 			Action: e.Action, Target: e.Target, Diff: e.Diff, CreatedAt: e.CreatedAt,
 		})
 	}
-	writeJSON(w, http.StatusOK, apitypes.AuditListDTO{Items: items})
+	writeJSON(w, http.StatusOK, apitypes.AuditListDTO{Items: items, NextCursor: cursorPtr(next)})
 }
 
 func toGroupDTO(g store.Group) apitypes.GroupDTO {

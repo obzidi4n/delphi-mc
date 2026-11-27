@@ -15,7 +15,7 @@ var ErrLastOwner = errors.New("the last owner cannot be demoted")
 
 // UsersStore is account persistence.
 type UsersStore interface {
-	ListUsers(ctx context.Context, orgID string) ([]store.UserWithRole, error)
+	ListUsers(ctx context.Context, orgID string, limit int, after string) ([]store.UserWithRole, string, error)
 	UserByID(ctx context.Context, orgID, id string) (store.UserWithRole, error)
 	CreateUser(ctx context.Context, orgID, email, passwordHash string) (store.User, error)
 	SetOrgRole(ctx context.Context, userID, orgID, role string) error
@@ -27,11 +27,11 @@ type UsersStore interface {
 type Users struct{ Store UsersStore }
 
 // List returns the org's accounts.
-func (u *Users) List(ctx context.Context, p Principal) ([]store.UserWithRole, error) {
+func (u *Users) List(ctx context.Context, p Principal, limit int, after string) ([]store.UserWithRole, string, error) {
 	if !p.Allows(orgScope(p, "user:read")) {
-		return nil, forbidden(orgScope(p, "user:read"))
+		return nil, "", forbidden(orgScope(p, "user:read"))
 	}
-	return u.Store.ListUsers(ctx, p.OrgID)
+	return u.Store.ListUsers(ctx, p.OrgID, limit, after)
 }
 
 // Create adds an account with a generated password. The password is returned

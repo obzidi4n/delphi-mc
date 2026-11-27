@@ -410,6 +410,13 @@ func (a *adminConfig) newClient() (*apiclient.Client, error) {
 	return apiclient.New(a.panel, hc, a.token), nil
 }
 
+func optString(v string) *string {
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
 func printJSON(v any) error {
 	data, err := json.Marshal(v)
 	if err != nil {
@@ -437,6 +444,8 @@ func runNodes(ctx context.Context, args []string) error {
 	addAdminFlags(fs, &admin)
 	jsonOut := fs.Bool("json", false, "print JSON")
 	ttl := fs.Int("ttl", 900, "token lifetime in seconds")
+	limit := fs.Int("limit", 50, "nodes per page")
+	after := fs.String("after", "", "cursor from a previous page")
 	if err := parseFlags(fs, rest); err != nil {
 		return err
 	}
@@ -450,7 +459,8 @@ func runNodes(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		out, err := client.ListNodes(ctx)
+		pageSize := int64(*limit)
+		out, err := client.ListNodes(ctx, &pageSize, optString(*after))
 		if err != nil {
 			return err
 		}
@@ -467,7 +477,13 @@ func runNodes(ctx context.Context, args []string) error {
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
 				n.Name, n.Status, dash(n.AgentVersion), n.FSCapability, last, n.ID)
 		}
-		return w.Flush()
+		if err := w.Flush(); err != nil {
+			return err
+		}
+		if out.NextCursor != nil {
+			fmt.Printf("next: %s\n", *out.NextCursor)
+		}
+		return nil
 
 	case "token":
 		client, err := admin.newClient()
@@ -524,6 +540,8 @@ func runServers(ctx context.Context, args []string) error {
 	var admin adminConfig
 	addAdminFlags(fs, &admin)
 	jsonOut := fs.Bool("json", false, "print JSON")
+	limit := fs.Int("limit", 50, "servers per page")
+	after := fs.String("after", "", "cursor from a previous page")
 	if err := parseFlags(fs, rest); err != nil {
 		return err
 	}
@@ -537,7 +555,8 @@ func runServers(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		out, err := client.ListServers(ctx)
+		pageSize := int64(*limit)
+		out, err := client.ListServers(ctx, &pageSize, optString(*after))
 		if err != nil {
 			return err
 		}
@@ -550,7 +569,13 @@ func runServers(ctx context.Context, args []string) error {
 			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n",
 				srv.Name, srv.DesiredState, srv.ObservedState, srv.Port, srv.ID)
 		}
-		return w.Flush()
+		if err := w.Flush(); err != nil {
+			return err
+		}
+		if out.NextCursor != nil {
+			fmt.Printf("next: %s\n", *out.NextCursor)
+		}
+		return nil
 
 	case "get":
 		if id == "" {
@@ -630,6 +655,7 @@ func runAudit(ctx context.Context, args []string) error {
 	var admin adminConfig
 	addAdminFlags(fs, &admin)
 	limit := fs.Int("limit", 50, "entries to show")
+	after := fs.String("after", "", "cursor from a previous page")
 	jsonOut := fs.Bool("json", false, "print JSON")
 	if err := parseFlags(fs, args); err != nil {
 		return err
@@ -643,7 +669,7 @@ func runAudit(ctx context.Context, args []string) error {
 		return err
 	}
 	limit64 := int64(*limit)
-	out, err := client.ListAudit(ctx, &limit64, nil)
+	out, err := client.ListAudit(ctx, &limit64, optString(*after))
 	if err != nil {
 		return err
 	}
@@ -657,7 +683,13 @@ func runAudit(ctx context.Context, args []string) error {
 		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\n",
 			e.Seq, e.CreatedAt.Local().Format("15:04:05"), e.Actor, e.Via, e.Action, e.Target)
 	}
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	if out.NextCursor != nil {
+		fmt.Printf("next: %s\n", *out.NextCursor)
+	}
+	return nil
 }
 
 func runInit(ctx context.Context, args []string) error {

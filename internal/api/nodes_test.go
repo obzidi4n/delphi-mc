@@ -87,13 +87,13 @@ func (f *fakeNodes) SetNodeStatus(_ context.Context, _, status string) error {
 	return nil
 }
 
-func (f *fakeNodes) ListNodes(context.Context) ([]store.Node, error) {
+func (f *fakeNodes) ListNodes(context.Context, int, string) ([]store.Node, string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.node.ID == "" {
-		return nil, nil
+		return nil, "", nil
 	}
-	return []store.Node{f.node}, nil
+	return []store.Node{f.node}, "", nil
 }
 
 func (f *fakeNodes) Audit(context.Context, string, string, string, string, string, any) error {

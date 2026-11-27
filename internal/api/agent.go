@@ -95,7 +95,8 @@ func (s *server) listNodes(w http.ResponseWriter, r *http.Request) {
 	if !ok || !s.fleet(w) {
 		return
 	}
-	nodes, err := s.opts.Services.Fleet.ListNodes(r.Context(), principal)
+	limit, after := pageParams(r)
+	nodes, next, err := s.opts.Services.Fleet.ListNodes(r.Context(), principal, limit, after)
 	if err != nil {
 		writeCapabilityError(w, err)
 		return
@@ -104,7 +105,7 @@ func (s *server) listNodes(w http.ResponseWriter, r *http.Request) {
 	for _, n := range nodes {
 		items = append(items, toNodeDTO(n))
 	}
-	writeJSON(w, http.StatusOK, apitypes.NodeListDTO{Items: items})
+	writeJSON(w, http.StatusOK, apitypes.NodeListDTO{Items: items, NextCursor: cursorPtr(next)})
 }
 
 func (s *server) revokeNode(w http.ResponseWriter, r *http.Request) {

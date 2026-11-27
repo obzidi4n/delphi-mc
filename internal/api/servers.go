@@ -85,7 +85,8 @@ func (s *server) listServers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	servers, err := service.List(r.Context(), principal)
+	limit, after := pageParams(r)
+	servers, next, err := service.List(r.Context(), principal, limit, after)
 	if err != nil {
 		writeCapabilityError(w, err)
 		return
@@ -94,7 +95,7 @@ func (s *server) listServers(w http.ResponseWriter, r *http.Request) {
 	for _, srv := range servers {
 		items = append(items, toServerDTO(srv))
 	}
-	writeJSON(w, http.StatusOK, apitypes.ServerListDTO{Items: items})
+	writeJSON(w, http.StatusOK, apitypes.ServerListDTO{Items: items, NextCursor: cursorPtr(next)})
 }
 
 func (s *server) getServer(w http.ResponseWriter, r *http.Request) {
@@ -198,6 +199,8 @@ func writeCapabilityError(w http.ResponseWriter, err error) {
 		writeProblem(w, http.StatusForbidden, "forbidden", err.Error())
 	case errors.Is(err, capability.ErrInvalid):
 		writeProblem(w, http.StatusBadRequest, "invalid_request", err.Error())
+	case errors.Is(err, store.ErrInvalidCursor):
+		writeProblem(w, http.StatusBadRequest, "invalid_cursor", "the cursor is not valid")
 	case errors.Is(err, capability.ErrLastOwner):
 		writeProblem(w, http.StatusConflict, "last_owner", err.Error())
 	case errors.Is(err, store.ErrNoServer):

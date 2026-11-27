@@ -17,6 +17,16 @@ paths:
     get:
       operationId: listNodes
       summary: List fleet nodes
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, format: int64 }
+        - name: after
+          in: query
+          required: false
+          description: Opaque cursor from next_cursor.
+          schema: { type: string }
       responses:
         "200":
           description: Nodes
@@ -57,6 +67,16 @@ paths:
     get:
       operationId: listServers
       summary: List live servers
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, format: int64 }
+        - name: after
+          in: query
+          required: false
+          description: Opaque cursor from next_cursor.
+          schema: { type: string }
       responses:
         "200":
           description: Servers
@@ -172,6 +192,16 @@ paths:
     get:
       operationId: listGroups
       summary: List server groups
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, format: int64 }
+        - name: after
+          in: query
+          required: false
+          description: Opaque cursor from next_cursor.
+          schema: { type: string }
       responses:
         "200":
           description: Groups
@@ -204,6 +234,15 @@ paths:
         - name: id
           in: path
           required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, format: int64 }
+        - name: after
+          in: query
+          required: false
+          description: Opaque cursor from next_cursor.
           schema: { type: string }
       responses:
         "200":
@@ -256,11 +295,11 @@ paths:
           in: query
           required: false
           schema: { type: integer, format: int64 }
-        - name: before
+        - name: after
           in: query
           required: false
-          description: Return entries with seq < before (cursor).
-          schema: { type: integer, format: int64 }
+          description: Opaque cursor from next_cursor (newest-first).
+          schema: { type: string }
       responses:
         "200":
           description: Entries
@@ -290,6 +329,16 @@ paths:
     get:
       operationId: listUsers
       summary: List accounts and their org roles
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, format: int64 }
+        - name: after
+          in: query
+          required: false
+          description: Opaque cursor from next_cursor.
+          schema: { type: string }
       responses:
         "200":
           description: Users
@@ -429,11 +478,12 @@ components:
         desired_state: { type: string }
     ServerListDTO:
       type: object
-      required: [items]
+      required: [items, next_cursor]
       properties:
         items:
           type: array
           items: { $ref: "#/components/schemas/ServerDTO" }
+        next_cursor: { type: string, nullable: true }
     RenameRequest:
       type: object
       required: [name]
@@ -461,11 +511,12 @@ components:
         description: { type: string }
     GroupListDTO:
       type: object
-      required: [items]
+      required: [items, next_cursor]
       properties:
         items:
           type: array
           items: { $ref: "#/components/schemas/GroupDTO" }
+        next_cursor: { type: string, nullable: true }
     MemberRequest:
       type: object
       required: [server_id]
@@ -473,11 +524,12 @@ components:
         server_id: { type: string }
     MemberListDTO:
       type: object
-      required: [items]
+      required: [items, next_cursor]
       properties:
         items:
           type: array
           items: { type: string }
+        next_cursor: { type: string, nullable: true }
     AuditEntryDTO:
       type: object
       required: [seq, org_id, actor, via, action, target, diff, created_at]
@@ -492,11 +544,12 @@ components:
         created_at: { type: string, format: date-time }
     AuditListDTO:
       type: object
-      required: [items]
+      required: [items, next_cursor]
       properties:
         items:
           type: array
           items: { $ref: "#/components/schemas/AuditEntryDTO" }
+        next_cursor: { type: string, nullable: true }
     APIKeyRequest:
       type: object
       required: [name]
@@ -523,11 +576,12 @@ components:
         created_at: { type: string, format: date-time }
     UserListDTO:
       type: object
-      required: [items]
+      required: [items, next_cursor]
       properties:
         items:
           type: array
           items: { $ref: "#/components/schemas/UserDTO" }
+        next_cursor: { type: string, nullable: true }
     UserCreateRequest:
       type: object
       required: [email]
@@ -562,11 +616,12 @@ components:
         revoked_at: { type: string, format: date-time, nullable: true }
     NodeListDTO:
       type: object
-      required: [items]
+      required: [items, next_cursor]
       properties:
         items:
           type: array
           items: { $ref: "#/components/schemas/NodeDTO" }
+        next_cursor: { type: string, nullable: true }
     EnrollmentTokenRequest:
       type: object
       properties:

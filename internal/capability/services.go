@@ -20,7 +20,7 @@ type Services struct {
 
 // FleetStore is node and enrollment persistence.
 type FleetStore interface {
-	ListNodes(ctx context.Context) ([]store.Node, error)
+	ListNodes(ctx context.Context, limit int, after string) ([]store.Node, string, error)
 	CreateEnrollmentToken(ctx context.Context, orgID string, ttl time.Duration) (string, time.Time, error)
 	RevokeNode(ctx context.Context, id string) error
 	Audit(ctx context.Context, orgID, actor, via, action, target string, diff any) error
@@ -29,16 +29,16 @@ type FleetStore interface {
 // GroupsStore is group persistence.
 type GroupsStore interface {
 	CreateGroup(ctx context.Context, orgID, name, description string) (store.Group, error)
-	ListGroups(ctx context.Context, orgID string) ([]store.Group, error)
+	ListGroups(ctx context.Context, orgID string, limit int, after string) ([]store.Group, string, error)
 	AddGroupMember(ctx context.Context, orgID, groupID, serverID string) error
 	RemoveGroupMember(ctx context.Context, orgID, groupID, serverID string) error
-	ListGroupMembers(ctx context.Context, orgID, groupID string) ([]string, error)
+	ListGroupMembers(ctx context.Context, orgID, groupID string, limit int, after string) ([]string, string, error)
 	Audit(ctx context.Context, orgID, actor, via, action, target string, diff any) error
 }
 
 // AuditStore is the audit reader.
 type AuditStore interface {
-	ListAudit(ctx context.Context, orgID string, limit, beforeSeq int64) ([]store.AuditEntry, error)
+	ListAudit(ctx context.Context, orgID string, limit int, after string) ([]store.AuditEntry, string, error)
 }
 
 // KeyStore mints API keys with the caller's scopes.
@@ -59,11 +59,11 @@ type Audit struct{ Store AuditStore }
 type Keys struct{ Store KeyStore }
 
 // ListNodes returns the fleet's nodes.
-func (f *Fleet) ListNodes(ctx context.Context, p Principal) ([]store.Node, error) {
+func (f *Fleet) ListNodes(ctx context.Context, p Principal, limit int, after string) ([]store.Node, string, error) {
 	if !p.Allows(orgScope(p, "read")) {
-		return nil, forbidden(orgScope(p, "read"))
+		return nil, "", forbidden(orgScope(p, "read"))
 	}
-	return f.Store.ListNodes(ctx)
+	return f.Store.ListNodes(ctx, limit, after)
 }
 
 // CreateToken issues a single-use enrollment token.
@@ -116,11 +116,11 @@ func (g *Groups) Create(ctx context.Context, p Principal, name, description stri
 }
 
 // List returns groups.
-func (g *Groups) List(ctx context.Context, p Principal) ([]store.Group, error) {
+func (g *Groups) List(ctx context.Context, p Principal, limit int, after string) ([]store.Group, string, error) {
 	if !p.Allows(orgScope(p, "read")) {
-		return nil, forbidden(orgScope(p, "read"))
+		return nil, "", forbidden(orgScope(p, "read"))
 	}
-	return g.Store.ListGroups(ctx, p.OrgID)
+	return g.Store.ListGroups(ctx, p.OrgID, limit, after)
 }
 
 // AddMember attaches a server to a group.
@@ -146,19 +146,19 @@ func (g *Groups) RemoveMember(ctx context.Context, p Principal, groupID, serverI
 }
 
 // Members lists a group's server ids.
-func (g *Groups) Members(ctx context.Context, p Principal, groupID string) ([]string, error) {
+func (g *Groups) Members(ctx context.Context, p Principal, groupID string, limit int, after string) ([]string, string, error) {
 	if !p.Allows(orgScope(p, "read")) {
-		return nil, forbidden(orgScope(p, "read"))
+		return nil, "", forbidden(orgScope(p, "read"))
 	}
-	return g.Store.ListGroupMembers(ctx, p.OrgID, groupID)
+	return g.Store.ListGroupMembers(ctx, p.OrgID, groupID, limit, after)
 }
 
 // List returns audit entries, newest first.
-func (a *Audit) List(ctx context.Context, p Principal, limit, beforeSeq int64) ([]store.AuditEntry, error) {
+func (a *Audit) List(ctx context.Context, p Principal, limit int, after string) ([]store.AuditEntry, string, error) {
 	if !p.Allows(orgScope(p, "admin")) {
-		return nil, forbidden(orgScope(p, "admin"))
+		return nil, "", forbidden(orgScope(p, "admin"))
 	}
-	return a.Store.ListAudit(ctx, p.OrgID, limit, beforeSeq)
+	return a.Store.ListAudit(ctx, p.OrgID, limit, after)
 }
 
 // Create mints an API key with the caller's scopes; it can never exceed them.

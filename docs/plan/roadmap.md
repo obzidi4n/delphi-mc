@@ -23,8 +23,8 @@ criteria can be demonstrated on a clean host.
 - **M3a** — spec-first OpenAPI with generated DTOs and Go client, users/API keys/sessions,
   role→scope profiles (owner/admin/developer/viewer, server and group bindings), user
   management (API + Team page), audit (write + read), server CRUD with rename and soft
-  delete, groups (API + page), `server_summary`, and the first CLI commands (`nodes`,
-  `servers`, `audit`).
+  delete, groups (API + page), `server_summary`, cursor pagination on every list endpoint,
+  and the first CLI commands (`nodes`, `servers`, `audit`).
 
 ## Alpha: the vertical slice (M0–M5)
 

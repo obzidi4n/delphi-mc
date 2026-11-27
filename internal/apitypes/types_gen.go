@@ -34,7 +34,8 @@ type AuditEntryDTO struct {
 
 // AuditListDTO is generated from the spec.
 type AuditListDTO struct {
-	Items []AuditEntryDTO `json:"items"`
+	Items      []AuditEntryDTO `json:"items"`
+	NextCursor *string         `json:"next_cursor"`
 }
 
 // CreatedUserDTO is generated from the spec.
@@ -85,12 +86,14 @@ type GroupDTO struct {
 
 // GroupListDTO is generated from the spec.
 type GroupListDTO struct {
-	Items []GroupDTO `json:"items"`
+	Items      []GroupDTO `json:"items"`
+	NextCursor *string    `json:"next_cursor"`
 }
 
 // MemberListDTO is generated from the spec.
 type MemberListDTO struct {
-	Items []string `json:"items"`
+	Items      []string `json:"items"`
+	NextCursor *string  `json:"next_cursor"`
 }
 
 // MemberRequest is generated from the spec.
@@ -113,7 +116,8 @@ type NodeDTO struct {
 
 // NodeListDTO is generated from the spec.
 type NodeListDTO struct {
-	Items []NodeDTO `json:"items"`
+	Items      []NodeDTO `json:"items"`
+	NextCursor *string   `json:"next_cursor"`
 }
 
 // PowerRequest is generated from the spec.
@@ -179,7 +183,8 @@ type ServerDTO struct {
 
 // ServerListDTO is generated from the spec.
 type ServerListDTO struct {
-	Items []ServerDTO `json:"items"`
+	Items      []ServerDTO `json:"items"`
+	NextCursor *string     `json:"next_cursor"`
 }
 
 // UserCreateRequest is generated from the spec.
@@ -199,5 +204,6 @@ type UserDTO struct {
 
 // UserListDTO is generated from the spec.
 type UserListDTO struct {
-	Items []UserDTO `json:"items"`
+	Items      []UserDTO `json:"items"`
+	NextCursor *string   `json:"next_cursor"`
 }

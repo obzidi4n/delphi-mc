@@ -20,8 +20,8 @@ type fakeUserStore struct {
 	audits []string
 }
 
-func (f *fakeUserStore) ListUsers(context.Context, string) ([]store.UserWithRole, error) {
-	return f.users, nil
+func (f *fakeUserStore) ListUsers(context.Context, string, int, string) ([]store.UserWithRole, string, error) {
+	return f.users, "", nil
 }
 
 func (f *fakeUserStore) UserByID(_ context.Context, _, id string) (store.UserWithRole, error) {
@@ -69,8 +69,8 @@ type fakeGroupStore struct {
 	members map[string][]string
 }
 
-func (f *fakeGroupStore) ListGroups(context.Context, string) ([]store.Group, error) {
-	return f.groups, nil
+func (f *fakeGroupStore) ListGroups(context.Context, string, int, string) ([]store.Group, string, error) {
+	return f.groups, "", nil
 }
 
 func (f *fakeGroupStore) CreateGroup(_ context.Context, orgID, name, description string) (store.Group, error) {
@@ -95,8 +95,8 @@ func (f *fakeGroupStore) RemoveGroupMember(_ context.Context, _, groupID, server
 	return nil
 }
 
-func (f *fakeGroupStore) ListGroupMembers(_ context.Context, _, groupID string) ([]string, error) {
-	return f.members[groupID], nil
+func (f *fakeGroupStore) ListGroupMembers(_ context.Context, _, groupID string, _ int, _ string) ([]string, string, error) {
+	return f.members[groupID], "", nil
 }
 
 func (f *fakeGroupStore) Audit(context.Context, string, string, string, string, string, any) error {

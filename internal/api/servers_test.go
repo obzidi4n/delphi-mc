@@ -17,8 +17,11 @@ import (
 )
 
 type fakeServerStore struct {
-	mu      sync.Mutex
-	servers []store.Server
+	mu        sync.Mutex
+	servers   []store.Server
+	next      string
+	lastLimit int
+	lastAfter string
 }
 
 func (f *fakeServerStore) CreateServer(_ context.Context, s store.Server) (store.Server, error) {
@@ -41,10 +44,11 @@ func (f *fakeServerStore) GetServer(_ context.Context, id string) (store.Server,
 	return store.Server{}, store.ErrNoServer
 }
 
-func (f *fakeServerStore) ListServers(context.Context) ([]store.Server, error) {
+func (f *fakeServerStore) ListServers(_ context.Context, limit int, after string) ([]store.Server, string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.servers, nil
+	f.lastLimit, f.lastAfter = limit, after
+	return f.servers, f.next, nil
 }
 
 func (f *fakeServerStore) ListServersByNode(_ context.Context, nodeID string) ([]store.Server, error) {
@@ -231,5 +235,38 @@ func TestListServers(t *testing.T) {
 	}
 	if len(out.Items) != 1 || out.Items[0]["name"] != "survival-1" {
 		t.Fatalf("items = %v", out.Items)
+	}
+}
+
+func TestListServersForwardsPagination(t *testing.T) {
+	fs := &fakeServerStore{
+		servers: []store.Server{{ID: "s_1", Name: "web", OrgID: "default"}},
+		next:    "cursor-2",
+	}
+	h, err := api.New(api.Options{
+		AdminToken: "secret",
+		Services:   &capability.Services{Servers: &capability.Servers{Store: fs}},
+		Now:        time.Now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/servers?limit=7&after=cursor-1", nil)
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	var out struct {
+		Items      []map[string]any `json:"items"`
+		NextCursor *string          `json:"next_cursor"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Items) != 1 || out.NextCursor == nil || *out.NextCursor != "cursor-2" {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+	if fs.lastLimit != 7 || fs.lastAfter != "cursor-1" {
+		t.Fatalf("store got limit=%d after=%q", fs.lastLimit, fs.lastAfter)
 	}
 }
