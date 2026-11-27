@@ -87,9 +87,7 @@ psql -d delphi -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO del
 ```
 
 Without this, `init` fails with `permission denied for schema public` or
-`permission denied for table schema_migrations`. If the database already contained a DelphiMC
-owner, `init` will not print a new password or API token; use the existing credentials, or use
-a fresh database.
+`permission denied for table schema_migrations`.
 
 ### 3. Initialize DelphiMC
 
@@ -109,6 +107,30 @@ This does four things:
 **Save both printed values now.** They are shown only on the first run. The password is for
 signing in to the web panel; the API token is for the command-line tools. The owner email is
 `owner@delphi.local`.
+
+If the database already contained a DelphiMC owner, `init` will not print a new password or API
+token. In that case you can either use an existing API token, or set a panel-wide admin token:
+
+```sh
+TOKEN=$(openssl rand -hex 32)
+# Put this in panel.toml, then restart the panel:
+# admin_token = "TOKEN"
+# Use the same value for CLI commands:
+export DELPHI_API_TOKEN="$TOKEN"
+```
+
+The panel-wide token is enough for CLI and API server management. To sign in to the web pages
+you still need a user account; after starting the panel you can create one with the token:
+
+```sh
+curl -k -X POST https://127.0.0.1:8080/api/v1/users \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","role":"admin"}'
+```
+
+The response contains the new user's one-time password.
+
 
 The default panel address is `https://127.0.0.1:8080/`. You can change it later in
 `panel.toml` (`listen`, `data_dir`, `base_path`, and optional `[ai]` settings).
