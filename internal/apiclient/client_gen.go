@@ -990,6 +990,20 @@ func (c *Client) GetTemplate(ctx context.Context, id string) (*apitypes.Template
 	return &out, nil
 }
 
+// PUT /api/v1/templates/{id}
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) UpdateTemplate(ctx context.Context, id string, body apitypes.TemplateInputDTO) (*apitypes.TemplateDTO, error) {
+	reqPath := "/api" + "/v1" + "/templates" + "/" + url.PathEscape(fmt.Sprint(id))
+	var q url.Values
+
+	var out apitypes.TemplateDTO
+	if err := c.do(ctx, "PUT", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GET /api/v1/users
 //
 // Requires a bearer token configured on the Client.

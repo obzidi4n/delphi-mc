@@ -64,7 +64,7 @@ func toTemplateDTO(tpl template.Template, row store.Template) apitypes.TemplateD
 		Base: tpl.Base, MCVersion: tpl.MCVersion, Java: tpl.Java,
 		Defaults: defaults, Files: files, Plugins: plugins, Variables: variables,
 		Revision: row.Revision, Builtin: row.Builtin,
-		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Body: string(row.Body), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
 
@@ -105,6 +105,32 @@ func (s *server) getTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tpl, row, err := service.Get(r.Context(), principal, r.PathValue("id"))
+	if err != nil {
+		writeCapabilityError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toTemplateDTO(tpl, row))
+}
+
+func (s *server) updateTemplate(w http.ResponseWriter, r *http.Request) {
+	principal, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	service := s.templatesService(w)
+	if service == nil {
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid_body", "the template body could not be read")
+		return
+	}
+	if len(body) == 0 {
+		writeProblem(w, http.StatusBadRequest, "invalid_body", "the template body is empty")
+		return
+	}
+	tpl, row, err := service.Update(r.Context(), principal, r.PathValue("id"), body)
 	if err != nil {
 		writeCapabilityError(w, err)
 		return

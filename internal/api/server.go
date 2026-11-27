@@ -116,6 +116,7 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("GET "+s.base+"servers/{id}/files/download", s.downloadFile)
 	mux.HandleFunc("GET "+s.base+"audit", s.renderAudit)
 	mux.HandleFunc("GET "+s.base+"groups", s.renderGroups)
+	mux.HandleFunc("GET "+s.base+"templates", s.renderTemplatesPage)
 	mux.HandleFunc("POST "+s.base+"groups", s.createGroupForm)
 	mux.HandleFunc("POST "+s.base+"groups/{id}/members", s.addGroupMemberForm)
 	mux.HandleFunc("POST "+s.base+"groups/{id}/members/{sid}/remove", s.removeGroupMemberForm)
@@ -204,6 +205,7 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("GET "+s.base+"api/v1/templates", s.listTemplates)
 	mux.HandleFunc("POST "+s.base+"api/v1/templates", s.importTemplate)
 	mux.HandleFunc("GET "+s.base+"api/v1/templates/{id}", s.getTemplate)
+	mux.HandleFunc("PUT "+s.base+"api/v1/templates/{id}", s.updateTemplate)
 
 	return mux, nil
 }

@@ -17,6 +17,7 @@ type TemplateStore interface {
 	ListTemplates(ctx context.Context, orgID string, limit int, after string) ([]store.Template, string, error)
 	TemplateByID(ctx context.Context, orgID, id string) (store.Template, error)
 	ImportTemplate(ctx context.Context, orgID, name string, body []byte) (store.Template, error)
+	UpdateTemplate(ctx context.Context, orgID, id, name string, body []byte) (store.Template, error)
 	Audit(ctx context.Context, orgID, actor, via, action, target string, diff any) error
 }
 
@@ -92,6 +93,38 @@ func (t *Templates) Import(ctx context.Context, p Principal, body []byte) (templ
 		return template.Template{}, store.Template{}, err
 	}
 	return tpl, row, nil
+}
+
+// Update validates and writes an org-owned template, preserving its id and
+// incrementing its revision. Built-ins are immutable.
+func (t *Templates) Update(ctx context.Context, p Principal, id string, body []byte) (template.Template, store.Template, error) {
+	if !p.Allows(orgScope(p, "admin")) {
+		return template.Template{}, store.Template{}, forbidden(orgScope(p, "admin"))
+	}
+	row, err := t.Store.TemplateByID(ctx, p.OrgID, id)
+	if err != nil {
+		return template.Template{}, store.Template{}, err
+	}
+	if row.Builtin {
+		return template.Template{}, store.Template{}, invalid("built-in templates are read-only; duplicate it to edit")
+	}
+	tpl, err := template.Parse(body)
+	if err != nil {
+		return template.Template{}, store.Template{}, invalid("%v", err)
+	}
+	canonical, err := json.Marshal(tpl)
+	if err != nil {
+		return template.Template{}, store.Template{}, err
+	}
+	updated, err := t.Store.UpdateTemplate(ctx, p.OrgID, id, tpl.Name, canonical)
+	if err != nil {
+		return template.Template{}, store.Template{}, err
+	}
+	if err := t.Store.Audit(ctx, p.OrgID, actor(p), p.Via, "template.update", id,
+		map[string]string{"name": tpl.Name, "base": tpl.Base}); err != nil {
+		return template.Template{}, store.Template{}, err
+	}
+	return tpl, updated, nil
 }
 
 // InstantiateRequest is a create-from-template request.

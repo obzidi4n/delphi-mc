@@ -40,6 +40,17 @@ func (f *fakeTemplateStore) ImportTemplate(_ context.Context, orgID, name string
 	return row, nil
 }
 
+func (f *fakeTemplateStore) UpdateTemplate(_ context.Context, orgID, id, name string, body []byte) (store.Template, error) {
+	row, ok := f.rows[id]
+	if !ok || row.Builtin {
+		return store.Template{}, store.ErrNoTemplate
+	}
+	row.OrgID, row.Name, row.Body = orgID, name, body
+	row.Revision++
+	f.rows[id] = row
+	return row, nil
+}
+
 func (f *fakeTemplateStore) Audit(_ context.Context, _, _, _, action, target string, _ any) error {
 	f.audits = append(f.audits, action+" "+target)
 	return nil

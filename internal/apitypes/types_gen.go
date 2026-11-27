@@ -624,6 +624,7 @@ type ServerPlugin struct {
 // TemplateDTO is generated from the spec.
 type TemplateDTO struct {
 	Base          string                         `json:"base"`
+	Body          string                         `json:"body"`
 	Builtin       bool                           `json:"builtin"`
 	CreatedAt     time.Time                      `json:"created_at"`
 	Defaults      TemplateDefaultsDTO            `json:"defaults"`

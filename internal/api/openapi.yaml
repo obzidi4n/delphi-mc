@@ -1181,6 +1181,31 @@ paths:
               schema: { $ref: "#/components/schemas/TemplateDTO" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
+    put:
+      operationId: updateTemplate
+      summary: Update an org-owned template
+      description: Built-in templates are immutable; duplicate one instead.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TemplateInputDTO" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TemplateDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
   /agent/enroll:
     post:
       operationId: enrollNode
@@ -1944,7 +1969,7 @@ components:
       type: object
       required:
         [schema_version, id, name, description, base, mc_version, java, defaults,
-         files, plugins, variables, revision, builtin, created_at, updated_at]
+         files, plugins, variables, revision, builtin, body, created_at, updated_at]
       properties:
         schema_version: { type: integer }
         id: { type: string }
@@ -1965,6 +1990,7 @@ components:
           additionalProperties: { $ref: "#/components/schemas/TemplateVariableDTO" }
         revision: { type: integer }
         builtin: { type: boolean }
+        body: { type: string }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     NodeDTO:

@@ -104,6 +104,23 @@ func (d *DB) ImportTemplate(ctx context.Context, orgID, name string, body []byte
 	return t, nil
 }
 
+// UpdateTemplate updates an org-owned template and bumps its revision.
+func (d *DB) UpdateTemplate(ctx context.Context, orgID, id, name string, body []byte) (Template, error) {
+	t, err := scanTemplate(d.pool.QueryRow(ctx, `
+		update templates
+		set name = $3, body = $4, revision = revision + 1, updated_at = now()
+		where id = $1 and org_id = $2 and not builtin
+		returning `+templateColumns, id, orgID, name, body))
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return Template{}, ErrTemplateInUse
+		}
+		return Template{}, fmt.Errorf("update template: %w", err)
+	}
+	return t, nil
+}
+
 // UpsertBuiltinTemplate seeds an embedded built-in, bumping its revision when
 // the embedded body changed. Org templates are never touched.
 func (d *DB) UpsertBuiltinTemplate(ctx context.Context, id, name string, body []byte) error {

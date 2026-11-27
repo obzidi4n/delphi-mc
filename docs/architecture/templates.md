@@ -67,6 +67,13 @@ Creating a server resolves the template into concrete state:
 
 For Velocity, the agent skips `eula.txt`/`server.properties` and launches without `--nogui`.
 
+## UI editing
+
+The Templates page lists built-ins and org-owned templates and opens the canonical JSON body
+in an editor. Built-ins are read-only; **Save as copy** creates an org-owned template after
+validation. Saving an org-owned template increments its revision and is audited as
+`template.update`. Imports remain the path for external YAML/JSON files.
+
 ## Drift is never automatic
 
 - Re-applying a newer template is an **explicit, diffed action**, never automatic. Template

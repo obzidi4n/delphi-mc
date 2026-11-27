@@ -41,6 +41,17 @@ func (f *fakeTemplateStore) ImportTemplate(_ context.Context, orgID, name string
 	return row, nil
 }
 
+func (f *fakeTemplateStore) UpdateTemplate(_ context.Context, orgID, id, name string, body []byte) (store.Template, error) {
+	row, ok := f.rows[id]
+	if !ok || row.Builtin {
+		return store.Template{}, store.ErrNoTemplate
+	}
+	row.OrgID, row.Name, row.Body = orgID, name, body
+	row.Revision++
+	f.rows[id] = row
+	return row, nil
+}
+
 func (f *fakeTemplateStore) Audit(context.Context, string, string, string, string, string, any) error {
 	return nil
 }
@@ -149,6 +160,29 @@ func TestCreateServerFromTemplate(t *testing.T) {
 	}
 	if !strings.Contains(servers.servers[0].Files["server.properties"], "motd=SMP One") {
 		t.Fatalf("files not rendered: %v", servers.servers[0].Files)
+	}
+}
+
+func TestUpdateTemplateAndBuiltinReadOnly(t *testing.T) {
+	h, _, templates := newTemplateHandler(t)
+	body := `{"schema_version":1,"name":"Custom","base":"paper","mc_version":"1.21.4","java":21,"defaults":{"memory_mb":1024}}`
+	templates.rows["t_custom"] = store.Template{ID: "t_custom", OrgID: "default", Name: "Custom", Revision: 1, Body: []byte(body)}
+
+	updated := `{"schema_version":1,"name":"Custom Two","base":"paper","mc_version":"1.21.4","java":21,"defaults":{"memory_mb":2048}}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/templates/t_custom", strings.NewReader(updated))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"revision":2`) {
+		t.Fatalf("update: %d %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/templates/builtin-survival", strings.NewReader(updated))
+	req.Header.Set("Authorization", "Bearer secret")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "read-only") {
+		t.Fatalf("builtin update: %d %s", rec.Code, rec.Body.String())
 	}
 }
 
