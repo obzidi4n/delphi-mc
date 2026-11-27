@@ -208,6 +208,64 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   function isNBTFile(path) {
     return /\.(dat|dat_old|nbt)$/i.test(path || '');
   }
+  function isUIDFile(path) {
+    return String(path || '').split('/').pop() === 'uid.dat';
+  }
+  function uuidFromBytes(buffer) {
+    if (!buffer || buffer.byteLength !== 16) { return ''; }
+    var bytes = new Uint8Array(buffer);
+    var hex = '';
+    for (var i = 0; i < bytes.length; i++) { hex += bytes[i].toString(16).padStart(2, '0'); }
+    return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' +
+      hex.slice(16, 20) + '-' + hex.slice(20);
+  }
+  async function openUID(path) {
+    pathInput.value = path;
+    setStatus('loading ' + path);
+    var seq = ++openSeq;
+    currentPath = path;
+    currentSHA = '';
+    latestRevision = 0;
+    dirty = false;
+    saveBtn.disabled = true;
+    diffBtn.disabled = true;
+    showProperties('');
+    nbtDownload.href = base + 'servers/' + encodeURIComponent(id) + '/files/download?path=' + enc(path);
+    var res = await fetch(nbtDownload.href, { credentials: 'same-origin' });
+    if (seq !== openSeq) { return; }
+    if (!res.ok) {
+      showNBTError('Could not read ' + path + ': HTTP ' + res.status);
+      setStatus('read failed: ' + path, false);
+      return;
+    }
+    var buffer = await res.arrayBuffer();
+    if (seq !== openSeq) { return; }
+    var uuid = uuidFromBytes(buffer);
+    nbtView.textContent = '';
+    var meta = document.createElement('div');
+    meta.className = 'nbtmeta';
+    meta.textContent = 'World UUID · ' + buffer.byteLength + ' bytes · read-only';
+    nbtView.appendChild(meta);
+    var value = document.createElement('div');
+    value.className = 'nbtval';
+    value.textContent = uuid || 'Binary data (not a 16-byte UUID)';
+    nbtView.appendChild(value);
+    if (!uuid) {
+      var bytes = new Uint8Array(buffer);
+      var hex = '';
+      for (var i = 0; i < Math.min(bytes.length, 256); i++) { hex += bytes[i].toString(16).padStart(2, '0') + ' '; }
+      var hexEl = document.createElement('div');
+      hexEl.className = 'nbtmeta';
+      hexEl.textContent = hex + (bytes.length > 256 ? '…' : '');
+      nbtView.appendChild(hexEl);
+    }
+    showNBT();
+    lintbar.textContent = 'binary read-only · uid.dat';
+    lintbar.className = 'lintbar';
+    lintbar.title = '';
+    revisionsEl.textContent = 'Binary files are read-only.';
+    setStatus('loaded ' + path + ' (' + buffer.byteLength + ' B)');
+  }
   function showNBT() {
     editorWrap.style.display = 'none';
     diffEl.style.display = 'none';
@@ -265,6 +323,12 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     nbtView.appendChild(p);
     showNBT();
   }
+  function problemDetail(text) {
+    try {
+      var body = JSON.parse(text);
+      return body.detail || body.title || text;
+    } catch (e) { return text; }
+  }
   async function openNBT(path) {
     pathInput.value = path;
     setStatus('loading NBT ' + path);
@@ -280,11 +344,11 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     var res = await fetch(api + '/nbt?path=' + enc(path), { credentials: 'same-origin' });
     if (seq !== openSeq) { return; }
     if (!res.ok) {
-      var msg = await res.text();
+      var msg = problemDetail(await res.text());
       lintbar.textContent = 'NBT error';
       lintbar.className = 'lintbar err';
       lintbar.title = msg;
-      showNBTError(msg || ('could not read NBT: HTTP ' + res.status));
+      showNBTError('Not an NBT file: ' + (msg || ('HTTP ' + res.status)));
       setStatus('NBT error: ' + path, false);
       revisionsEl.textContent = 'NBT files are read-only.';
       return;
@@ -448,6 +512,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     });
   }
   async function openFile(path) {
+    if (isUIDFile(path)) { await openUID(path); return; }
     if (isNBTFile(path)) { await openNBT(path); return; }
     pathInput.value = path;
     setStatus('loading ' + path);
