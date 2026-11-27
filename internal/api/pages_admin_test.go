@@ -125,6 +125,7 @@ func newAdminHandler(t *testing.T, scopes []string) (http.Handler, *fakeIdentity
 			Users:   &capability.Users{Store: users},
 			Groups:  &capability.Groups{Store: groups},
 			Servers: &capability.Servers{Store: servers},
+			Fleet:   &capability.Fleet{Store: &fakeNodes{}},
 		},
 		Now: time.Now,
 	})
@@ -193,6 +194,20 @@ func TestCreateUserShowsPasswordOnce(t *testing.T) {
 	}
 	if !auth.VerifyPassword(created.PasswordHash, body[start+6:end]) {
 		t.Fatal("displayed password does not match the stored hash")
+	}
+}
+
+func TestHomePageGroupsServers(t *testing.T) {
+	h, _, _, _ := newAdminHandler(t, []string{"*"})
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(loginCookie(t, h))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	body := rec.Body.String()
+	for _, want := range []string{"Servers by group", "smp", "survival-demo", "Every server belongs to a group."} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("home page missing %q:\n%s", want, body)
+		}
 	}
 }
 

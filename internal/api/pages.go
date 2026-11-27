@@ -18,13 +18,14 @@ type pageData struct {
 	Error    string
 	Notice   string
 
-	Servers  []store.Server
-	Nodes    []store.Node
-	Audit    []store.AuditEntry
-	Degraded string
-	Users    []store.UserWithRole
-	Groups   []groupView
-	Roles    []string
+	Servers   []store.Server
+	Ungrouped []store.Server
+	Nodes     []store.Node
+	Audit     []store.AuditEntry
+	Degraded  string
+	Users     []store.UserWithRole
+	Groups    []groupView
+	Roles     []string
 
 	CreatedEmail    string
 	CreatedPassword string
@@ -156,10 +157,27 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
     {{range .Audit}}<tr><td class="muted">{{.Seq}}</td><td>{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td><td>{{.Actor}}</td><td>{{.Via}}</td><td>{{.Action}}</td><td class="muted">{{.Target}}</td></tr>{{end}}</table>
     {{else}}<p class="muted">No audit entries.</p>{{end}}
   {{else}}
-    <h2>Servers</h2>
-    {{if .Servers}}<table><tr><th>Name</th><th>Desired</th><th>Observed</th><th>Port</th><th>Node</th><th>ID</th></tr>
-    {{range .Servers}}<tr><td><a href="{{$base}}servers/{{.ID}}">{{.Name}}</a></td><td>{{.DesiredState}}</td><td>{{.ObservedState}}</td><td>{{.Port}}</td><td>{{.NodeID}}</td><td class="muted">{{.ID}}</td></tr>{{end}}</table>
-    {{else}}<p class="muted">No servers yet. Create one with the API or CLI.</p>{{end}}
+    {{if .Groups}}
+      <h2>Servers by group</h2>
+      {{range .Groups}}{{$g := .}}
+        <section>
+          <h3>{{.Group.Name}} <span class="muted">({{len .Members}})</span></h3>
+          {{if .Group.Description}}<p class="muted">{{.Group.Description}}</p>{{end}}
+          {{if .Members}}<table><tr><th>Name</th><th>Desired</th><th>Observed</th><th>Port</th><th>Node</th><th>ID</th></tr>
+          {{range .Members}}<tr><td><a href="{{$base}}servers/{{.ID}}">{{.Name}}</a></td><td>{{.DesiredState}}</td><td>{{.ObservedState}}</td><td>{{.Port}}</td><td>{{.NodeID}}</td><td class="muted">{{.ID}}</td></tr>{{end}}</table>
+          {{else}}<p class="muted">No servers in this group.</p>{{end}}
+        </section>
+      {{end}}
+      <h2>Ungrouped</h2>
+      {{if .Ungrouped}}<table><tr><th>Name</th><th>Desired</th><th>Observed</th><th>Port</th><th>Node</th><th>ID</th></tr>
+      {{range .Ungrouped}}<tr><td><a href="{{$base}}servers/{{.ID}}">{{.Name}}</a></td><td>{{.DesiredState}}</td><td>{{.ObservedState}}</td><td>{{.Port}}</td><td>{{.NodeID}}</td><td class="muted">{{.ID}}</td></tr>{{end}}</table>
+      {{else}}<p class="muted">Every server belongs to a group.</p>{{end}}
+    {{else}}
+      <h2>Servers</h2>
+      {{if .Servers}}<table><tr><th>Name</th><th>Desired</th><th>Observed</th><th>Port</th><th>Node</th><th>ID</th></tr>
+      {{range .Servers}}<tr><td><a href="{{$base}}servers/{{.ID}}">{{.Name}}</a></td><td>{{.DesiredState}}</td><td>{{.ObservedState}}</td><td>{{.Port}}</td><td>{{.NodeID}}</td><td class="muted">{{.ID}}</td></tr>{{end}}</table>
+      {{else}}<p class="muted">No servers yet. Create one with the API or CLI.</p>{{end}}
+    {{end}}
     <h2>Nodes</h2>
     {{if .Nodes}}<table><tr><th>Name</th><th>Status</th><th>Version</th><th>FS</th><th>Last seen</th></tr>
     {{range .Nodes}}<tr><td>{{.Name}}</td><td>{{.Status}}</td><td>{{.AgentVersion}}</td><td>{{.FSCapability}}</td><td>{{if .LastSeen}}{{.LastSeen}}{{else}}-{{end}}</td></tr>{{end}}</table>
@@ -201,14 +219,43 @@ func (s *server) renderHome(w http.ResponseWriter, r *http.Request) {
 		if next != "" {
 			data.Notice = "Showing the first 200 servers; use the API for the rest."
 		}
+		data.Groups, data.Ungrouped = s.homeGroups(r, principal, servers)
 	} else {
 		data.Notice = "Could not load servers: " + err.Error()
 	}
-	if nodes, _, err := s.opts.Services.Fleet.ListNodes(r.Context(), principal, 200, ""); err == nil {
-		data.Nodes = nodes
+	if s.opts.Services.Fleet != nil {
+		if nodes, _, err := s.opts.Services.Fleet.ListNodes(r.Context(), principal, 200, ""); err == nil {
+			data.Nodes = nodes
+		}
 	}
 	data.Degraded = s.degradedReason(data.Nodes)
 	s.writePage(w, data)
+}
+
+// homeGroups resolves group membership for the home page and returns the
+// servers that are not in any group. Group read failures fall back to the flat
+// server table rather than hiding the fleet.
+func (s *server) homeGroups(r *http.Request, principal capability.Principal, servers []store.Server) ([]groupView, []store.Server) {
+	if s.opts.Services == nil || s.opts.Services.Groups == nil {
+		return nil, servers
+	}
+	groups, _, err := s.loadGroupViews(r.Context(), principal, servers)
+	if err != nil {
+		return nil, servers
+	}
+	grouped := make(map[string]bool)
+	for _, group := range groups {
+		for _, member := range group.Members {
+			grouped[member.ID] = true
+		}
+	}
+	ungrouped := make([]store.Server, 0, len(servers))
+	for _, srv := range servers {
+		if !grouped[srv.ID] {
+			ungrouped = append(ungrouped, srv)
+		}
+	}
+	return groups, ungrouped
 }
 
 // degradedReason explains partial operation instead of hiding it: nodes can be

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 
 	"delphi.dev/delphi/internal/capability"
@@ -134,12 +135,6 @@ func (s *server) renderGroupsPage(w http.ResponseWriter, r *http.Request, data p
 		s.writePage(w, data)
 		return
 	}
-	groups, next, err := s.opts.Services.Groups.List(r.Context(), principal, 200, "")
-	if err != nil {
-		data.Notice = "Could not load groups: " + err.Error()
-		s.writePage(w, data)
-		return
-	}
 	servers, _, err := s.opts.Services.Servers.List(r.Context(), principal, 200, "")
 	if err != nil {
 		data.Notice = "Could not load servers: " + err.Error()
@@ -147,25 +142,41 @@ func (s *server) renderGroupsPage(w http.ResponseWriter, r *http.Request, data p
 		return
 	}
 	data.Servers = servers
+	views, next, err := s.loadGroupViews(r.Context(), principal, servers)
+	if err != nil {
+		data.Notice = "Could not load groups: " + err.Error()
+		s.writePage(w, data)
+		return
+	}
+	data.Groups = views
 	if next != "" {
 		data.Notice = "Showing the first 200 groups; use the API for the rest."
+	}
+	s.writePage(w, data)
+}
+
+func (s *server) loadGroupViews(ctx context.Context, principal capability.Principal, servers []store.Server) ([]groupView, string, error) {
+	groups, next, err := s.opts.Services.Groups.List(ctx, principal, 200, "")
+	if err != nil {
+		return nil, "", err
 	}
 	byID := make(map[string]store.Server, len(servers))
 	for _, srv := range servers {
 		byID[srv.ID] = srv
 	}
+	views := make([]groupView, 0, len(groups))
 	for _, group := range groups {
 		view := groupView{Group: group}
-		if ids, _, err := s.opts.Services.Groups.Members(r.Context(), principal, group.ID, 200, ""); err == nil {
+		if ids, _, err := s.opts.Services.Groups.Members(ctx, principal, group.ID, 200, ""); err == nil {
 			for _, id := range ids {
 				if srv, ok := byID[id]; ok {
 					view.Members = append(view.Members, srv)
 				}
 			}
 		}
-		data.Groups = append(data.Groups, view)
+		views = append(views, view)
 	}
-	s.writePage(w, data)
+	return views, next, nil
 }
 
 func (s *server) createGroupForm(w http.ResponseWriter, r *http.Request) {
