@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"delphi.dev/delphi/internal/apitypes"
 	"delphi.dev/delphi/internal/auth"
 	"delphi.dev/delphi/internal/capability"
+	"delphi.dev/delphi/internal/nbt"
 	"delphi.dev/delphi/internal/store"
 	"delphi.dev/delphi/internal/wire"
 )
@@ -63,6 +65,27 @@ func (f *FileService) List(ctx context.Context, srv store.Server, path string) (
 func (f *FileService) Read(ctx context.Context, srv store.Server, path string) (string, string, int64, error) {
 	res, err := f.call(ctx, srv.NodeID, wire.FileRequest{ServerID: srv.ID, Op: "read", Path: path})
 	return res.Content, res.SHA256, res.Size, err
+}
+
+// NBT reads and decodes a file through the node.
+func (f *FileService) NBT(ctx context.Context, srv store.Server, file string) (nbt.Document, error) {
+	res, err := f.call(ctx, srv.NodeID, wire.FileRequest{ServerID: srv.ID, Op: "nbt", Path: file})
+	if err != nil {
+		return nbt.Document{}, err
+	}
+	if res.NBT == nil {
+		return nbt.Document{}, errors.New("node returned no NBT data")
+	}
+	return *res.NBT, nil
+}
+
+// Download reads raw bytes through the node.
+func (f *FileService) Download(ctx context.Context, srv store.Server, file string) ([]byte, error) {
+	res, err := f.call(ctx, srv.NodeID, wire.FileRequest{ServerID: srv.ID, Op: "download", Path: file})
+	if err != nil {
+		return nil, err
+	}
+	return res.Data, nil
 }
 
 // ErrFileConflict reports a stale expected hash.
@@ -146,6 +169,83 @@ func (s *server) readFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, apitypes.FileContentDTO{Path: path, Content: content, SHA256: sha, Size: size})
+}
+
+func (s *server) readNBT(w http.ResponseWriter, r *http.Request) {
+	_, srv, ok := s.fileTarget(w, r)
+	if !ok {
+		return
+	}
+	file := r.URL.Query().Get("path")
+	if file == "" {
+		writeProblem(w, http.StatusBadRequest, "invalid_path", "path is required")
+		return
+	}
+	doc, err := s.opts.Files.NBT(r.Context(), srv, file)
+	if err != nil {
+		writeProblem(w, http.StatusUnprocessableEntity, "nbt_error", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, nbtDTO(file, doc))
+}
+
+func nbtDTO(file string, doc nbt.Document) apitypes.NBTDocumentDTO {
+	root := nbtNodeDTO(doc.Root)
+	return apitypes.NBTDocumentDTO{
+		Path: file, Compression: doc.Compression, Size: doc.Size,
+		DecompressedSize: doc.DecompressedSize, Root: root,
+	}
+}
+
+func nbtNodeDTO(n nbt.Node) apitypes.NBTNodeDTO {
+	children := make([]apitypes.NBTNodeDTO, 0, len(n.Children))
+	for _, child := range n.Children {
+		children = append(children, nbtNodeDTO(child))
+	}
+	out := apitypes.NBTNodeDTO{
+		Name: n.Name, Type: n.Type, Value: n.Value,
+		Length: n.Length, Truncated: n.Truncated,
+	}
+	if len(children) > 0 {
+		out.Children = children
+	}
+	return out
+}
+
+func (s *server) downloadFile(w http.ResponseWriter, r *http.Request) {
+	_, user, ok := s.pagePrincipal(w, r)
+	if !ok {
+		return
+	}
+	_ = user
+	if s.opts.Files == nil || s.opts.Services == nil || s.opts.Services.Servers == nil {
+		http.Error(w, "files are not configured", http.StatusNotImplemented)
+		return
+	}
+	principal, ok := s.principalFrom(r)
+	if !ok {
+		http.Redirect(w, r, s.base, http.StatusSeeOther)
+		return
+	}
+	srv, err := s.opts.Services.Servers.Get(r.Context(), principal, r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	file := r.URL.Query().Get("path")
+	if file == "" {
+		http.Error(w, "path is required", http.StatusBadRequest)
+		return
+	}
+	data, err := s.opts.Files.Download(r.Context(), srv, file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", path.Base(file)))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	_, _ = w.Write(data)
 }
 
 func (s *server) writeFile(w http.ResponseWriter, r *http.Request) {

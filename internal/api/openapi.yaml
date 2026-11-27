@@ -596,6 +596,27 @@ paths:
               schema: { $ref: "#/components/schemas/FileWriteResultDTO" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "409": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/files/nbt:
+    get:
+      operationId: readServerFileNBT
+      summary: Read a server file as NBT
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: path
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: NBT tree
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NBTDocumentDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/Problem" }
   /api/v1/servers/{id}/files/revisions:
     get:
       operationId: listFileRevisions
@@ -1723,6 +1744,27 @@ components:
         error: { type: string }
         warning: { type: string }
         formatted: { type: string }
+    NBTDocumentDTO:
+      type: object
+      required: [path, compression, size, decompressed_size, root]
+      properties:
+        path: { type: string }
+        compression: { type: string }
+        size: { type: integer, format: int64 }
+        decompressed_size: { type: integer, format: int64 }
+        root: { $ref: "#/components/schemas/NBTNodeDTO" }
+    NBTNodeDTO:
+      type: object
+      required: [name, type, value, length, truncated]
+      properties:
+        name: { type: string }
+        type: { type: string }
+        value: { type: string }
+        length: { type: integer }
+        truncated: { type: boolean }
+        children:
+          type: array
+          items: { $ref: "#/components/schemas/NBTNodeDTO" }
     FileEntryDTO:
       type: object
       required: [name, dir, size, mod_time]

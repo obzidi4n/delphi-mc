@@ -399,6 +399,25 @@ type ModerationRequest struct {
 	Reason *string `json:"reason,omitempty"`
 }
 
+// NBTDocumentDTO is generated from the spec.
+type NBTDocumentDTO struct {
+	Compression      string     `json:"compression"`
+	DecompressedSize int64      `json:"decompressed_size"`
+	Path             string     `json:"path"`
+	Root             NBTNodeDTO `json:"root"`
+	Size             int64      `json:"size"`
+}
+
+// NBTNodeDTO is generated from the spec.
+type NBTNodeDTO struct {
+	Children  []NBTNodeDTO `json:"children,omitempty"`
+	Length    int          `json:"length"`
+	Name      string       `json:"name"`
+	Truncated bool         `json:"truncated"`
+	Type      string       `json:"type"`
+	Value     string       `json:"value"`
+}
+
 // NetworkCreateRequest is generated from the spec.
 type NetworkCreateRequest struct {
 	AcceptEULA      bool    `json:"accept_eula"`

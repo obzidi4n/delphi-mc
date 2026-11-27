@@ -29,7 +29,8 @@ chokes on live 5k-point series), CodeMirror 6 for configs, Tailwind + shadcn.
   reference, and disables Save while the file is invalid. JSON is indented on open and save;
   YAML/TOML keep comments and ordering. `server.properties` gets a versioned key reference
   with allowed values and defaults; invalid values block saving, while removed/unknown keys
-  are warnings so existing files remain editable.
+  are warnings so existing files remain editable. `.dat`/`.nbt` files open in a read-only
+  NBT tree with compression metadata and a raw download; editing NBT is not exposed.
 - The fleet page explains degraded operation: a banner names offline nodes and a recent panel
   restart, states that servers keep running and restarts are agent-local, and the node table
   shows status and last-seen. Actions stay unavailable while the panel is down; there is no

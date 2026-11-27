@@ -793,6 +793,21 @@ func (c *Client) DiffServerFile(ctx context.Context, id string, path string, fro
 	return &out, nil
 }
 
+// GET /api/v1/servers/{id}/files/nbt
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ReadServerFileNBT(ctx context.Context, id string, path string) (*apitypes.NBTDocumentDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/files" + "/nbt"
+	q := url.Values{}
+	q.Set("path", path)
+
+	var out apitypes.NBTDocumentDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GET /api/v1/servers/{id}/files/revisions
 //
 // Requires a bearer token configured on the Client.

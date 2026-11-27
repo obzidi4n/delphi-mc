@@ -11,11 +11,19 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"delphi.dev/delphi/internal/nbt"
 	"delphi.dev/delphi/internal/wire"
 )
 
 // MaxFileBytes caps reads and writes; larger files are not editable here.
 const MaxFileBytes = 1 << 20
+
+// MaxNBTBytes and MaxDownloadBytes cover binary reads that cannot go through
+// the text editor. NBT parsing has its own decompressed-size limit.
+const (
+	MaxNBTBytes      = 8 << 20
+	MaxDownloadBytes = 8 << 20
+)
 
 // serverRoot resolves a server directory, rejecting unsafe ids.
 func (s *Supervisor) serverRoot(serverID string) (string, error) {
@@ -120,6 +128,42 @@ func (s *Supervisor) FileRead(serverID, rel string) (string, string, int64, erro
 	return string(data), hex.EncodeToString(sum[:]), info.Size(), nil
 }
 
+// NBTRead reads and decodes a gzip/raw NBT file.
+func (s *Supervisor) NBTRead(serverID, rel string) (nbt.Document, error) {
+	data, err := s.readRaw(serverID, rel, MaxNBTBytes)
+	if err != nil {
+		return nbt.Document{}, err
+	}
+	return nbt.Parse(data)
+}
+
+// Download reads a file without text or UTF-8 restrictions.
+func (s *Supervisor) Download(serverID, rel string) ([]byte, error) {
+	return s.readRaw(serverID, rel, MaxDownloadBytes)
+}
+
+func (s *Supervisor) readRaw(serverID, rel string, max int64) ([]byte, error) {
+	root, err := s.serverRoot(serverID)
+	if err != nil {
+		return nil, err
+	}
+	full, err := safePath(root, rel)
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(full)
+	if err != nil {
+		return nil, err
+	}
+	if info.IsDir() {
+		return nil, errors.New("path is a directory")
+	}
+	if info.Size() > max {
+		return nil, fmt.Errorf("file is larger than %d bytes", max)
+	}
+	return os.ReadFile(full)
+}
+
 // FileWrite atomically replaces a text file.
 func (s *Supervisor) FileWrite(serverID, rel, content string) (string, error) {
 	root, err := s.serverRoot(serverID)
@@ -176,6 +220,20 @@ func HandleFileRequest(supervisor *Supervisor, req wire.FileRequest) wire.FileRe
 			return result
 		}
 		result.SHA256 = sum
+	case "nbt":
+		doc, err := supervisor.NBTRead(req.ServerID, req.Path)
+		if err != nil {
+			result.Error = err.Error()
+			return result
+		}
+		result.NBT = &doc
+	case "download":
+		data, err := supervisor.Download(req.ServerID, req.Path)
+		if err != nil {
+			result.Error = err.Error()
+			return result
+		}
+		result.Data = data
 	default:
 		result.Error = "unknown file operation"
 	}

@@ -95,6 +95,16 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
  .prop .ptype{color:#6e7681;font-size:.7rem;margin-left:.3rem}
  .prop .pdesc{font-size:.76rem;line-height:1.35;margin:.12rem 0;color:#c9d1d9}
  .prop .pmeta{font-size:.68rem;line-height:1.35;color:#6e7681}
+ .nbtview{flex:1;overflow:auto;padding:.7rem .9rem;display:none;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+ .nbtmeta{color:#8b949e;font-size:.78rem;margin-bottom:.6rem}
+ .nbtnode{margin:.1rem 0 .1rem 1rem}
+ .nbtnode summary,.nbthead{cursor:default;color:#c9d1d9}
+ .nbtnode summary{cursor:pointer}
+ .nbtname{color:#79c0ff}
+ .nbttype{color:#6e7681;font-size:.72rem;margin-left:.35rem}
+ .nbtval{color:#a5d6ff;margin-left:.4rem;white-space:pre-wrap}
+ .nbtlen{color:#6e7681;font-size:.75rem;margin-left:.35rem}
+ .nbtDownload{display:none;color:#79c0ff;text-decoration:none;padding:.3rem .65rem;border:1px solid #30363d;border-radius:.35rem}
 </style></head><body data-id="{{.ID}}" data-base="{{.BasePath}}" data-version="{{.Version}}">
 <header>
   <a href="{{.BasePath}}">&larr; Fleet</a>
@@ -115,6 +125,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
       <button id="open">Open</button>
       <button id="save" disabled>Save</button>
       <button id="diffBtn" disabled>Diff latest</button>
+      <a class="nbtDownload" id="nbtDownload" download>Download raw</a>
       <span class="status" id="status"></span>
     </div>
     <div class="lintbar" id="lintbar">Open server.properties or a .json, .yaml, .yml, or .toml file to lint.</div>
@@ -122,6 +133,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
       <div class="gutter" id="lineNumbers" aria-hidden="true">1</div>
       <textarea id="editor" spellcheck="false" wrap="off" placeholder="Open a file from the list, or type a path and press Open."></textarea>
     </div>
+    <div class="nbtview" id="nbtView"></div>
     <pre id="diff"></pre>
   </section>
   <div class="revs">
@@ -156,6 +168,8 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   var diffEl = document.getElementById('diff');
   var editorWrap = document.getElementById('editorWrap');
   var lineNumbers = document.getElementById('lineNumbers');
+  var nbtView = document.getElementById('nbtView');
+  var nbtDownload = document.getElementById('nbtDownload');
   var lintbar = document.getElementById('lintbar');
   var propsRef = document.getElementById('propsRef');
   var propsList = document.getElementById('propsList');
@@ -190,6 +204,100 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   }
   function isServerProperties(path) {
     return String(path || '').split('/').pop() === 'server.properties';
+  }
+  function isNBTFile(path) {
+    return /\.(dat|dat_old|nbt)$/i.test(path || '');
+  }
+  function showNBT() {
+    editorWrap.style.display = 'none';
+    diffEl.style.display = 'none';
+    nbtView.style.display = 'block';
+    nbtDownload.style.display = 'inline-block';
+  }
+  function nbtNode(node, depth, root) {
+    var hasChildren = node.children && node.children.length > 0;
+    var el = document.createElement(hasChildren ? 'details' : 'div');
+    el.className = 'nbtnode';
+    if (hasChildren) { el.open = depth < 2; }
+    var head = document.createElement(hasChildren ? 'summary' : 'div');
+    head.className = 'nbthead';
+    if (node.name || root) {
+      var name = document.createElement('span');
+      name.className = 'nbtname';
+      name.textContent = node.name || 'root';
+      head.appendChild(name);
+    }
+    var type = document.createElement('span');
+    type.className = 'nbttype';
+    type.textContent = node.type;
+    head.appendChild(type);
+    if (hasChildren) {
+      var count = document.createElement('span');
+      count.className = 'nbtlen';
+      count.textContent = (node.type === 'List' ? '[' + node.length + ']' : '{' + node.length + '}');
+      head.appendChild(count);
+    } else if (node.value !== '' && node.value !== undefined) {
+      var value = document.createElement('span');
+      value.className = 'nbtval';
+      value.textContent = node.value + (node.truncated ? '…' : '');
+      head.appendChild(value);
+    }
+    el.appendChild(head);
+    if (hasChildren) {
+      node.children.forEach(function (child) { el.appendChild(nbtNode(child, depth + 1, false)); });
+    }
+    return el;
+  }
+  function renderNBT(doc) {
+    nbtView.textContent = '';
+    var meta = document.createElement('div');
+    meta.className = 'nbtmeta';
+    meta.textContent = 'NBT · ' + doc.compression + ' · ' + doc.size + ' bytes compressed · ' +
+      doc.decompressed_size + ' bytes decompressed · read-only';
+    nbtView.appendChild(meta);
+    nbtView.appendChild(nbtNode(doc.root, 0, true));
+  }
+  function showNBTError(message) {
+    nbtView.textContent = '';
+    var p = document.createElement('p');
+    p.className = 'status err';
+    p.textContent = message;
+    nbtView.appendChild(p);
+    showNBT();
+  }
+  async function openNBT(path) {
+    pathInput.value = path;
+    setStatus('loading NBT ' + path);
+    var seq = ++openSeq;
+    currentPath = path;
+    currentSHA = '';
+    latestRevision = 0;
+    dirty = false;
+    saveBtn.disabled = true;
+    diffBtn.disabled = true;
+    showProperties('');
+    nbtDownload.href = base + 'servers/' + encodeURIComponent(id) + '/files/download?path=' + enc(path);
+    var res = await fetch(api + '/nbt?path=' + enc(path), { credentials: 'same-origin' });
+    if (seq !== openSeq) { return; }
+    if (!res.ok) {
+      var msg = await res.text();
+      lintbar.textContent = 'NBT error';
+      lintbar.className = 'lintbar err';
+      lintbar.title = msg;
+      showNBTError(msg || ('could not read NBT: HTTP ' + res.status));
+      setStatus('NBT error: ' + path, false);
+      revisionsEl.textContent = 'NBT files are read-only.';
+      return;
+    }
+    var doc = await res.json();
+    if (seq !== openSeq) { return; }
+    renderNBT(doc);
+    showNBT();
+    lintbar.textContent = 'NBT read-only · ' + doc.compression;
+    lintbar.className = 'lintbar';
+    lintbar.title = '';
+    revisionsEl.textContent = 'NBT files are read-only.';
+    setStatus('loaded NBT ' + path + ' (' + doc.size + ' B)');
   }
   function configKind(path) {
     if (isServerProperties(path)) { return 'properties'; }
@@ -340,6 +448,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     });
   }
   async function openFile(path) {
+    if (isNBTFile(path)) { await openNBT(path); return; }
     pathInput.value = path;
     setStatus('loading ' + path);
     var seq = ++openSeq;
@@ -399,11 +508,14 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
   }
   function showEditor() {
     diffEl.style.display = 'none';
+    nbtView.style.display = 'none';
+    nbtDownload.style.display = 'none';
     editorWrap.style.display = 'flex';
   }
   async function save() {
     var path = (currentPath || pathInput.value).trim();
     if (!path) { setStatus('path is required', false); return; }
+    if (isNBTFile(path)) { setStatus('NBT files are read-only', false); return; }
     var content = editor.value;
     var lint = null;
     if (configKind(path)) {
@@ -486,6 +598,8 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
     if (!res.ok) { setStatus('diff failed: HTTP ' + res.status, false); return; }
     var data = await res.json();
     editorWrap.style.display = 'none';
+    nbtView.style.display = 'none';
+    nbtDownload.style.display = 'none';
     diffEl.style.display = 'block';
     diffEl.textContent = data.diff || '(no changes)';
     setStatus('diff r' + from + ' → r' + to + ' of ' + currentPath, true);
