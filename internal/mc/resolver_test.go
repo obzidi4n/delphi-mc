@@ -2,8 +2,10 @@ package mc
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -117,5 +119,42 @@ func TestResolveCaches(t *testing.T) {
 	c.mu.Unlock()
 	if !ok {
 		t.Fatal("result was not cached")
+	}
+}
+
+func TestResolvePurpurPinsBuildAndComputesSHA256(t *testing.T) {
+	jar := []byte("purpur jar bytes")
+	sum := fmt.Sprintf("%x", sha256.Sum256(jar))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/purpur", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"versions": []string{"1.21.3", "1.21.4"}})
+	})
+	mux.HandleFunc("/v2/purpur/1.21.4", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"builds": map[string]any{
+			"latest": "2416", "all": []string{"2415", "2416"},
+		}})
+	})
+	mux.HandleFunc("/v2/purpur/1.21.4/2416", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"result": "SUCCESS"})
+	})
+	mux.HandleFunc("/v2/purpur/1.21.4/2416/download", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/java-archive")
+		_, _ = w.Write(jar)
+	})
+	srv := httptest.NewTLSServer(mux)
+	defer srv.Close()
+
+	c := NewClient(srv.Client())
+	c.PurpurBaseURL = srv.URL + "/v2"
+	c.Now = func() time.Time { return time.Unix(1000, 0) }
+	art, err := c.Resolve(context.Background(), "purpur", "latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if art.Project != "purpur" || art.Version != "1.21.4" || art.Build != 2416 || art.JarSHA256 != sum {
+		t.Fatalf("artifact = %+v, want sha %s", art, sum)
+	}
+	if !strings.HasSuffix(art.JarURL, "/1.21.4/2416/download") {
+		t.Fatalf("url = %s", art.JarURL)
 	}
 }

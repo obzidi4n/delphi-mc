@@ -12,8 +12,8 @@ DelphiMC is under active development. The steps below are for the current build.
 
 ## What it does
 
-- **Create servers from templates.** Start with Paper (or Velocity for proxy networks) and a
-  sensible set of files, then adjust memory, ports, and settings.
+- **Create servers from templates.** Start with Paper, Purpur, or Velocity for proxy networks,
+  with a sensible set of files, then adjust memory, ports, and settings.
 - **Live console and controls.** Start, stop, restart, kill, read the console, edit files, and
   see CPU/memory for each server.
 - **Install and update plugins.** Pull plugins from Modrinth, Hangar, or GitHub, and update
@@ -27,7 +27,7 @@ DelphiMC is under active development. The steps below are for the current build.
 - **A terminal UI and CLI.** Run `delphi tui` for a keyboard-driven terminal interface, or
   script the API/CLI.
 - **Multiple machines and proxy networks.** Add more nodes, choose where servers go, and put
-  several Paper servers behind a Velocity proxy on a private container network. One agent
+  several Paper or Purpur servers behind a Velocity proxy on a private container network. One agent
   serves all servers on a node; groups do not map to agents.
 - **Optional AI helper.** Ask questions about your fleet, or ask it to propose an action. It
   must ask for approval before changing anything.

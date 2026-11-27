@@ -38,7 +38,7 @@ declared in `variables` and substituted by name.
 |---|---|
 | `schema_version` | must be `1` |
 | `name` | 1–64 characters; unique per org on import |
-| `base` | `paper` or `velocity`; `purpur` is rejected until M9 |
+| `base` | `paper`, `purpur`, or `velocity` |
 | `mc_version` | literal `X.Y[.Z]`, or `latest` / `recommended` (resolved at instantiation) |
 | `java` | `8`, `17`, `21`, or `25` |
 | `defaults.memory_mb` | 512–32768 when set |
@@ -50,7 +50,8 @@ declared in `variables` and substituted by name.
 
 ## Installation-time semantics
 
-1. Resolve `mc_version` through PaperMC v3 to a build URL and sha256.
+1. Resolve `mc_version` through PaperMC v3 for Paper/Velocity, or the Purpur API for Purpur,
+   to a build URL and sha256.
 2. Apply defaults and overrides; allocate a port when it is zero.
 3. Render files; unresolved references fail the create request.
 4. Store files, variables, `template_id`, and `template_version` on the server; the agent

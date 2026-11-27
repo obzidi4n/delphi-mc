@@ -181,7 +181,7 @@ func TestImportValidatesAndAudits(t *testing.T) {
 	if len(storeFake.imported) == 0 || len(storeFake.audits) != 1 || !strings.HasPrefix(storeFake.audits[0], "template.import") {
 		t.Fatalf("imported=%d audits=%v", len(storeFake.imported), storeFake.audits)
 	}
-	if _, _, err := svc.Import(context.Background(), admin, []byte(`{"schema_version":1,"name":"Bad","base":"purpur","mc_version":"latest","java":21}`)); !errors.Is(err, ErrInvalid) {
+	if _, _, err := svc.Import(context.Background(), admin, []byte(`{"schema_version":1,"name":"Bad","base":"forge","mc_version":"latest","java":21}`)); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("err = %v", err)
 	}
 	viewer := Principal{OrgID: "default", Via: "ui", Scopes: []string{"org:default:read"}}

@@ -138,10 +138,10 @@ func (c *Servers) Create(ctx context.Context, p Principal, req CreateRequest) (s
 	if req.Base == "" {
 		req.Base = "paper"
 	}
-	if req.Base != "paper" && req.Base != "velocity" {
-		return store.Server{}, invalid("base must be paper or velocity")
+	if req.Base != "paper" && req.Base != "purpur" && req.Base != "velocity" {
+		return store.Server{}, invalid("base must be paper, purpur, or velocity")
 	}
-	if req.Base == "paper" && !req.AcceptEULA {
+	if req.Base != "velocity" && !req.AcceptEULA {
 		return store.Server{}, invalid("accept_eula must be true: the operator accepts the Minecraft EULA")
 	}
 	if req.JavaVersion == 0 {

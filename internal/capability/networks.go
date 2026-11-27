@@ -95,8 +95,8 @@ func (n *Networks) Create(ctx context.Context, p Principal, req NetworkRequest) 
 	if err != nil {
 		return NetworkDetail{}, err
 	}
-	if backendTpl.Base != "paper" {
-		return NetworkDetail{}, invalid("backend template must be a paper template")
+	if backendTpl.Base != "paper" && backendTpl.Base != "purpur" {
+		return NetworkDetail{}, invalid("backend template must be a paper or purpur template")
 	}
 
 	networkID, err := idWithPrefix("net_")

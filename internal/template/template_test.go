@@ -10,8 +10,8 @@ func TestBuiltinsValidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(all) != 5 {
-		t.Fatalf("builtins = %d, want 5", len(all))
+	if len(all) != 6 {
+		t.Fatalf("builtins = %d, want 6", len(all))
 	}
 	bases := map[string]bool{}
 	for _, tpl := range all {
@@ -20,7 +20,7 @@ func TestBuiltinsValidate(t *testing.T) {
 		}
 		bases[tpl.Base] = true
 	}
-	if !bases["paper"] || !bases["velocity"] {
+	if !bases["paper"] || !bases["purpur"] || !bases["velocity"] {
 		t.Fatalf("bases = %v", bases)
 	}
 }
@@ -89,7 +89,7 @@ func TestRenderRequiredVariable(t *testing.T) {
 func TestValidateRejectsUnsafeTemplates(t *testing.T) {
 	base := Template{SchemaVersion: 1, Name: "x", Base: "paper", MCVersion: "latest", Java: 21}
 	cases := map[string]func(*Template){
-		"purpur":    func(t *Template) { t.Base = "purpur" },
+		"forge":     func(t *Template) { t.Base = "forge" },
 		"traversal": func(t *Template) { t.Files = map[string]string{"../x": "y"} },
 		"absolute":  func(t *Template) { t.Files = map[string]string{"/etc/passwd": "y"} },
 		"eula":      func(t *Template) { t.Files = map[string]string{"eula.txt": "eula=true"} },

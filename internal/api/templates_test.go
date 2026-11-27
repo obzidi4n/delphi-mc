@@ -154,7 +154,7 @@ func TestCreateServerFromTemplate(t *testing.T) {
 
 func TestImportModuleRejectsInvalidTemplate(t *testing.T) {
 	h, _, _ := newTemplateHandler(t)
-	bad := `{"schema_version":1,"name":"Bad","base":"purpur","mc_version":"latest","java":21}`
+	bad := `{"schema_version":1,"name":"Bad","base":"forge","mc_version":"latest","java":21}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/templates", strings.NewReader(bad))
 	req.Header.Set("Authorization", "Bearer secret")
 	rec := httptest.NewRecorder()

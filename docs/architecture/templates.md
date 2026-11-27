@@ -9,7 +9,7 @@ Server creation is a **template instantiation**, not a forty-field form.
 ```
 Template {
   schema_version: 1
-  name, description, base: paper | velocity
+  name, description, base: paper | purpur | velocity
   mc_version: "1.21.11" | channel (latest | recommended)
   java: 8 | 17 | 21 | 25
   defaults: memory_mb, cpu_cores, port (0 = allocate)
@@ -20,8 +20,9 @@ Template {
 ```
 
 Built-ins are embedded JSON and seeded into `templates` with a null org; an org's imports sit
-next to them and both list through one cursor. `purpur` is rejected until its provider path is
-wired.
+next to them and both list through one cursor. Purpur resolves through its own API and is
+supported wherever Paper is supported; the jar's sha256 is computed by the panel because the
+Purpur API exposes only an md5.
 
 Plugins are resolved at instantiation through `internal/plugins`:
 
@@ -41,15 +42,17 @@ happens at instantiation and reports the variable name; that is enough for v1.0.
 
 ## Built-ins
 
-Embedded in the binary: **Survival**, **Creative**, **Minigames**, **Dev**, and **Velocity
-Network** (written at v1.1, shipped disabled until then).
+Embedded in the binary: **Survival**, **Creative**, **Minigames**, **Dev**, **Purpur**, and
+**Velocity Network**.
 
 ## Instantiation
 
 Creating a server resolves the template into concrete state:
 
-1. `mc_version` (literal or channel) is resolved through the PaperMC v3 API (`fill.papermc.io`)
-   to a build, an https jar URL, and its sha256. The result is cached briefly.
+1. `mc_version` (literal or channel) is resolved through the PaperMC v3 API
+   (`fill.papermc.io`) for Paper/Velocity, or the Purpur API for Purpur, to a build, an https
+   jar URL, and its sha256. Purpur hashes the downloaded jar because its API omits sha256. The
+   result is cached briefly.
 2. `defaults` are applied, then overrides (`memory_mb`, `cpu_cores`, `port`, `java`, custom
    variables). A zero port is allocated from the node's pool before rendering, so variables
    see the final port.

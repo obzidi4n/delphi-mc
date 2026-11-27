@@ -26,7 +26,7 @@ criteria can be demonstrated on a clean host.
   delete, groups (API + page), `server_summary`, cursor pagination on every list endpoint,
   and the first CLI commands (`nodes`, `servers`, `audit`).
 
-- **M3b** — template schema and validation, five embedded built-ins, PaperMC v3 channel/build
+- **M3b** — template schema and validation, six embedded built-ins, PaperMC/Purpur channel/build
   resolution with sha256, instantiation that renders files and records `template_id`/
   `template_version`, and JSON/YAML import/export. Plugin downloads landed at M9. Exit: a
   Paper server created from the Survival template boots.
