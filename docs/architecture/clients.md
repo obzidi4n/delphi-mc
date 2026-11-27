@@ -37,8 +37,10 @@ chokes on live 5k-point series), CodeMirror 6 for configs, Tailwind + shadcn.
   restarts are agent-local, and the node table shows status and last-seen. Actions stay
   unavailable while the panel is down; there is no offline write queue.
 - The Templates page lists built-in and org templates, shows the full JSON body, and edits
-  org-owned templates in place with revision increments. Built-ins are read-only; **Save as
-  copy** creates an editable org template. Validation errors are returned before a write.
+  org-owned templates in place with revision increments. The `files` map is also exposed as
+  per-file multiline sub-editors, so long `server.properties` content is not a single escaped
+  JSON line. Built-ins are read-only; **Save as copy** creates an editable org template.
+  Validation errors are returned before a write.
 - An audit page lists the most recent 200 mutations (seq, time, actor, via, action, target);
   diff payloads remain on the API.
 - M8 ships a server-scoped file manager page: directory browser, monospace editor with

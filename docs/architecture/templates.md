@@ -70,7 +70,8 @@ For Velocity, the agent skips `eula.txt`/`server.properties` and launches withou
 ## UI editing
 
 The Templates page lists built-ins and org-owned templates and opens the canonical JSON body
-in an editor. Built-ins are read-only; **Save as copy** creates an org-owned template after
+in an editor. Each entry in `files` also appears as a collapsible multiline editor; editing a
+file updates the JSON `files` string underneath. Built-ins are read-only; **Save as copy** creates an org-owned template after
 validation. Saving an org-owned template increments its revision and is audited as
 `template.update`. Imports remain the path for external YAML/JSON files.
 

@@ -49,6 +49,15 @@ var templatesTemplate = template.Must(template.New("templates").Parse(`<!doctype
  .status.err{color:#f85149}
  .notice{margin:.55rem .8rem 0;padding:.5rem .7rem;border:1px solid #9e6a03;border-radius:.4rem;background:#1c1608;color:#e3b341;font-size:.82rem;display:none}
  .err{margin:.55rem .8rem 0;padding:.5rem .7rem;border:1px solid #6e2c2c;border-radius:.4rem;background:#2d0f10;color:#ff7b72;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;display:none}
+ .files{border-bottom:1px solid #21262d;padding:.4rem .8rem;max-height:22rem;overflow:auto}
+ .filesHead{display:flex;gap:.6rem;align-items:baseline;margin-bottom:.3rem}
+ .filesHead strong{color:#e6edf3;font-size:.85rem}
+ .filesHead .meta{font-size:.72rem}
+ .file{border-bottom:1px solid #161b22;padding:.25rem 0}
+ .file:last-child{border-bottom:0}
+ .file summary{cursor:pointer;color:#79c0ff;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+ .file .fileMeta{color:#6e7681;font-size:.7rem;margin-left:.4rem}
+ .file textarea{flex:none;width:100%;height:9rem;margin:.35rem 0 .2rem;resize:vertical;border:1px solid #21262d;border-radius:.3rem;background:#010409;color:#c9d1d9;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:.5rem .6rem;outline:none;tab-size:2;white-space:pre;overflow:auto}
  textarea{flex:1;width:100%;resize:none;border:0;background:#010409;color:#c9d1d9;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:.8rem 1rem;outline:none;tab-size:2;white-space:pre;overflow:auto}
  button{padding:.35rem .7rem;border-radius:.4rem;border:1px solid #30363d;background:#21262d;color:inherit;cursor:pointer;font:inherit}
  button:hover{background:#30363d}
@@ -80,6 +89,10 @@ var templatesTemplate = template.Must(template.New("templates").Parse(`<!doctype
     </div>
     <div class="notice" id="notice"></div>
     <pre class="err" id="error"></pre>
+    <div class="files" id="filesPanel" style="display:none">
+      <div class="filesHead"><strong>Files</strong><span class="meta" id="filesHint"></span></div>
+      <div id="filesList"></div>
+    </div>
     <textarea id="editor" spellcheck="false" placeholder="Select a template or create a new one."></textarea>
   </section>
 </main>
@@ -95,10 +108,68 @@ var templatesTemplate = template.Must(template.New("templates").Parse(`<!doctype
   var statusEl = document.getElementById('status');
   var noticeEl = document.getElementById('notice');
   var errorEl = document.getElementById('error');
+  var filesPanel = document.getElementById('filesPanel');
+  var filesList = document.getElementById('filesList');
+  var filesHint = document.getElementById('filesHint');
   var saveBtn = document.getElementById('save');
   var copyBtn = document.getElementById('copy');
   var current = null;
+  var filesTimer = null;
 
+  function parseBody() {
+    try { return JSON.parse(editor.value); }
+    catch (e) { return null; }
+  }
+  function setFileValue(path, value, meta) {
+    var obj = parseBody();
+    if (!obj) { return; }
+    if (!obj.files || typeof obj.files !== 'object') { obj.files = {}; }
+    obj.files[path] = value;
+    editor.value = JSON.stringify(obj, null, 2) + '\n';
+    meta.textContent = value.split('\n').length + ' lines';
+  }
+  function renderFiles() {
+    var obj = parseBody();
+    filesList.textContent = '';
+    if (!obj) {
+      filesHint.textContent = 'Fix the JSON body to edit files.';
+      return;
+    }
+    var files = obj.files && typeof obj.files === 'object' ? obj.files : {};
+    var names = Object.keys(files).sort();
+    filesHint.textContent = names.length + ' file' + (names.length === 1 ? '' : 's');
+    if (!names.length) {
+      var empty = document.createElement('p');
+      empty.className = 'meta';
+      empty.textContent = 'No files in this template.';
+      filesList.appendChild(empty);
+      return;
+    }
+    names.forEach(function (name) {
+      var content = String(files[name] == null ? '' : files[name]);
+      var details = document.createElement('details');
+      details.className = 'file';
+      details.open = names.length === 1;
+      var summary = document.createElement('summary');
+      summary.textContent = name;
+      var meta = document.createElement('span');
+      meta.className = 'fileMeta';
+      meta.textContent = content.split('\n').length + ' lines';
+      summary.appendChild(meta);
+      var ta = document.createElement('textarea');
+      ta.value = content;
+      ta.spellcheck = false;
+      ta.setAttribute('aria-label', name);
+      ta.addEventListener('input', function () { setFileValue(name, ta.value, meta); });
+      details.appendChild(summary);
+      details.appendChild(ta);
+      filesList.appendChild(details);
+    });
+  }
+  function scheduleFiles() {
+    if (filesTimer) { clearTimeout(filesTimer); }
+    filesTimer = setTimeout(renderFiles, 250);
+  }
   function setStatus(text, ok) {
     statusEl.textContent = text || '';
     statusEl.className = 'status' + (ok === true ? ' ok' : ok === false ? ' err' : '');
@@ -148,7 +219,9 @@ var templatesTemplate = template.Must(template.New("templates").Parse(`<!doctype
   function openNew() {
     setCurrent(null);
     saveBtn.disabled = false;
+    filesPanel.style.display = 'block';
     editor.value = skeleton();
+    renderFiles();
     setStatus('');
     clearError();
   }
@@ -183,7 +256,9 @@ var templatesTemplate = template.Must(template.New("templates").Parse(`<!doctype
     if (!res.ok) { setCurrent(null); showError(problem(await res.text())); return; }
     var tpl = await res.json();
     setCurrent(tpl);
+    filesPanel.style.display = 'block';
     editor.value = pretty(tpl.body || '{}');
+    renderFiles();
     setStatus('');
     loadList();
   }
@@ -217,11 +292,14 @@ var templatesTemplate = template.Must(template.New("templates").Parse(`<!doctype
     if (!res.ok) { showError(problem(await res.text())); return; }
     var saved = await res.json();
     setCurrent(saved);
+    filesPanel.style.display = 'block';
     editor.value = pretty(saved.body || body);
+    renderFiles();
     setStatus('saved ' + saved.name + ' · rev ' + saved.revision, true);
     loadList();
   }
 
+  editor.addEventListener('input', scheduleFiles);
   document.getElementById('new').addEventListener('click', openNew);
   saveBtn.addEventListener('click', function () { save('save'); });
   copyBtn.addEventListener('click', function () { save('copy'); });
