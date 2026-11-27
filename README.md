@@ -76,6 +76,21 @@ psql postgres -c "CREATE DATABASE delphi OWNER delphi;"
 If your PostgreSQL requires a different administrator command, use the equivalent for your
 installation.
 
+If the `delphi` database already exists and is owned by another user, make `delphi` its owner
+and grant access to anything already inside it. Run these as a PostgreSQL administrator:
+
+```sh
+psql -d postgres -c "ALTER DATABASE delphi OWNER TO delphi;"
+psql -d delphi -c "GRANT CREATE, USAGE ON SCHEMA public TO delphi;"
+psql -d delphi -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO delphi;"
+psql -d delphi -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO delphi;"
+```
+
+Without this, `init` fails with `permission denied for schema public` or
+`permission denied for table schema_migrations`. If the database already contained a DelphiMC
+owner, `init` will not print a new password or API token; use the existing credentials, or use
+a fresh database.
+
 ### 3. Initialize DelphiMC
 
 ```sh
