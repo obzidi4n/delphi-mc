@@ -63,6 +63,9 @@ mode.
 - Modern forwarding (Paper `paper-global.yml` velocity secret) — legacy only for now; the
   isolation of unpublished backend ports is what makes legacy acceptable in this release.
 - Live drain, network restart/delete APIs, aggregated metrics, multi-proxy networks.
-- A real-player join was not automated: routing is verified by proxy status ping, running
-  backends, DNS aliases, and closed backend host ports. Manual client join remains the check.
+- A scripted join was verified with mineflayer 1.21.11 against an **offline-mode test proxy**:
+  the bot spawned and the backend logged `DelphiTest joined the game` from the proxy's
+  network IP. Generated configs keep `online-mode = true`; a Mojang-authenticated client join
+  is not automated. Routing is also verified by proxy status ping, running backends, DNS
+  aliases, and closed backend host ports.
 - BungeeCord: excluded through v1.1; revisit only if adoption demands.

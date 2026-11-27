@@ -59,8 +59,10 @@ criteria can be demonstrated on a clean host.
   `velocity.toml`/`server.properties`/`spigot.yml`, Java 25 proxy template, and
   `POST/GET /api/v1/networks`. Live: m14net4 proxy answered a Minecraft status ping (Velocity
   1.7.2-26.3, 0/100) on its published port; both backends ran with no host ports; proxy DNS
-  resolved their aliases. Modern forwarding, the Velocity plugin/drain, network delete, and a
-  scripted player join remain deferred.
+  resolved their aliases. A mineflayer 1.21.11 bot joined through the proxy and spawned on a
+  backend (`DelphiTest joined the game`, seen from the proxy's network IP). The proxy was
+  toggled to offline mode for the scripted join; generated configs remain online-mode=true.
+  Modern forwarding, the Velocity plugin/drain, and network delete remain deferred.
 - **M13** — TUI: `delphi tui` on Bubble Tea/lipgloss with token-authenticated console WebSocket,
   fleet → server navigation, live console replay, power/backups/plugins/updates, and an AI
   pane that streams deltas/tools/citations and prompts for approval. Keys documented in
