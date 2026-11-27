@@ -7,6 +7,9 @@ across them: the node is chosen at server creation and the UI shows per-node cap
 
 ## Placement
 
+Placement is per **node** (host or VM). Groups are targeting sets, not placement units; a group
+can span nodes. Run one agent per node, not per server.
+
 Bin-pack on **RAM** (Minecraft is memory-bound), spread CPU, hard-filter disk, honor
 labels and anti-affinity.
 

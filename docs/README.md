@@ -15,6 +15,7 @@ pages, and the CLI. See [`plan/roadmap.md`](plan/roadmap.md); fleet limits are i
 | Doc | Covers | Status |
 |---|---|---|
 | [`overview.md`](architecture/overview.md) | Planes, invariants, delivery shape, budgets | current |
+| [`nodes.md`](architecture/nodes.md) | Nodes vs agents vs groups, multi-server hosts, capacity | current |
 | [`capability-layer.md`](architecture/capability-layer.md) | The single mutation surface | current |
 | [`agent.md`](architecture/agent.md) | Containers, console, metrics, snapshots, bridge | current |
 | [`updates.md`](architecture/updates.md) | Artifacts, CAS, providers, update policies, boot-check | current |

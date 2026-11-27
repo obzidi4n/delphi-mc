@@ -27,7 +27,8 @@ DelphiMC is under active development. The steps below are for the current build.
 - **A terminal UI and CLI.** Run `delphi tui` for a keyboard-driven terminal interface, or
   script the API/CLI.
 - **Multiple machines and proxy networks.** Add more nodes, choose where servers go, and put
-  several Paper servers behind a Velocity proxy on a private container network.
+  several Paper servers behind a Velocity proxy on a private container network. One agent
+  serves all servers on a node; groups do not map to agents.
 - **Optional AI helper.** Ask questions about your fleet, or ask it to propose an action. It
   must ask for approval before changing anything.
 
@@ -155,6 +156,10 @@ Do not expose this address directly to the internet. It binds to localhost by de
 
 The panel manages game servers through an **agent** running on each node. For this basic setup,
 the node is the same computer.
+
+Run **one agent per machine or VM**, not one per Minecraft server. That agent manages every
+server container on the host, including ports, files, metrics and crash restarts. Groups are
+organizational and can span machines; they do not create separate agents.
 
 In your original terminal, create an enrollment token:
 

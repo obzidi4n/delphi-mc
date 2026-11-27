@@ -31,6 +31,10 @@ Postgres is down, and becomes ready when it comes back.
 
 ## Agent
 
+Run **one agent per host or VM**. The agent manages all server containers and data directories
+on that node; it is not a per-server process. Groups organize servers and can span nodes. See
+[`../architecture/nodes.md`](../architecture/nodes.md).
+
 | Key | Default | Notes |
 |---|---|---|
 | `panel_url` | `https://127.0.0.1:8080` | Must be `https`: the channel is mutually authenticated. |

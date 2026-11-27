@@ -28,6 +28,9 @@ panel                                  node
   `cert_expires_at` and `revoked_at`.
 - One certificate authenticates the agent WebSocket (console, metrics, claims) and the blob
   download endpoint. There is no second credential.
+- Enroll **one node per host or VM**, not one per Minecraft server. The enrolled agent manages
+  every server container on that host; groups do not require separate enrollments. See
+  [`../architecture/nodes.md`](../architecture/nodes.md).
 - Rotation at 30 days: the agent generates a new key and CSR, the panel signs it while the old
   certificate is still valid, then the old serial is retired.
 - Revocation writes `revoked_at` and is checked on every reconnect. A revoked node's servers

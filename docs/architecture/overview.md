@@ -60,6 +60,14 @@ web UI / CLI ──HTTP+WS──┐
 - **Log files never leave the node.** Search runs on the agent; only matched, redacted
   snippets enter a conversation.
 
+## Node and agent model
+
+A **node** is a host or VM. Run **one agent per node**, not one per Minecraft server: the agent
+owns every server container, data directory and port on that host. A **group** is a logical
+targeting set and can span nodes; it is not a machine boundary. Add another node only for
+another physical host, VM, failure domain or security boundary. See
+[`nodes.md`](nodes.md).
+
 ## Delivery shape
 
 | Phase | Milestones | Outcome |

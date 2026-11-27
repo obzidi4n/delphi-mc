@@ -2,8 +2,10 @@
 
 **Status:** current design · implementation target M1–M5 (self-update at v1.1).
 
-One daemon per node. It owns containers, ports, logs, metrics and snapshots, dials out to the
-panel over a single mTLS WebSocket, and keeps serving when the panel is unreachable.
+One daemon per node, not one per server. It owns every container, port, log stream, metric and
+snapshot on that host, dials out to the panel over a single mTLS WebSocket, and keeps serving
+when the panel is unreachable. Nodes are hosts or VMs; groups are logical targeting sets and
+do not imply agents. See [`nodes.md`](nodes.md).
 
 ## Desired state and reconciliation
 
