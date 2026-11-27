@@ -69,7 +69,7 @@ Work that must happen once (backup now, stage-and-boot-check, run a command) is 
 
 | Resource | Verbs |
 |---|---|
-| `server` | `read`, `power`, `console`, `files`, `logs`, `moderate`, `backup`, `restore`, `update` |
+| `server` | `read`, `power`, `console`, `files`, `logs`, `moderate`, `backup`, `update` |
 | `group` | `read`, `members`, `power`, `backup`, `update` |
 | `network` | `read`, `power`, `update` (v1.1) |
 | `node` | `read`, `admin` |
@@ -78,8 +78,8 @@ Work that must happen once (backup now, stage-and-boot-check, run a command) is 
 | `artifact` | `read`, `write` |
 
 `:logs` implies `:read` on the same resource; `:read` never implies `:logs`. Anything that
-returns raw log lines or crash artifacts requires `:logs`. Restoring a backup is
-`server:<id>:restore`, not a backup-resource verb, because it mutates the server.
+returns raw log lines or crash artifacts requires `:logs`. Restoring a backup currently
+requires `server:<id>:update`; a dedicated `:restore` verb is deferred.
 
 Examples: `server:web-1:power`, `group:smp:update`, `org:default:ai`,
 `org:default:server:create`.

@@ -106,11 +106,9 @@ explicit, audited **one-time reveal** (database credentials are useless to the o
 otherwise) and a "set/rotate" affordance.
 
 Backups are encrypted with a key separate from Postgres; they contain worlds, configs and
-often third-party credentials. The master key is exported at install and **is not recoverable
-from the panel** — losing it makes every encrypted backup unreadable. Where it lives (host
-env, mounted file, KMS) and how it rotates is open item 4 in
-[`../plan/decision-log.md`](../plan/decision-log.md), decided at M0 before the first secret is
-stored.
+often third-party credentials. The key is a 32-byte file at `<data_dir>/backup.key`, generated
+on first use and never exported by the panel. Losing it makes every encrypted backup
+unreadable. Key rotation and KMS integration are deferred; back up the key file separately.
 
 ## Isolation
 
