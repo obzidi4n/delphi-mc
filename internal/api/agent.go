@@ -261,7 +261,7 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 			if json.Unmarshal(data, &frame) == nil && frame.ServerID != "" && s.opts.Console != nil {
 				s.opts.Console.PublishStats(frame)
 			}
-		case wire.TypeBackupResult:
+		case wire.TypeBackupResult, wire.TypeDevCloneResult:
 			var frame struct {
 				RequestID string `json:"request_id"`
 			}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -17,7 +18,14 @@ import (
 // HandleDevClone copies a server directory into a new temporary server and
 // rewrites only the settings needed to run it in isolation.
 func HandleDevClone(ctx context.Context, sup *Supervisor, bridge *Bridge, req wire.DevCloneRequest) wire.DevCloneResult {
+	started := time.Now()
 	res := wire.DevCloneResult{Type: wire.TypeDevCloneResult, RequestID: req.RequestID}
+	if sup != nil && sup.Log != nil {
+		sup.Log.Info("dev clone start", "source", req.SourceServerID, "target", req.TargetServerID)
+		defer func() {
+			sup.Log.Info("dev clone finish", "target", req.TargetServerID, "ok", res.OK, "method", res.Method, "bytes", res.Bytes, "elapsed", time.Since(started), "err", res.Error)
+		}()
+	}
 	if req.SourceServerID == "" || req.TargetServerID == "" || req.SourceServerID == req.TargetServerID {
 		res.Error = "source and target server ids are required and must differ"
 		return res
@@ -63,39 +71,14 @@ func HandleDevClone(ctx context.Context, sup *Supervisor, bridge *Bridge, req wi
 		}()
 	}
 
-	tmpDir := filepath.Join(sup.DataDir, "tmp")
-	if err := os.MkdirAll(tmpDir, 0o700); err != nil {
-		res.Error = err.Error()
-		return res
-	}
-	tmp, err := os.CreateTemp(tmpDir, "dev-clone-*.tar.gz")
+	method, bytes, err := cloneServerDir(sourceDir, targetDir)
 	if err != nil {
-		res.Error = err.Error()
-		return res
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-
-	hasher := &countingWriter{w: tmp}
-	if err := writeTarGz(hasher, sourceDir); err != nil {
-		tmp.Close()
-		res.Error = err.Error()
-		return res
-	}
-	if err := tmp.Close(); err != nil {
-		res.Error = err.Error()
-		return res
-	}
-	file, err := os.Open(tmpName)
-	if err != nil {
-		res.Error = err.Error()
-		return res
-	}
-	defer file.Close()
-	if err := extractTarGz(file, targetDir); err != nil {
 		_ = os.RemoveAll(targetDir)
 		res.Error = err.Error()
 		return res
+	}
+	for _, name := range []string{"logs", "cache", "crash", "backups", "session.lock", ".delphi-restart.json", "plugins/.paper-remapped"} {
+		_ = os.RemoveAll(filepath.Join(targetDir, filepath.FromSlash(name)))
 	}
 	if req.FreshWorld {
 		for _, name := range []string{"world", "world_nether", "world_the_end"} {
@@ -113,9 +96,53 @@ func HandleDevClone(ctx context.Context, sup *Supervisor, bridge *Bridge, req wi
 		return res
 	}
 	res.OK = true
-	res.Method = "tar"
-	res.Bytes = hasher.n
+	res.Method = method
+	res.Bytes = bytes
 	return res
+}
+
+func cloneServerDir(source, target string) (string, int64, error) {
+	if _, err := exec.LookPath("cp"); err == nil {
+		out, err := exec.Command("cp", "-a", source+"/.", target).CombinedOutput()
+		if err == nil {
+			var size int64
+			_ = filepath.Walk(target, func(_ string, info os.FileInfo, err error) error {
+				if err == nil && info.Mode().IsRegular() {
+					size += info.Size()
+				}
+				return nil
+			})
+			return "copy", size, nil
+		}
+		_ = out
+	}
+	tmpDir := filepath.Join(filepath.Dir(target), "tmp")
+	if err := os.MkdirAll(tmpDir, 0o700); err != nil {
+		return "", 0, err
+	}
+	tmp, err := os.CreateTemp(tmpDir, "dev-clone-*.tar.gz")
+	if err != nil {
+		return "", 0, err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	counter := &countingWriter{w: tmp}
+	if err := writeTarGz(counter, source); err != nil {
+		tmp.Close()
+		return "", 0, err
+	}
+	if err := tmp.Close(); err != nil {
+		return "", 0, err
+	}
+	file, err := os.Open(tmpName)
+	if err != nil {
+		return "", 0, err
+	}
+	defer file.Close()
+	if err := extractTarGz(file, target); err != nil {
+		return "", 0, err
+	}
+	return "tar", counter.n, nil
 }
 
 func rewriteDevProperties(dir string, port int) error {
