@@ -573,6 +573,30 @@ func (c *Client) RevokeNode(ctx context.Context, id string) error {
 	return c.do(ctx, "POST", reqPath, q, nil, nil)
 }
 
+// GET /api/v1/plugin-catalog
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) SearchPluginCatalog(ctx context.Context, provider string, query *string, mcVersion *string, limit *int) (*apitypes.PluginCatalogDTO, error) {
+	reqPath := "/api" + "/v1" + "/plugin-catalog"
+	q := url.Values{}
+	q.Set("provider", provider)
+	if query != nil {
+		q.Set("query", *query)
+	}
+	if mcVersion != nil {
+		q.Set("mc_version", *mcVersion)
+	}
+	if limit != nil {
+		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
+	}
+
+	var out apitypes.PluginCatalogDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GET /api/v1/schedules
 //
 // Requires a bearer token configured on the Client.
@@ -900,6 +924,17 @@ func (c *Client) ModeratePlayer(ctx context.Context, id string, body apitypes.Mo
 	return &out, nil
 }
 
+// DELETE /api/v1/servers/{id}/plugins
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) RemoveServerPlugin(ctx context.Context, id string, project string) error {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/plugins"
+	q := url.Values{}
+	q.Set("project", project)
+
+	return c.do(ctx, "DELETE", reqPath, q, nil, nil)
+}
+
 // GET /api/v1/servers/{id}/plugins
 //
 // Requires a bearer token configured on the Client.
@@ -909,6 +944,20 @@ func (c *Client) ListServerPlugins(ctx context.Context, id string) (*apitypes.Pl
 
 	var out apitypes.PluginListDTO
 	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/servers/{id}/plugins
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) InstallServerPlugin(ctx context.Context, id string, body apitypes.PluginInstallRequest) (*apitypes.PluginAddResult, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/plugins"
+	var q url.Values
+
+	var out apitypes.PluginAddResult
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

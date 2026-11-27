@@ -213,7 +213,7 @@ func TestHomePageGroupsServers(t *testing.T) {
 
 func TestWebOnboardingPages(t *testing.T) {
 	h, _, _, _ := newAdminHandler(t, []string{"*"})
-	for _, path := range []string{"/nodes", "/servers/new"} {
+	for _, path := range []string{"/nodes", "/servers/new", "/servers/s_1/plugins"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.AddCookie(loginCookie(t, h))
 		rec := httptest.NewRecorder()
@@ -229,6 +229,22 @@ func TestWebOnboardingPages(t *testing.T) {
 	for _, want := range []string{"Add a node", "Generate enrollment token"} {
 		if !strings.Contains(rec.Body.String(), want) {
 			t.Fatalf("nodes page missing %q", want)
+		}
+	}
+}
+
+func TestPluginsPageRenders(t *testing.T) {
+	h, _, _, _ := newAdminHandler(t, []string{"*"})
+	req := httptest.NewRequest(http.MethodGet, "/servers/s_1/plugins", nil)
+	req.AddCookie(loginCookie(t, h))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	for _, want := range []string{"Installed plugins", "Add a plugin", "Automated updates", "Check for updates"} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Fatalf("plugins page missing %q", want)
 		}
 	}
 }

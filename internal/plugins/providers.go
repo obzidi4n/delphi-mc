@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -60,6 +61,124 @@ func (r *Resolver) Resolve(ctx context.Context, provider, project, mcVersion, pi
 	default:
 		return Resolved{}, fmt.Errorf("plugins: unsupported provider %q", provider)
 	}
+}
+
+// CatalogEntry is one plugin project returned by a provider search.
+type CatalogEntry struct {
+	Provider    string   `json:"provider"`
+	Project     string   `json:"project"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Author      string   `json:"author,omitempty"`
+	IconURL     string   `json:"icon_url,omitempty"`
+	PageURL     string   `json:"page_url,omitempty"`
+	Downloads   int64    `json:"downloads,omitempty"`
+	Versions    []string `json:"versions,omitempty"`
+}
+
+// Search lists plugin projects from Modrinth or Hangar. GitHub has no public
+// project search endpoint, so it is intentionally not a catalog provider.
+func (r *Resolver) Search(ctx context.Context, provider, query, mcVersion string, limit int) ([]CatalogEntry, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	query = strings.TrimSpace(query)
+	switch provider {
+	case "modrinth":
+		return r.searchModrinth(ctx, query, mcVersion, limit)
+	case "hangar":
+		return r.searchHangar(ctx, query, limit)
+	default:
+		return nil, fmt.Errorf("plugins: catalog supports modrinth and hangar, not %q", provider)
+	}
+}
+
+type modrinthSearch struct {
+	Hits []struct {
+		Slug        string   `json:"slug"`
+		Title       string   `json:"title"`
+		Description string   `json:"description"`
+		Author      string   `json:"author"`
+		IconURL     string   `json:"icon_url"`
+		Downloads   int64    `json:"downloads"`
+		Versions    []string `json:"versions"`
+	} `json:"hits"`
+}
+
+func (r *Resolver) searchModrinth(ctx context.Context, query, mcVersion string, limit int) ([]CatalogEntry, error) {
+	base := strings.TrimRight(r.ModrinthBase, "/")
+	facets := `[["project_type:plugin"],["categories:paper"]]`
+	if mcVersion != "" {
+		facets = fmt.Sprintf(`[["project_type:plugin"],["categories:paper"],["versions:%s"]]`, mcVersion)
+	}
+	q := url.Values{}
+	q.Set("query", query)
+	q.Set("limit", strconv.Itoa(limit))
+	q.Set("facets", facets)
+	var body modrinthSearch
+	if err := r.get(ctx, base+"/search?"+q.Encode(), &body); err != nil {
+		return nil, err
+	}
+	out := make([]CatalogEntry, 0, len(body.Hits))
+	for _, hit := range body.Hits {
+		if hit.Slug == "" {
+			continue
+		}
+		out = append(out, CatalogEntry{
+			Provider: "modrinth", Project: hit.Slug, Title: hit.Title,
+			Description: hit.Description, Author: hit.Author,
+			IconURL: hit.IconURL, PageURL: "https://modrinth.com/plugin/" + hit.Slug,
+			Downloads: hit.Downloads, Versions: hit.Versions,
+		})
+	}
+	return out, nil
+}
+
+type hangarSearch struct {
+	Result []struct {
+		Name      string `json:"name"`
+		Namespace struct {
+			Owner string `json:"owner"`
+			Slug  string `json:"slug"`
+		} `json:"namespace"`
+		Description string `json:"description"`
+		AvatarURL   string `json:"avatarUrl"`
+		Stats       struct {
+			Downloads int64 `json:"downloads"`
+		} `json:"stats"`
+	} `json:"result"`
+}
+
+func (r *Resolver) searchHangar(ctx context.Context, query string, limit int) ([]CatalogEntry, error) {
+	base := strings.TrimRight(r.HangarBase, "/")
+	q := url.Values{}
+	if query != "" {
+		q.Set("q", query)
+	}
+	q.Set("limit", strconv.Itoa(limit))
+	q.Set("offset", "0")
+	q.Set("platform", "PAPER")
+	var body hangarSearch
+	if err := r.get(ctx, base+"/projects?"+q.Encode(), &body); err != nil {
+		return nil, err
+	}
+	out := make([]CatalogEntry, 0, len(body.Result))
+	for _, hit := range body.Result {
+		owner, slug := hit.Namespace.Owner, hit.Namespace.Slug
+		if owner == "" || slug == "" {
+			continue
+		}
+		project := owner + "/" + slug
+		out = append(out, CatalogEntry{
+			Provider: "hangar", Project: project, Title: hit.Name,
+			Description: hit.Description, Author: owner, IconURL: hit.AvatarURL,
+			PageURL: "https://hangar.papermc.io/" + project, Downloads: hit.Stats.Downloads,
+		})
+	}
+	return out, nil
 }
 
 // Slug returns a safe, stable jar base name for a project.

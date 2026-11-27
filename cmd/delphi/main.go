@@ -350,11 +350,11 @@ func runPanel(ctx context.Context, args []string) error {
 			return err
 		}
 		alerts = &capability.Alerts{Store: db, Box: box, Log: log}
-		schedules = &capability.Schedules{Store: db, Servers: servers, Backups: backups, Log: log}
 		updates := &capability.Updates{
 			Store: db, Resolver: plugins.NewResolver(nil), Artifacts: artifacts,
 			HTTP: &http.Client{Timeout: 5 * time.Minute}, Notify: hub, Log: log,
 		}
+		schedules = &capability.Schedules{Store: db, Servers: servers, Backups: backups, Updates: updates, Log: log}
 		templates := &capability.Templates{
 			Store: db, Servers: servers, Ports: db, Resolver: mc.NewClient(nil), Plugins: updates,
 		}

@@ -28,6 +28,31 @@ A template may pin an exact `version` or set a **version-prefix range** (`5.5`, 
 `5.5.71`). Both are resolved to a concrete version and sha256 at server creation. Semver
 range expressions are not interpreted.
 
+## Plugin catalog and per-server management
+
+The Plugins page for a server has two jobs:
+
+- **Catalog search** queries Modrinth's plugin search or Hangar's project search.
+  The panel returns project metadata only; installing resolves the newest build
+  compatible with that server's Minecraft version and downloads it into the
+  artifact store.
+- **Installed management** lists the managed set, checks for newer builds, applies
+  all updates, and removes individual projects. Installing, removing, or applying
+  bumps the desired revision; a running server restarts through the normal
+  reconciliation path.
+
+`POST /api/v1/servers/{id}/plugins` accepts `{provider, project, version?, range?}`.
+`DELETE /api/v1/servers/{id}/plugins?project=...` removes one project. Both are
+scoped and audited (`server.plugin.add`, `server.plugin.update`,
+`server.plugin.remove`). GitHub remains a resolver-only provider because it has
+no public project search API.
+
+The page checks for updates on load and every five minutes while it is open.
+To make updates automatic, create a schedule with action `updates.apply`; the
+existing scheduler runs detection, downloads changed artifacts, applies the new
+revision, and the same boot-check/rollback path runs. The Plugins page exposes
+this as a cron form.
+
 ## Policies
 
 | Policy | Meaning |
@@ -72,3 +97,5 @@ cannot drift.
 - Node-local CAS plus a `pull` delivery mode.
 - Release channels / Paper and Velocity jar update policy. M9 updates managed plugins only.
 - Manual SpigotMC upload.
+- Dev/staging clone and promote flow (planned M17); applying updates still uses the
+  in-place guarded restart until the staged clone exists.

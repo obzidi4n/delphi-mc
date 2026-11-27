@@ -109,6 +109,7 @@ var filesTemplate = template.Must(template.New("files").Parse(`<!doctype html>
 <header>
   <a href="{{.BasePath}}">&larr; Fleet</a>
   <a href="{{.BasePath}}servers/{{.ID}}">Console</a>
+  <a href="{{.BasePath}}servers/{{.ID}}/plugins">Plugins</a>
   <a href="{{.BasePath}}chat">AI</a>
   <h1>{{.Name}} · Files</h1>
   <span style="flex:1"></span><span class="status">{{.Email}}</span>

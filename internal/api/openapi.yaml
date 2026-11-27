@@ -447,6 +447,35 @@ paths:
         "204": { description: Deleted }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/plugin-catalog:
+    get:
+      operationId: searchPluginCatalog
+      summary: Search plugin projects on Modrinth or Hangar
+      parameters:
+        - name: provider
+          in: query
+          required: true
+          schema: { type: string, enum: [modrinth, hangar] }
+        - name: query
+          in: query
+          required: false
+          schema: { type: string }
+        - name: mc_version
+          in: query
+          required: false
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Matching projects
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PluginCatalogDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/v1/servers/{id}/plugins:
     get:
       operationId: listServerPlugins
@@ -462,6 +491,45 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PluginListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+    post:
+      operationId: installServerPlugin
+      summary: Resolve, download, and install one plugin on a server
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PluginInstallRequest" }
+      responses:
+        "201":
+          description: Installed plugin
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PluginAddResult" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+    delete:
+      operationId: removeServerPlugin
+      summary: Remove one managed plugin from a server
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: project
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Removed }
+        "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
   /api/v1/servers/{id}/updates:
@@ -1324,6 +1392,42 @@ components:
         name: { type: string }
         sha256: { type: string }
         size: { type: integer, format: int64 }
+    PluginCatalogEntry:
+      type: object
+      required: [provider, project, title]
+      properties:
+        provider: { type: string }
+        project: { type: string }
+        title: { type: string }
+        description: { type: string }
+        author: { type: string }
+        icon_url: { type: string }
+        page_url: { type: string }
+        downloads: { type: integer, format: int64 }
+        versions:
+          type: array
+          items: { type: string }
+    PluginCatalogDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PluginCatalogEntry" }
+    PluginInstallRequest:
+      type: object
+      required: [provider, project]
+      properties:
+        provider: { type: string, enum: [modrinth, hangar, github] }
+        project: { type: string }
+        version: { type: string }
+        range: { type: string }
+    PluginAddResult:
+      type: object
+      required: [plugin, revision]
+      properties:
+        plugin: { $ref: "#/components/schemas/ServerPlugin" }
+        revision: { type: integer, format: int64 }
     PluginUpdate:
       type: object
       required: [project, provider, current]
@@ -1416,7 +1520,7 @@ components:
       properties:
         name: { type: string }
         server_id: { type: string }
-        action: { type: string, enum: [power.restart, power.start, power.stop, backup.create] }
+        action: { type: string, enum: [power.restart, power.start, power.stop, backup.create, updates.apply] }
         cron: { type: string }
         timezone: { type: string }
     ScheduleListDTO:

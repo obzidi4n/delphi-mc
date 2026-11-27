@@ -179,3 +179,47 @@ func TestDetectSkipsProviderFailureIntoError(t *testing.T) {
 		t.Fatalf("items = %+v", items)
 	}
 }
+
+func TestAddAndRemovePlugin(t *testing.T) {
+	updates, fake, _ := newUpdateFixture(t, "latest", "1.0.0")
+	p := Principal{UserID: "u", OrgID: "default", Via: "ui", Scopes: []string{"server:s_1:update"}}
+	result, err := updates.Add(context.Background(), p, "s_1", PluginRequest{
+		Provider: "modrinth", Project: "added",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Plugin.Project != "added" || result.Plugin.Version != "2.0.0" || result.Plugin.Policy != "latest" {
+		t.Fatalf("add = %+v", result)
+	}
+	if len(fake.updated.Plugins) != 2 {
+		t.Fatalf("installed = %+v", fake.updated.Plugins)
+	}
+	if _, err := updates.Remove(context.Background(), p, "s_1", "added"); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.updated.Plugins) != 1 || fake.updated.Plugins[0].Project != "p" {
+		t.Fatalf("removed = %+v", fake.updated.Plugins)
+	}
+	if _, err := updates.Remove(context.Background(), p, "s_1", "nope"); err == nil {
+		t.Fatal("missing plugin should fail")
+	}
+}
+
+func TestScheduledUpdateAppliesPluginUpdates(t *testing.T) {
+	updates, fake, _ := newUpdateFixture(t, "latest", "1.0.0")
+	s := &Schedules{Updates: updates}
+	p := Principal{
+		UserID: "schedule:nightly", OrgID: "default", Via: "schedule",
+		Scopes: []string{"server:*:read", "server:*:update"},
+	}
+	if err := s.run(context.Background(), p, store.Schedule{
+		ID: "sch_1", Name: "nightly", OrgID: "default", TargetID: "s_1",
+		Action: "updates.apply",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if fake.updated == nil || fake.updated.Plugins[0].Version != "2.0.0" {
+		t.Fatalf("plugins not updated: %+v", fake.updated)
+	}
+}

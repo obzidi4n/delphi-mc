@@ -482,6 +482,38 @@ type NodeListDTO struct {
 	NextCursor *string   `json:"next_cursor"`
 }
 
+// PluginAddResult is generated from the spec.
+type PluginAddResult struct {
+	Plugin   ServerPlugin `json:"plugin"`
+	Revision int64        `json:"revision"`
+}
+
+// PluginCatalogDTO is generated from the spec.
+type PluginCatalogDTO struct {
+	Items []PluginCatalogEntry `json:"items"`
+}
+
+// PluginCatalogEntry is generated from the spec.
+type PluginCatalogEntry struct {
+	Author      *string  `json:"author,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Downloads   *int64   `json:"downloads,omitempty"`
+	IconURL     *string  `json:"icon_url,omitempty"`
+	PageURL     *string  `json:"page_url,omitempty"`
+	Project     string   `json:"project"`
+	Provider    string   `json:"provider"`
+	Title       string   `json:"title"`
+	Versions    []string `json:"versions,omitempty"`
+}
+
+// PluginInstallRequest is generated from the spec.
+type PluginInstallRequest struct {
+	Project  string  `json:"project"`
+	Provider string  `json:"provider"`
+	Range    *string `json:"range,omitempty"`
+	Version  *string `json:"version,omitempty"`
+}
+
 // PluginListDTO is generated from the spec.
 type PluginListDTO struct {
 	Items []ServerPlugin `json:"items"`

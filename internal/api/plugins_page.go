@@ -1,0 +1,451 @@
+package api
+
+import (
+	"html/template"
+	"net/http"
+	"strings"
+)
+
+type pluginsPage struct {
+	BasePath  string
+	Email     string
+	ID        string
+	Name      string
+	Base      string
+	State     string
+	MCVersion string
+}
+
+func (s *server) renderPluginsPage(w http.ResponseWriter, r *http.Request) {
+	principal, user, ok := s.pagePrincipal(w, r)
+	if !ok {
+		return
+	}
+	if s.opts.Services == nil || s.opts.Services.Servers == nil {
+		http.Error(w, "the database is not configured", http.StatusNotImplemented)
+		return
+	}
+	srv, err := s.opts.Services.Servers.Get(r.Context(), principal, r.PathValue("id"))
+	if err != nil {
+		status := http.StatusNotFound
+		if strings.Contains(err.Error(), "forbidden") {
+			status = http.StatusForbidden
+		}
+		http.Error(w, err.Error(), status)
+		return
+	}
+	data := pluginsPage{
+		BasePath: s.base, Email: user.Email, ID: srv.ID, Name: srv.Name,
+		Base: srv.Base, State: srv.SummaryState, MCVersion: srv.MCVersion,
+	}
+	if data.State == "" {
+		data.State = srv.ObservedState
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	_ = pluginsTemplate.Execute(w, data)
+}
+
+var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plugins · {{.Name}} · DelphiMC</title>
+<style>
+ :root{color-scheme:dark}
+ *{box-sizing:border-box}
+ body{margin:0;background:#0d1117;color:#c9d1d9;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;min-height:100vh}
+ header{display:flex;align-items:center;gap:.9rem;padding:.55rem .9rem;border-bottom:1px solid #21262d;background:#010409;flex-wrap:wrap}
+ header a{color:#79c0ff;text-decoration:none}
+ h1{font-size:.95rem;margin:0;font-weight:600;color:#e6edf3}
+ h2{font-size:.88rem;margin:0 0 .6rem;color:#e6edf3}
+ .pill{font-size:.72rem;padding:.15rem .5rem;border-radius:999px;border:1px solid #30363d;text-transform:uppercase;letter-spacing:.04em;color:#8b949e}
+ main{max-width:1100px;margin:0 auto;padding:1rem}
+ .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:1rem;align-items:start}
+ @media (max-width:900px){.grid{grid-template-columns:1fr}}
+ section{border:1px solid #30363d;border-radius:.5rem;background:#161b22;padding:.8rem;margin-bottom:1rem}
+ table{width:100%;border-collapse:collapse}
+ th,td{text-align:left;padding:.35rem .3rem;border-bottom:1px solid #21262d;vertical-align:top}
+ th{color:#8b949e;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+ td.name{color:#e6edf3}
+ .meta{color:#8b949e;font-size:.78rem}
+ .actions{display:flex;gap:.4rem;flex-wrap:wrap}
+ button{background:#21262d;border:1px solid #30363d;border-radius:.35rem;color:#c9d1d9;padding:.28rem .55rem;font:inherit;cursor:pointer}
+ button:hover{background:#30363d}
+ button.primary{background:#1f6feb;border-color:#1f6feb;color:#fff}
+ button.danger{color:#ff7b72}
+ button:disabled{opacity:.45;cursor:default}
+ input,select{background:#010409;border:1px solid #30363d;border-radius:.35rem;color:inherit;padding:.3rem .45rem;font:inherit;outline:none}
+ input:focus,select:focus{border-color:#388bfd}
+ .row{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+ .searchbar{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.7rem}
+ .searchbar input[type=search]{flex:1;min-width:12rem}
+ #results{display:flex;flex-direction:column;gap:.5rem;max-height:32rem;overflow:auto}
+ .hit{display:flex;gap:.6rem;border:1px solid #21262d;border-radius:.4rem;padding:.5rem;background:#0d1117}
+ .hit img{width:2rem;height:2rem;border-radius:.3rem;object-fit:cover;background:#21262d}
+ .hit .body{flex:1;min-width:0}
+ .hit .title{color:#e6edf3;font-weight:600}
+ .hit .desc{color:#8b949e;font-size:.78rem;margin:.15rem 0}
+ .hit .meta{font-size:.72rem}
+ .badge{display:inline-block;border:1px solid #9e6a03;background:#3d2c00;color:#d29922;border-radius:.3rem;padding:.02rem .3rem;font-size:.7rem}
+ .badge.ok{color:#3fb950;border-color:#238636;background:#0d2818}
+ .hint{color:#6e7681;font-size:.75rem;margin:.5rem 0 0}
+ #toast{position:fixed;right:1rem;bottom:1rem;max-width:34rem;background:#161b22;border:1px solid #30363d;border-radius:.4rem;padding:.55rem .7rem;color:#e6edf3;display:none;white-space:pre-wrap}
+ #toast.err{border-color:#f85149;color:#ff7b72}
+ .loading{opacity:.55}
+</style></head><body data-id="{{.ID}}" data-base="{{.BasePath}}" data-name="{{.Name}}" data-mc="{{.MCVersion}}">
+<header>
+  <a href="{{.BasePath}}">&larr; Fleet</a>
+  <a href="{{.BasePath}}servers/{{.ID}}">Console</a>
+  <a href="{{.BasePath}}servers/{{.ID}}/files">Files</a>
+  <a href="{{.BasePath}}chat">AI</a>
+  <h1>{{.Name}}</h1>
+  <span class="pill">{{.Base}}</span>
+  <span class="pill">{{.State}}</span>
+  <span class="meta">Minecraft {{.MCVersion}}</span>
+</header>
+<main>
+ <div class="grid">
+  <div>
+   <section>
+    <div class="row" style="justify-content:space-between;margin-bottom:.4rem">
+     <h2>Installed plugins</h2>
+     <div class="actions">
+      <button id="check">Check for updates</button>
+      <button id="apply" class="primary" disabled>Apply updates</button>
+     </div>
+    </div>
+    <div id="installed" class="meta">Loading…</div>
+    <p class="hint">Checking runs automatically while this page is open. Installing or removing a plugin restarts a running server; applying updates installs the newest compatible jars first, then boot-checks the restart.</p>
+   </section>
+   <section>
+    <h2>Available updates</h2>
+    <div id="updates" class="meta">Run a check to inspect newer builds.</div>
+   </section>
+   <section>
+    <h2>Automated updates</h2>
+    <form id="autoform" class="row" style="margin-bottom:.5rem">
+     <input id="cron" value="0 4 * * 1" size="14" aria-label="Cron schedule">
+     <input id="tz" value="UTC" size="10" aria-label="Timezone">
+     <button class="primary" type="submit">Schedule update</button>
+    </form>
+    <div id="schedules" class="meta">Loading schedules…</div>
+    <p class="hint">The cron expression applies available plugin updates automatically. A running server restarts and is rolled back if the new revision does not boot.</p>
+   </section>
+  </div>
+  <div>
+   <section>
+    <h2>Add a plugin</h2>
+    <div class="searchbar">
+     <select id="provider"><option value="modrinth">Modrinth</option><option value="hangar">Hangar</option></select>
+     <input id="query" type="search" placeholder="Search LuckPerms, ViaVersion…">
+     <button id="search" class="primary">Search</button>
+    </div>
+    <div id="results" class="meta">Search Modrinth or Hangar for a Paper plugin.</div>
+    <p class="hint">Installing resolves the newest build compatible with Minecraft {{.MCVersion}} and downloads it through the panel's artifact store.</p>
+   </section>
+  </div>
+ </div>
+</main>
+<div id="toast"></div>
+<script>
+(function () {
+  'use strict';
+  var body = document.body;
+  var id = body.dataset.id;
+  var base = body.dataset.base || '/';
+  var mc = body.dataset.mc || '';
+  var api = base + 'api/v1/servers/' + encodeURIComponent(id);
+  var installedEl = document.getElementById('installed');
+  var updatesEl = document.getElementById('updates');
+  var resultsEl = document.getElementById('results');
+  var applyBtn = document.getElementById('apply');
+  var checkBtn = document.getElementById('check');
+  var autoForm = document.getElementById('autoform');
+  var cronEl = document.getElementById('cron');
+  var tzEl = document.getElementById('tz');
+  var schedulesEl = document.getElementById('schedules');
+  var serverName = body.dataset.name || id;
+  var searchBtn = document.getElementById('search');
+  var providerEl = document.getElementById('provider');
+  var queryEl = document.getElementById('query');
+  var toastEl = document.getElementById('toast');
+  var updateCount = 0;
+  var installing = false;
+
+  function toast(text, err) {
+    toastEl.textContent = text;
+    toastEl.className = err ? 'err' : '';
+    toastEl.style.display = 'block';
+    window.clearTimeout(toastEl._timer);
+    toastEl._timer = window.setTimeout(function () { toastEl.style.display = 'none'; }, 7000);
+  }
+  function request(path, opts) {
+    return fetch(path, opts).then(function (res) {
+      return res.text().then(function (text) {
+        var data = null;
+        if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+        if (!res.ok) {
+          throw new Error((data && (data.detail || data.code)) || (text || res.status + ' ' + res.statusText));
+        }
+        return data;
+      });
+    });
+  }
+  function cell(text, className) {
+    var td = document.createElement('td');
+    if (className) { td.className = className; }
+    td.textContent = text == null ? '' : String(text);
+    return td;
+  }
+  function button(label, className, fn) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    if (className) { b.className = className; }
+    b.addEventListener('click', fn);
+    return b;
+  }
+  function renderInstalled(items) {
+    installedEl.className = '';
+    if (!items.length) {
+      installedEl.textContent = 'No managed plugins. Add one from the catalog.';
+      return;
+    }
+    var table = document.createElement('table');
+    var head = document.createElement('tr');
+    ['Plugin', 'Provider', 'Version', 'Policy', ''].forEach(function (label) {
+      var th = document.createElement('th');
+      th.textContent = label;
+      head.appendChild(th);
+    });
+    table.appendChild(head);
+    items.forEach(function (item) {
+      var tr = document.createElement('tr');
+      tr.appendChild(cell(item.project, 'name'));
+      tr.appendChild(cell(item.provider));
+      tr.appendChild(cell(item.version));
+      tr.appendChild(cell(item.policy));
+      var actions = document.createElement('td');
+      actions.className = 'actions';
+      actions.appendChild(button('Remove', 'danger', function () {
+        if (!window.confirm('Remove ' + item.project + ' from this server?')) { return; }
+        request(api + '/plugins?project=' + encodeURIComponent(item.project), {method: 'DELETE'})
+          .then(function () { toast('Removed ' + item.project); return refreshAll(); })
+          .catch(function (err) { toast(err.message, true); });
+      }));
+      tr.appendChild(actions);
+      table.appendChild(tr);
+    });
+    installedEl.textContent = '';
+    installedEl.appendChild(table);
+  }
+  function renderUpdates(items, revision) {
+    updateCount = items.length;
+    applyBtn.disabled = updateCount === 0 || installing;
+    updatesEl.className = '';
+    if (!items.length) {
+      updatesEl.innerHTML = '<span class="badge ok">up to date</span> revision ' + revision;
+      return;
+    }
+    var table = document.createElement('table');
+    var head = document.createElement('tr');
+    ['Plugin', 'Current', 'Available', ''].forEach(function (label) {
+      var th = document.createElement('th');
+      th.textContent = label;
+      head.appendChild(th);
+    });
+    table.appendChild(head);
+    items.forEach(function (item) {
+      var tr = document.createElement('tr');
+      tr.appendChild(cell(item.project, 'name'));
+      tr.appendChild(cell(item.current));
+      var latest = cell(item.latest || (item.error ? 'error' : '—'));
+      if (item.error) { latest.className = 'danger'; latest.title = item.error; }
+      tr.appendChild(latest);
+      var actions = document.createElement('td');
+      actions.className = 'actions';
+      actions.appendChild(button('Install', '', function () {
+        install({provider: item.provider, project: item.project});
+      }));
+      tr.appendChild(actions);
+      table.appendChild(tr);
+    });
+    updatesEl.textContent = '';
+    updatesEl.appendChild(table);
+    var hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent = 'Applying all updates downloads changed jars and restarts a running server. The new revision is rolled back if the server does not reach running.';
+    updatesEl.appendChild(hint);
+  }
+  function loadInstalled() {
+    return request(api + '/plugins').then(function (data) {
+      renderInstalled((data && data.items) || []);
+    }).catch(function (err) {
+      installedEl.className = 'danger';
+      installedEl.textContent = err.message;
+    });
+  }
+  function checkUpdates(quiet) {
+    checkBtn.disabled = true;
+    if (!quiet) { updatesEl.textContent = 'Checking providers…'; }
+    return request(api + '/updates').then(function (data) {
+      renderUpdates((data && data.items) || [], data ? data.revision : '');
+    }).catch(function (err) {
+      updatesEl.className = 'danger';
+      updatesEl.textContent = err.message;
+    }).finally(function () {
+      checkBtn.disabled = false;
+    });
+  }
+  function renderSchedules(items) {
+    schedulesEl.className = '';
+    schedulesEl.textContent = '';
+    if (!items.length) {
+      schedulesEl.textContent = 'No automated update schedule.';
+      return;
+    }
+    var table = document.createElement('table');
+    items.forEach(function (item) {
+      var tr = document.createElement('tr');
+      tr.appendChild(cell(item.cron));
+      tr.appendChild(cell(item.timezone));
+      tr.appendChild(cell(item.next_run ? 'next ' + new Date(item.next_run).toLocaleString() : ''));
+      var actions = document.createElement('td');
+      actions.className = 'actions';
+      actions.appendChild(button('Delete', 'danger', function () {
+        if (!window.confirm('Delete this update schedule?')) { return; }
+        request(base + 'api/v1/schedules/' + encodeURIComponent(item.id), {method: 'DELETE'})
+          .then(function () { toast('Schedule deleted'); return loadSchedules(); })
+          .catch(function (err) { toast(err.message, true); });
+      }));
+      tr.appendChild(actions);
+      table.appendChild(tr);
+    });
+    schedulesEl.appendChild(table);
+  }
+  function loadSchedules() {
+    return request(base + 'api/v1/schedules').then(function (data) {
+      renderSchedules(((data && data.items) || []).filter(function (item) {
+        return item.server_id === id && item.action === 'updates.apply';
+      }));
+    }).catch(function (err) {
+      schedulesEl.className = 'danger';
+      schedulesEl.textContent = err.message;
+    });
+  }
+  function refreshAll() {
+    return loadInstalled().then(function () { return loadSchedules(); }).then(function () { return checkUpdates(true); });
+  }
+  function install(entry) {
+    if (installing) { return; }
+    installing = true;
+    applyBtn.disabled = true;
+    request(api + '/plugins', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({provider: entry.provider, project: entry.project})
+    }).then(function (result) {
+      toast('Installed ' + result.plugin.project + ' ' + result.plugin.version);
+      return refreshAll();
+    }).catch(function (err) {
+      toast(err.message, true);
+    }).finally(function () {
+      installing = false;
+      applyBtn.disabled = updateCount === 0;
+    });
+  }
+  function search() {
+    var provider = providerEl.value;
+    var query = queryEl.value.trim();
+    resultsEl.className = 'meta';
+    resultsEl.textContent = 'Searching ' + provider + '…';
+    var path = base + 'api/v1/plugin-catalog?provider=' + encodeURIComponent(provider) +
+      '&query=' + encodeURIComponent(query) +
+      '&mc_version=' + encodeURIComponent(mc) + '&limit=20';
+    request(path).then(function (data) {
+      var items = (data && data.items) || [];
+      resultsEl.className = '';
+      resultsEl.textContent = '';
+      if (!items.length) {
+        resultsEl.className = 'meta';
+        resultsEl.textContent = 'No matching Paper plugins.';
+        return;
+      }
+      items.forEach(function (item) {
+        var hit = document.createElement('div');
+        hit.className = 'hit';
+        if (item.icon_url) {
+          var img = document.createElement('img');
+          img.src = item.icon_url;
+          img.alt = '';
+          img.loading = 'lazy';
+          hit.appendChild(img);
+        }
+        var bodyEl = document.createElement('div');
+        bodyEl.className = 'body';
+        var title = document.createElement('div');
+        title.className = 'title';
+        title.textContent = item.title || item.project;
+        bodyEl.appendChild(title);
+        var desc = document.createElement('div');
+        desc.className = 'desc';
+        desc.textContent = item.description || '';
+        bodyEl.appendChild(desc);
+        var meta = document.createElement('div');
+        meta.className = 'meta';
+        var parts = [item.project];
+        if (item.author) { parts.push(item.author); }
+        if (item.downloads) { parts.push(item.downloads.toLocaleString() + ' downloads'); }
+        meta.textContent = parts.join(' · ');
+        bodyEl.appendChild(meta);
+        hit.appendChild(bodyEl);
+        var add = button('Install', 'primary', function () { install(item); });
+        hit.appendChild(add);
+        resultsEl.appendChild(hit);
+      });
+    }).catch(function (err) {
+      resultsEl.className = 'danger';
+      resultsEl.textContent = err.message;
+    });
+  }
+  autoForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var cron = cronEl.value.trim();
+    if (!cron) { toast('Cron expression is required', true); return; }
+    request(base + 'api/v1/schedules', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        name: 'Update plugins: ' + serverName,
+        server_id: id,
+        action: 'updates.apply',
+        cron: cron,
+        timezone: tzEl.value.trim() || 'UTC'
+      })
+    }).then(function () {
+      toast('Automated update scheduled');
+      return loadSchedules();
+    }).catch(function (err) { toast(err.message, true); });
+  });
+  checkBtn.addEventListener('click', function () { checkUpdates(false); });
+  applyBtn.addEventListener('click', function () {
+    if (!window.confirm('Download and apply ' + updateCount + ' update(s)? A running server will restart.')) { return; }
+    applyBtn.disabled = true;
+    request(api + '/updates/apply', {method: 'POST'}).then(function (result) {
+      toast('Applied ' + result.applied.length + ' update(s), revision ' + result.revision + '; boot check ' + result.boot_check);
+      return refreshAll();
+    }).catch(function (err) {
+      toast(err.message, true);
+      applyBtn.disabled = false;
+    });
+  });
+  searchBtn.addEventListener('click', search);
+  queryEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') { search(); } });
+  refreshAll();
+  window.setInterval(function () {
+    if (!document.hidden) { checkUpdates(true); }
+  }, 300000);
+})();
+</script></body></html>
+`))

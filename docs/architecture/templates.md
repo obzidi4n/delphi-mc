@@ -24,6 +24,10 @@ next to them and both list through one cursor. Purpur resolves through its own A
 supported wherever Paper is supported; the jar's sha256 is computed by the panel because the
 Purpur API exposes only an md5.
 
+After creation, plugins can be added, removed, and updated from the server's
+Plugins page. Catalog search uses Modrinth and Hangar project search; the
+per-server install path uses the same resolver and artifact store as templates.
+
 Plugins are resolved at instantiation through `internal/plugins`:
 
 | Provider | Project form | Selection |

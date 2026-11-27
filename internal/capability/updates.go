@@ -145,6 +145,144 @@ func (u *Updates) fetch(ctx context.Context, res plugins.Resolved) (store.Artifa
 	return art, nil
 }
 
+// Catalog searches Modrinth or Hangar for installable plugin projects.
+func (u *Updates) Catalog(ctx context.Context, p Principal, provider, query, mcVersion string, limit int) ([]plugins.CatalogEntry, error) {
+	if !p.Allows(orgScope(p, "read")) {
+		return nil, forbidden(orgScope(p, "read"))
+	}
+	if u.Resolver == nil {
+		return nil, errors.New("plugin resolver is not configured")
+	}
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if provider != "modrinth" && provider != "hangar" {
+		return nil, invalid("provider must be modrinth or hangar")
+	}
+	return u.Resolver.Search(ctx, provider, query, strings.TrimSpace(mcVersion), limit)
+}
+
+// PluginRequest asks to install or replace one managed plugin.
+type PluginRequest struct {
+	Provider string `json:"provider"`
+	Project  string `json:"project"`
+	Version  string `json:"version,omitempty"`
+	Range    string `json:"range,omitempty"`
+}
+
+// PluginAddResult reports the installed plugin and resulting revision.
+type PluginAddResult struct {
+	Plugin   store.ServerPlugin `json:"plugin"`
+	Revision int64              `json:"revision"`
+}
+
+// Add resolves, downloads, and installs one plugin on a server. Reinstalling
+// the same project updates its resolved version instead of creating a duplicate.
+func (u *Updates) Add(ctx context.Context, p Principal, id string, req PluginRequest) (PluginAddResult, error) {
+	if !p.Allows(serverScope(id, "update")) {
+		return PluginAddResult{}, forbidden(serverScope(id, "update"))
+	}
+	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
+	req.Project = strings.TrimSpace(req.Project)
+	if req.Provider != "modrinth" && req.Provider != "hangar" && req.Provider != "github" {
+		return PluginAddResult{}, invalid("provider must be modrinth, hangar, or github")
+	}
+	if req.Project == "" || len(req.Project) > 200 {
+		return PluginAddResult{}, invalid("project must be 1-200 characters")
+	}
+	if req.Version != "" && req.Range != "" {
+		return PluginAddResult{}, invalid("version and range cannot both be set")
+	}
+	srv, err := u.Store.GetServer(ctx, id)
+	if err != nil {
+		return PluginAddResult{}, err
+	}
+	if srv.MCVersion == "" {
+		return PluginAddResult{}, invalid("server has no recorded Minecraft version")
+	}
+	res, err := u.resolve(ctx, req.Provider, req.Project, srv.MCVersion, req.Version, req.Range)
+	if err != nil {
+		return PluginAddResult{}, err
+	}
+	art, err := u.fetch(ctx, res)
+	if err != nil {
+		return PluginAddResult{}, fmt.Errorf("plugin %s: %w", req.Project, err)
+	}
+	policy := "latest"
+	switch {
+	case req.Version != "":
+		policy = "pinned"
+	case req.Range != "":
+		policy = "range"
+	}
+	plugin := store.ServerPlugin{
+		Project: req.Project, Provider: req.Provider, Version: res.Version,
+		Policy: policy, Range: req.Range, Name: plugins.JarName(req.Project),
+		SHA256: art.SHA256, Size: art.Size,
+	}
+	next := append([]store.ServerPlugin(nil), srv.Plugins...)
+	replaced := false
+	for i, installed := range next {
+		if strings.EqualFold(installed.Project, req.Project) {
+			next[i] = plugin
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		next = append(next, plugin)
+	}
+	updated, err := u.Store.SetArtifacts(ctx, srv.ID, srv.MCVersion, srv.JarURL, srv.JarSHA256, next, srv.DesiredState)
+	if err != nil {
+		return PluginAddResult{}, err
+	}
+	u.sync(ctx, srv.NodeID)
+	action := "server.plugin.add"
+	if replaced {
+		action = "server.plugin.update"
+	}
+	_ = u.audit(ctx, srv, p, action, map[string]any{
+		"project": plugin.Project, "provider": plugin.Provider,
+		"version": plugin.Version, "policy": plugin.Policy, "revision": updated.DesiredRevision,
+	})
+	return PluginAddResult{Plugin: plugin, Revision: updated.DesiredRevision}, nil
+}
+
+// Remove deletes one managed plugin and syncs the server. The server restarts
+// if it is running.
+func (u *Updates) Remove(ctx context.Context, p Principal, id, project string) (int64, error) {
+	if !p.Allows(serverScope(id, "update")) {
+		return 0, forbidden(serverScope(id, "update"))
+	}
+	project = strings.TrimSpace(project)
+	if project == "" || len(project) > 200 {
+		return 0, invalid("project must be 1-200 characters")
+	}
+	srv, err := u.Store.GetServer(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	next := make([]store.ServerPlugin, 0, len(srv.Plugins))
+	removed := false
+	for _, installed := range srv.Plugins {
+		if strings.EqualFold(installed.Project, project) {
+			removed = true
+			continue
+		}
+		next = append(next, installed)
+	}
+	if !removed {
+		return 0, invalid("plugin %q is not installed", project)
+	}
+	updated, err := u.Store.SetArtifacts(ctx, srv.ID, srv.MCVersion, srv.JarURL, srv.JarSHA256, next, srv.DesiredState)
+	if err != nil {
+		return 0, err
+	}
+	u.sync(ctx, srv.NodeID)
+	_ = u.audit(ctx, srv, p, "server.plugin.remove", map[string]any{
+		"project": project, "revision": updated.DesiredRevision,
+	})
+	return updated.DesiredRevision, nil
+}
+
 // List returns a server's managed plugins.
 func (u *Updates) List(ctx context.Context, p Principal, id string) ([]store.ServerPlugin, error) {
 	if !p.Allows(serverScope(id, "read")) {

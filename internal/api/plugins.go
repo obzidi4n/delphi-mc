@@ -10,6 +10,7 @@ import (
 
 	"delphi.dev/delphi/internal/apitypes"
 	"delphi.dev/delphi/internal/capability"
+	"delphi.dev/delphi/internal/store"
 )
 
 func strPtr(s string) *string {
@@ -25,6 +26,99 @@ func (s *server) updatesService(w http.ResponseWriter) *capability.Updates {
 		return nil
 	}
 	return s.opts.Services.Updates
+}
+
+func (s *server) searchPluginCatalog(w http.ResponseWriter, r *http.Request) {
+	principal, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	service := s.updatesService(w)
+	if service == nil {
+		return
+	}
+	limit := 20
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 50 {
+			writeProblem(w, http.StatusBadRequest, "invalid_limit", "limit must be 1..50")
+			return
+		}
+		limit = n
+	}
+	items, err := service.Catalog(r.Context(), principal,
+		r.URL.Query().Get("provider"), r.URL.Query().Get("query"),
+		r.URL.Query().Get("mc_version"), limit)
+	if err != nil {
+		writeCapabilityError(w, err)
+		return
+	}
+	out := make([]apitypes.PluginCatalogEntry, 0, len(items))
+	for _, item := range items {
+		out = append(out, apitypes.PluginCatalogEntry{
+			Provider: item.Provider, Project: item.Project, Title: item.Title,
+			Description: strPtr(item.Description), Author: strPtr(item.Author),
+			IconURL: strPtr(item.IconURL), PageURL: strPtr(item.PageURL),
+			Downloads: func() *int64 {
+				if item.Downloads == 0 {
+					return nil
+				}
+				return &item.Downloads
+			}(),
+			Versions: item.Versions,
+		})
+	}
+	writeJSON(w, http.StatusOK, apitypes.PluginCatalogDTO{Items: out})
+}
+
+func (s *server) installServerPlugin(w http.ResponseWriter, r *http.Request) {
+	principal, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	service := s.updatesService(w)
+	if service == nil {
+		return
+	}
+	var body apitypes.PluginInstallRequest
+	if err := decodeJSON(w, r, &body); err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	version, versionRange := "", ""
+	if body.Version != nil {
+		version = *body.Version
+	}
+	if body.Range != nil {
+		versionRange = *body.Range
+	}
+	result, err := service.Add(r.Context(), principal, r.PathValue("id"), capability.PluginRequest{
+		Provider: body.Provider, Project: body.Project,
+		Version: version, Range: versionRange,
+	})
+	if err != nil {
+		writeCapabilityError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, apitypes.PluginAddResult{
+		Plugin: pluginDTOs([]store.ServerPlugin{result.Plugin})[0], Revision: result.Revision,
+	})
+}
+
+func (s *server) removeServerPlugin(w http.ResponseWriter, r *http.Request) {
+	principal, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	service := s.updatesService(w)
+	if service == nil {
+		return
+	}
+	if _, err := service.Remove(r.Context(), principal, r.PathValue("id"), r.URL.Query().Get("project")); err != nil {
+		writeCapabilityError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *server) listPlugins(w http.ResponseWriter, r *http.Request) {

@@ -37,6 +37,7 @@ type Schedules struct {
 	Store   ScheduleStore
 	Servers *Servers
 	Backups *Backups
+	Updates *Updates
 	Log     *slog.Logger
 }
 
@@ -44,7 +45,7 @@ type Schedules struct {
 type ScheduleRequest struct {
 	Name     string `json:"name"`
 	ServerID string `json:"server_id"`
-	Action   string `json:"action"` // power.restart | power.start | power.stop | backup.create
+	Action   string `json:"action"` // power.restart | power.start | power.stop | backup.create | updates.apply
 	Cron     string `json:"cron"`
 	Timezone string `json:"timezone"`
 }
@@ -73,9 +74,9 @@ func (s *Schedules) Create(ctx context.Context, p Principal, req ScheduleRequest
 		return store.Schedule{}, invalid("cron: %v", err)
 	}
 	switch req.Action {
-	case "power.restart", "power.start", "power.stop", "backup.create":
+	case "power.restart", "power.start", "power.stop", "backup.create", "updates.apply":
 	default:
-		return store.Schedule{}, invalid("action must be power.restart, power.start, power.stop, or backup.create")
+		return store.Schedule{}, invalid("action must be power.restart, power.start, power.stop, backup.create, or updates.apply")
 	}
 	if _, err := s.Servers.Get(ctx, p, req.ServerID); err != nil {
 		return store.Schedule{}, err
@@ -170,6 +171,15 @@ func (s *Schedules) run(ctx context.Context, p Principal, row store.Schedule) er
 			return errors.New("backups are not configured")
 		}
 		_, err := s.Backups.Create(ctx, p, row.TargetID)
+		return err
+	case "updates.apply":
+		if s.Updates == nil {
+			return errors.New("updates are not configured")
+		}
+		_, err := s.Updates.Apply(ctx, p, row.TargetID)
+		if errors.Is(err, ErrNoUpdates) {
+			return nil
+		}
 		return err
 	}
 	return fmt.Errorf("unknown action %q", row.Action)

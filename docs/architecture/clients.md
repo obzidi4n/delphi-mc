@@ -80,6 +80,18 @@ What M4 delivers in the vanilla page:
 - Multi-server tail in tabs or split panes.
 - Reconnect with buffer replay from the agent ring buffer; "jump to first error" on crash.
 
+### Plugins page
+
+`/servers/{id}/plugins` lists the managed plugin set and offers a Modrinth/Hangar
+catalog search. Installing resolves the newest Paper-compatible build for the
+server's Minecraft version, downloads it into the artifact store, and syncs the
+node; removing a plugin does the same in reverse. A running server restarts.
+
+The page checks for updates on load and every five minutes, shows current vs
+available versions, and applies all updates through the guarded boot-check path.
+For unattended operation, the page's cron form creates a schedule with action
+`updates.apply`; the scheduler performs detection and download on each run.
+
 ## CLI
 
 `delphi init` is the one-time first run (config + schema). Then
