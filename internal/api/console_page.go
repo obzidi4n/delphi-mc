@@ -72,7 +72,27 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
  .spacer{flex:1}
  .metrics{color:#8b949e;white-space:nowrap}
  .metrics b{color:#c9d1d9;font-weight:600}
+ .mainrow{flex:1;display:flex;min-height:0}
+ .termcol{flex:1;display:flex;flex-direction:column;min-width:0}
  #term{flex:1;overflow:auto;padding:.5rem .9rem 1.2rem;white-space:pre-wrap;word-break:break-word;min-height:0}
+ aside{width:21rem;flex:0 0 auto;border-left:1px solid #21262d;background:#0d1117;overflow:auto;padding:.6rem .8rem}
+ aside h2{font-size:.85rem;margin:.2rem 0 .5rem;display:flex;align-items:center;gap:.4rem}
+ aside h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:#8b949e;margin:.9rem 0 .35rem}
+ .statline{color:#8b949e;font-size:.8rem;margin-bottom:.4rem}
+ .statline b{color:#c9d1d9}
+ .players{list-style:none;margin:0;padding:0}
+ .players li{display:flex;align-items:center;gap:.35rem;padding:.18rem 0;border-bottom:1px solid #21262d}
+ .players li span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .players button{padding:.1rem .4rem;font-size:.72rem}
+ .chat{max-height:14rem;overflow:auto;font-size:.8rem;line-height:1.5;color:#c9d1d9}
+ .chat .sys{color:#8b949e}
+ .chat .err{color:#f85149}
+ .chat .line{min-height:0}
+ #cmddetails{margin-top:.9rem;font-size:.8rem;color:#8b949e}
+ #cmddetails summary{cursor:pointer}
+ .cmdlist{max-height:12rem;overflow:auto;margin-top:.4rem;color:#c9d1d9;word-break:break-word}
+ .hint{color:#6e7681;font-size:.75rem;margin-top:.6rem}
+ @media (max-width: 900px){.mainrow{flex-direction:column} aside{width:auto;border-left:0;border-top:1px solid #21262d;max-height:45%} #term{min-height:40vh}}
  .line{min-height:1.35em}
  .line.sys{color:#d29922}
  .line.hit{background:#3d2c00;outline:1px solid #9e6a03}
@@ -98,6 +118,8 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
   <button data-power="kill">Kill</button>
 </header>
 <div class="wrap">
+ <div class="mainrow">
+  <div class="termcol">
   <div class="toolbar">
     <input id="search" type="search" placeholder="Search console (Ctrl+F)">
     <span class="count" id="count"></span>
@@ -108,6 +130,20 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
     <button id="clear">Clear</button>
   </div>
   <div id="term" tabindex="0"></div>
+  </div>
+  <aside>
+    <h2>Bridge <span class="pill off" id="bridge-state">waiting</span></h2>
+    <div class="statline">TPS <b id="tps">–</b> · players <b id="playercount">0</b></div>
+    <ul class="players" id="players"></ul>
+    <h3>Chat</h3>
+    <div class="chat" id="chat"><div class="line sys">No chat yet.</div></div>
+    <details id="cmddetails">
+      <summary>Command tree (<span id="cmdcount">0</span>)</summary>
+      <div class="cmdlist" id="commands"></div>
+    </details>
+    <p class="hint" id="bridgenote">Waiting for the bridge plugin…</p>
+  </aside>
+ </div>
 </div>
 <footer>Line ring 5000 · gaps are marked · Ctrl+F search · Esc clears · Alt+P pause</footer>
 <script>
@@ -119,6 +155,14 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
   var term = document.getElementById('term');
   var statusEl = document.getElementById('status');
   var stateEl = document.getElementById('state');
+  var tpsEl = document.getElementById('tps');
+  var playerCountEl = document.getElementById('playercount');
+  var playersEl = document.getElementById('players');
+  var chatEl = document.getElementById('chat');
+  var cmdCountEl = document.getElementById('cmdcount');
+  var commandsEl = document.getElementById('commands');
+  var bridgeStateEl = document.getElementById('bridge-state');
+  var bridgeNote = document.getElementById('bridgenote');
   var metricsEl = document.getElementById('metrics');
   var searchEl = document.getElementById('search');
   var countEl = document.getElementById('count');
@@ -159,8 +203,82 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
     if (msg.type === 'stats') {
       metricsEl.innerHTML = 'cpu <b>' + (msg.cpu_percent || 0).toFixed(1) + '%</b> · mem <b>' +
         formatBytes(msg.memory_bytes || 0) + '</b>';
+      return;
+    }
+    if (msg.type === 'bridge') { applyBridge(msg); return; }
+    if (msg.type === 'bridge.event') { onBridgeEvent(msg.event); }
+  }
+  function applyBridge(m) {
+    bridgeStateEl.textContent = 'live';
+    bridgeStateEl.className = 'pill live';
+    bridgeNote.hidden = true;
+    tpsEl.textContent = (m.tps || 0).toFixed(2);
+    var players = m.players || [];
+    playerCountEl.textContent = players.length;
+    playersEl.textContent = '';
+    players.forEach(function (p) {
+      var li = document.createElement('li');
+      var name = document.createElement('span');
+      name.textContent = p.name;
+      li.appendChild(name);
+      ['kick', 'ban'].forEach(function (action) {
+        var b = document.createElement('button');
+        b.textContent = action === 'kick' ? 'Kick' : 'Ban';
+        b.dataset.action = action;
+        b.dataset.player = p.name;
+        li.appendChild(b);
+      });
+      playersEl.appendChild(li);
+    });
+    var commands = m.commands || [];
+    cmdCountEl.textContent = commands.length;
+    commandsEl.textContent = commands.join('  ');
+  }
+  function chatLine(text, cls) {
+    var el = document.createElement('div');
+    el.className = 'line' + (cls ? ' ' + cls : '');
+    el.textContent = text;
+    chatEl.appendChild(el);
+    while (chatEl.childElementCount > 200) { chatEl.removeChild(chatEl.firstElementChild); }
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+  function onBridgeEvent(event) {
+    if (!event) { return; }
+    if (event.kind === 'chat') {
+      chatLine(event.player + ': ' + event.message, '');
+    } else if (event.kind === 'join') {
+      chatLine('+ ' + event.player, 'sys');
+    } else if (event.kind === 'quit') {
+      chatLine('- ' + event.player, 'sys');
+    } else if (event.kind === 'moderation') {
+      chatLine('[' + event.action + '] ' + event.player + ': ' + (event.ok ? 'ok' : (event.error || 'failed')),
+        event.ok ? 'sys' : 'err');
+    } else if (event.kind === 'ready') {
+      bridgeNote.hidden = true;
     }
   }
+  function loadBridge() {
+    fetch(base + 'api/v1/servers/' + encodeURIComponent(id) + '/bridge', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (m) { if (m) { applyBridge(m); } })
+      .catch(function () {});
+  }
+  function moderate(action, player) {
+    var reason = window.prompt((action === 'kick' ? 'Kick ' : 'Ban ') + player + ' — reason?', '');
+    if (reason === null) { return; }
+    fetch(base + 'api/v1/servers/' + encodeURIComponent(id) + '/moderation', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: action, player: player, reason: reason })
+    }).then(function (r) {
+      if (!r.ok) { chatLine('moderation refused (' + r.status + ')', 'err'); }
+    }).catch(function () { chatLine('moderation failed', 'err'); });
+  }
+  playersEl.addEventListener('click', function (ev) {
+    var button = ev.target.closest('button[data-action]');
+    if (!button) { return; }
+    moderate(button.dataset.action, button.dataset.player);
+  });
   function onBinary(bytes) {
     if (bytes.length < 15 || bytes[0] !== 1) { return; }
     var view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -315,6 +433,7 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
   });
 
   refreshState();
+  loadBridge();
   window.setInterval(refreshState, 5000);
   connect();
 })();

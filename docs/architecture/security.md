@@ -26,8 +26,9 @@ WebSocket channel (console, metrics, claims) and the blob download endpoint. Rot
 days; revocation records `revoked_at` and is checked on every reconnect. Details in
 [node enrollment](../operations/node-enrollment.md).
 
-**Bridge:** each server has its own token in the plugin handshake; the socket is created by
-the agent inside that server's container namespace.
+**Bridge:** v0 has no network handshake: the plugin and the agent share the server directory
+(`.delphi-bridge/state.json` and per-command files), so the container's own filesystem
+permissions are the boundary. The plugin reads only its own server's bridge directory.
 
 **Users:** Argon2id password hashing, httpOnly `Secure` SameSite=Lax session cookies, and a
 same-origin check on `POST /login` and `POST /logout` (no token yet). TOTP 2FA lands with

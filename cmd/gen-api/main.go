@@ -73,7 +73,7 @@ var initialisms = map[string]string{
 	"id": "ID", "url": "URL", "api": "API", "cpu": "CPU", "fs": "FS",
 	"sha256": "SHA256", "eula": "EULA", "ttl": "TTL", "csr": "CSR",
 	"mc": "MC", "json": "JSON", "ip": "IP", "tls": "TLS", "jwt": "JWT",
-	"mb": "MB", "kb": "KB", "gb": "GB",
+	"mb": "MB", "kb": "KB", "gb": "GB", "tps": "TPS", "uuid": "UUID",
 }
 
 func words(snake string) []string {

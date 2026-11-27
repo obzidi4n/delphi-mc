@@ -88,6 +88,25 @@ The panel sends the node's full desired server set; the agent converges it
   read `.log.gz`, so rotated archives are decompressed on the fly. Logs are never shipped to
   Postgres.
 
+## Bridge plugin (v0)
+
+- The plugin jar is embedded in the agent (`internal/agent/bridge/DelphiBridge.jar`, built by
+  `make bridge` from `plugin/bridge/`). It is installed into `plugins/` before every start
+  when its hash changed, so a server gains or updates the bridge on boot.
+- **File transport, not a socket.** Agent and plugin share the server directory, which crosses
+  the bind mount on Linux and macOS alike: the plugin atomically replaces
+  `.delphi-bridge/state.json` every 0.5 s (TPS, online players, root command names, the last
+  200 events) and consumes `.delphi-bridge/cmd/cmd-<id>.json`, deleting each after executing
+  it on the main thread. The documented unix socket remains the target if measurement shows
+  the file poll is too slow; the frame shapes would not change.
+- Agent polls at 500 ms, sends `bridge.state` when TPS/players/commands changed and
+  `bridge.event` for each new sequence. The first read adopts the plugin's history instead of
+  replaying it, so a reconnect cannot duplicate events.
+- Chat is Paper's `AsyncChatEvent`; the command tree is the command map's root labels;
+  moderation executes `kickPlayer`/`BanList.addBan` and reports a `moderation` event. The
+  panel never parses logs for any of this.
+- Bridge state is in memory in the panel (like metrics); it is not persisted.
+
 ## Metrics
 
 - M4 samples with one `stats --no-stream` call per second for all containers and parses both

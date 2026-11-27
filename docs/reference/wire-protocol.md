@@ -44,12 +44,17 @@ Text frames carry a JSON envelope; console payloads are binary frames with a fix
 | `console.batch` | agent → panel | server id, `seq`, raw bytes |
 | `metrics.batch` | agent → panel | server id, samples |
 | `command` | panel → agent | server id, command, idempotency key |
+| `bridge.state` | agent → panel | server id, tps, players, root commands, updated |
+| `bridge.event` | agent → panel | server id, one chat/join/quit/moderation event |
+| `bridge.command` | panel → agent | server id, command id, kick/ban, player, reason |
 | `subscribe` | browser → panel | topics |
 | `error` | either | code, message, `reply_to` |
 
 **Implemented:** `hello`, `heartbeat`, `hello.ack` (M1); `servers`, `server.state` (M2);
-binary console batches and `metrics.batch` (M4). Claim and job frames remain the contract for
-a later milestone.
+binary console batches and `metrics.batch` (M4); `bridge.state`, `bridge.event` (agent →
+panel) and `bridge.command` (panel → agent) for M5, where the plugin itself speaks a file
+protocol described in [agent](../architecture/agent.md#bridge-plugin-v0). Claim and job frames
+remain the contract for a later milestone.
 
 ## Console framing
 

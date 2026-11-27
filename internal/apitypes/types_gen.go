@@ -38,6 +38,20 @@ type AuditListDTO struct {
 	NextCursor *string         `json:"next_cursor"`
 }
 
+// BridgeDTO is generated from the spec.
+type BridgeDTO struct {
+	Commands []string          `json:"commands"`
+	Players  []BridgePlayerDTO `json:"players"`
+	TPS      float64           `json:"tps"`
+	Updated  time.Time         `json:"updated"`
+}
+
+// BridgePlayerDTO is generated from the spec.
+type BridgePlayerDTO struct {
+	Name string `json:"name"`
+	UUID string `json:"uuid"`
+}
+
 // CreatedUserDTO is generated from the spec.
 type CreatedUserDTO struct {
 	Password string  `json:"password"`
@@ -106,6 +120,18 @@ type MetricPointDTO struct {
 	At          time.Time `json:"at"`
 	CPUPercent  float64   `json:"cpu_percent"`
 	MemoryBytes int64     `json:"memory_bytes"`
+}
+
+// ModerationAcceptedDTO is generated from the spec.
+type ModerationAcceptedDTO struct {
+	ID string `json:"id"`
+}
+
+// ModerationRequest is generated from the spec.
+type ModerationRequest struct {
+	Action string  `json:"action"`
+	Player string  `json:"player"`
+	Reason *string `json:"reason,omitempty"`
 }
 
 // NodeDTO is generated from the spec.

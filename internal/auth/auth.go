@@ -150,7 +150,7 @@ func ScopesForRole(role, orgID string) []string {
 		return []string{
 			"org:" + orgID + ":read",
 			"org:" + orgID + ":server:create",
-			"server:*:read", "server:*:update", "server:*:power",
+			"server:*:read", "server:*:update", "server:*:power", "server:*:moderate",
 		}
 	case "viewer":
 		return []string{"org:" + orgID + ":read", "server:*:read"}
@@ -165,7 +165,7 @@ func ScopesForServer(role, serverID string) []string {
 	case "owner", "admin":
 		return []string{scope("*")}
 	case "developer":
-		return []string{scope("read"), scope("update"), scope("power")}
+		return []string{scope("read"), scope("update"), scope("power"), scope("moderate")}
 	case "viewer":
 		return []string{scope("read")}
 	}

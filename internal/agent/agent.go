@@ -111,6 +111,11 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 	}
 	log.Info("agent channel open", "panel", endpoint, "ack", string(ack))
 
+	bridge := NewBridge(opts.Supervisor.DataDir, func(frame any) {
+		_ = writer.write(sctx, frame)
+	}, log)
+	defer bridge.Close()
+
 	console := NewConsole(opts.Supervisor.Runtime, log)
 	console.Send = func(serverID string, seq uint64, payload []byte) {
 		_ = writer.writeBinary(sctx, wire.EncodeConsole(serverID, seq, payload))
@@ -122,6 +127,7 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 		observe: opts.Supervisor.Observe,
 		send: func(ctx context.Context, frame wire.ServerStateFrame) error {
 			console.Sync(frame.ServerID, frame.State)
+			bridge.Sync(frame.ServerID, frame.State)
 			return writer.write(ctx, frame)
 		},
 		reported: make(map[string]string),
@@ -142,12 +148,19 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 			if json.Unmarshal(data, &envelope) != nil {
 				continue
 			}
-			if envelope.Type != wire.TypeServers {
-				continue
-			}
-			var frame wire.ServersFrame
-			if json.Unmarshal(data, &frame) == nil {
-				reconciler.submit(sctx, frame)
+			switch envelope.Type {
+			case wire.TypeServers:
+				var frame wire.ServersFrame
+				if json.Unmarshal(data, &frame) == nil {
+					reconciler.submit(sctx, frame)
+				}
+			case wire.TypeBridgeCommand:
+				var frame wire.BridgeCommandFrame
+				if json.Unmarshal(data, &frame) == nil {
+					if err := bridge.Command(frame); err != nil {
+						log.Warn("bridge command rejected", "server", frame.ServerID, "err", err)
+					}
+				}
 			}
 		}
 	}()

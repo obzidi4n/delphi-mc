@@ -1,0 +1,6 @@
+name: DelphiBridge
+version: 0.1.0
+main: dev.delphi.bridge.DelphiBridge
+api-version: '1.21'
+authors: [DelphiMC]
+description: DelphiMC structured bridge (chat, players, TPS, command tree, moderation).

@@ -40,8 +40,11 @@ What M4 delivers in the vanilla page:
   connection and server-state badges, live CPU/memory from the stats stream, and power
   buttons (start/restart/stop/kill) through the API.
 - Gaps are explicit; the DOM keeps the newest 5000 lines.
-- The xterm/WebGL renderer, timestamp toggle, level filter, and command input below are the
-  SPA target; command input waits for the bridge (M5).
+- The bridge sidebar shows TPS, online players (with kick/ban), chat and join/quit events, and
+  the root command tree, all over the same socket. Moderation calls
+  `POST /servers/{id}/moderation` and surfaces the plugin's result event.
+- The xterm/WebGL renderer, timestamp toggle, level filter, and command input remain the SPA
+  target; command input is not built.
 - Timestamp toggle, level filter, and **structured events rendered as events** (chat, join,
   death) rather than raw lines — the bridge paying off.
 - Command input with ↑ history, autocomplete from the plugin's command tree, paste safety for

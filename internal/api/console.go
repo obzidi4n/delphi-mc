@@ -16,6 +16,7 @@ type ConsoleHub struct {
 	mu     sync.Mutex
 	rooms  map[string]*consoleRoom
 	metric *MetricsStore
+	bridge map[string]wire.BridgeStateFrame
 }
 
 type consoleRoom struct {
@@ -30,12 +31,22 @@ type ConsoleSub struct {
 	mu      sync.Mutex
 	console chan []wire.ConsoleLine
 	stats   chan wire.MetricsFrame
+	bridge  chan bridgeUpdate
 	closed  bool
+}
+
+type bridgeUpdate struct {
+	state *wire.BridgeStateFrame
+	event *wire.BridgeEvent
 }
 
 // NewConsoleHub returns an empty hub.
 func NewConsoleHub() *ConsoleHub {
-	return &ConsoleHub{rooms: map[string]*consoleRoom{}, metric: NewMetricsStore()}
+	return &ConsoleHub{
+		rooms:  map[string]*consoleRoom{},
+		metric: NewMetricsStore(),
+		bridge: map[string]wire.BridgeStateFrame{},
+	}
 }
 
 // Metrics exposes the rollup store.
@@ -156,6 +167,7 @@ func (h *ConsoleHub) Subscribe(serverID string) (*ConsoleSub, []wire.ConsoleLine
 	sub := &ConsoleSub{
 		console: make(chan []wire.ConsoleLine, 128),
 		stats:   make(chan wire.MetricsFrame, 8),
+		bridge:  make(chan bridgeUpdate, 32),
 	}
 	h.mu.Lock()
 	room := h.rooms[serverID]
@@ -217,4 +229,66 @@ func (s *ConsoleSub) close() {
 	s.closed = true
 	close(s.console)
 	close(s.stats)
+	close(s.bridge)
+}
+
+// PublishBridgeState stores and fans out the plugin's snapshot.
+func (h *ConsoleHub) PublishBridgeState(frame wire.BridgeStateFrame) {
+	if frame.ServerID == "" {
+		return
+	}
+	h.mu.Lock()
+	h.bridge[frame.ServerID] = frame
+	h.broadcastBridgeLocked(frame.ServerID, bridgeUpdate{state: &frame})
+	h.mu.Unlock()
+}
+
+// PublishBridgeEvent fans out one structured plugin event.
+func (h *ConsoleHub) PublishBridgeEvent(frame wire.BridgeEventFrame) {
+	if frame.ServerID == "" {
+		return
+	}
+	h.mu.Lock()
+	h.broadcastBridgeLocked(frame.ServerID, bridgeUpdate{event: &frame.Event})
+	h.mu.Unlock()
+}
+
+// broadcastBridgeLocked must be called with h.mu held.
+func (h *ConsoleHub) broadcastBridgeLocked(serverID string, update bridgeUpdate) {
+	room := h.rooms[serverID]
+	if room == nil {
+		return
+	}
+	var drop []*ConsoleSub
+	for sub := range room.subs {
+		if !sub.pushBridge(update) {
+			drop = append(drop, sub)
+		}
+	}
+	for _, sub := range drop {
+		delete(room.subs, sub)
+		go sub.close()
+	}
+}
+
+// BridgeState returns the latest snapshot, if one arrived.
+func (h *ConsoleHub) BridgeState(serverID string) (wire.BridgeStateFrame, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	frame, ok := h.bridge[serverID]
+	return frame, ok
+}
+
+func (s *ConsoleSub) pushBridge(update bridgeUpdate) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
+	}
+	select {
+	case s.bridge <- update:
+		return true
+	default:
+		return false
+	}
 }

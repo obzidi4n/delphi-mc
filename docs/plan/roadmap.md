@@ -37,6 +37,11 @@ criteria can be demonstrated on a clean host.
   power buttons, and 1s/15s/5m CPU+memory rollups exposed at `/servers/{id}/metrics`.
   Command input waits for the bridge (M5).
 
+- **M5** — bridge plugin v0 embedded in the agent and self-installed: file transport for
+  state/commands, chat events, online players, TPS, the root command tree, and kick/ban
+  moderation through `POST /servers/{id}/moderation`. A console sidebar shows TPS, players,
+  chat and the command tree. Live chat with a real player is the remaining manual check.
+
 ## Alpha: the vertical slice (M0–M5)
 
 ```

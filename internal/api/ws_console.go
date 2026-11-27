@@ -73,6 +73,9 @@ func (s *server) consoleSocket(w http.ResponseWriter, r *http.Request) {
 	if point, ok := s.opts.Console.Metrics().Latest(serverID); ok {
 		_ = send(statsFrame(serverID, point))
 	}
+	if st, ok := s.opts.Console.BridgeState(serverID); ok {
+		_ = send(bridgeFrame(st))
+	}
 	if err := writeConsole(backlog); err != nil {
 		return
 	}
@@ -99,6 +102,20 @@ func (s *server) consoleSocket(w http.ResponseWriter, r *http.Request) {
 			if err := writeConsole(lines); err != nil {
 				return
 			}
+		case update, ok := <-sub.bridge:
+			if !ok {
+				return
+			}
+			if update.state != nil {
+				if err := send(bridgeFrame(*update.state)); err != nil {
+					return
+				}
+			}
+			if update.event != nil {
+				if err := send(map[string]any{"type": "bridge.event", "event": update.event}); err != nil {
+					return
+				}
+			}
 		case frame, ok := <-sub.stats:
 			if !ok {
 				return
@@ -108,6 +125,16 @@ func (s *server) consoleSocket(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+}
+
+func bridgeFrame(st wire.BridgeStateFrame) map[string]any {
+	return map[string]any{
+		"type":     "bridge",
+		"tps":      st.TPS,
+		"players":  st.Players,
+		"commands": st.Commands,
+		"updated":  st.Updated,
 	}
 }
 

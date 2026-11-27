@@ -164,6 +164,48 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/bridge:
+    get:
+      operationId: getServerBridge
+      summary: Read the plugin snapshot (TPS, players, command tree)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Latest snapshot; empty fields when the plugin has not reported
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BridgeDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/moderation:
+    post:
+      operationId: moderatePlayer
+      summary: Kick or ban a player through the bridge
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ModerationRequest" }
+      responses:
+        "202":
+          description: Command accepted; the result arrives as a bridge.event
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ModerationAcceptedDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
   /api/v1/servers/{id}/metrics:
     get:
       operationId: getServerMetrics
@@ -691,6 +733,36 @@ components:
       properties:
         user: { $ref: "#/components/schemas/UserDTO" }
         password: { type: string }
+    BridgePlayerDTO:
+      type: object
+      required: [name, uuid]
+      properties:
+        name: { type: string }
+        uuid: { type: string }
+    BridgeDTO:
+      type: object
+      required: [tps, players, commands, updated]
+      properties:
+        tps: { type: number, format: double }
+        players:
+          type: array
+          items: { $ref: "#/components/schemas/BridgePlayerDTO" }
+        commands:
+          type: array
+          items: { type: string }
+        updated: { type: string, format: date-time }
+    ModerationRequest:
+      type: object
+      required: [action, player]
+      properties:
+        action: { type: string, enum: [kick, ban] }
+        player: { type: string }
+        reason: { type: string }
+    ModerationAcceptedDTO:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
     MetricPointDTO:
       type: object
       required: [at, cpu_percent, memory_bytes]

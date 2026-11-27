@@ -3,9 +3,9 @@
 The map. Every page here is versioned with the code and changes in the same PR as the
 behavior it describes.
 
-**Status:** M4 landed — the realtime console (batched WS, ring buffer, browser fan-out),
-metrics rollups and a working console page, on top of the M3b templates, M3a spec-first API,
-identity/RBAC, audit, paginated lists, Team/Groups pages, and the CLI. See
+**Status:** M5 landed — the bridge plugin (chat, players, TPS, command tree, kick/ban) on top
+of the M4 realtime console and metrics, M3b templates, the M3a spec-first API, identity/RBAC,
+audit, paginated lists, Team/Groups pages, and the CLI. See
 [`plan/roadmap.md`](plan/roadmap.md).
 
 ## Architecture — what and how

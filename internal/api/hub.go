@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"time"
 
@@ -29,6 +30,20 @@ type sink struct {
 
 // NewHub returns an empty hub.
 func NewHub() *Hub { return &Hub{conns: make(map[string]*sink)} }
+
+// ErrNodeOffline reports that a node has no live channel.
+var ErrNodeOffline = errors.New("node is offline")
+
+// Send writes one frame to a node if it is connected.
+func (h *Hub) Send(ctx context.Context, nodeID string, v any) error {
+	h.mu.Lock()
+	s := h.conns[nodeID]
+	h.mu.Unlock()
+	if s == nil {
+		return ErrNodeOffline
+	}
+	return s.write(ctx, v)
+}
 
 // Register attaches a node's channel.
 func (h *Hub) Register(nodeID string, conn *websocket.Conn) *sink {

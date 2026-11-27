@@ -179,6 +179,9 @@ func (s *Supervisor) prepare(ctx context.Context, spec wire.ServerSpec, dir stri
 	if err := writeTemplateFiles(dir, spec.Files); err != nil {
 		return err
 	}
+	if err := InstallBridge(dir); err != nil {
+		return err
+	}
 	if spec.Base != "velocity" {
 		if !spec.AcceptEULA {
 			return errors.New("the Minecraft EULA was not accepted for this server")

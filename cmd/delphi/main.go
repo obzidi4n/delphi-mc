@@ -39,6 +39,7 @@ import (
 	"delphi.dev/delphi/internal/store"
 	"delphi.dev/delphi/internal/template"
 	"delphi.dev/delphi/internal/version"
+	"delphi.dev/delphi/internal/wire"
 )
 
 const (
@@ -211,6 +212,9 @@ func runPanel(ctx context.Context, args []string) error {
 		Console:    console,
 		CA:         ca,
 		Hub:        hub,
+		BridgeSender: func(ctx context.Context, nodeID string, frame wire.BridgeCommandFrame) error {
+			return hub.Send(ctx, nodeID, frame)
+		},
 	})
 	if err != nil {
 		return err

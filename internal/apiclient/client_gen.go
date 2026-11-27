@@ -332,6 +332,20 @@ func (c *Client) RenameServer(ctx context.Context, id string, body apitypes.Rena
 	return &out, nil
 }
 
+// GET /api/v1/servers/{id}/bridge
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) GetServerBridge(ctx context.Context, id string) (*apitypes.BridgeDTO, error) {
+	path := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(id) + "/bridge"
+	var q url.Values
+
+	var out apitypes.BridgeDTO
+	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GET /api/v1/servers/{id}/metrics
 //
 // Requires a bearer token configured on the Client.
@@ -347,6 +361,20 @@ func (c *Client) GetServerMetrics(ctx context.Context, id string, resolution *st
 
 	var out apitypes.ServerMetricsDTO
 	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/servers/{id}/moderation
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ModeratePlayer(ctx context.Context, id string, body apitypes.ModerationRequest) (*apitypes.ModerationAcceptedDTO, error) {
+	path := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(id) + "/moderation"
+	var q url.Values
+
+	var out apitypes.ModerationAcceptedDTO
+	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -14,6 +14,7 @@ import (
 	"delphi.dev/delphi/internal/config"
 	"delphi.dev/delphi/internal/pki"
 	"delphi.dev/delphi/internal/store"
+	"delphi.dev/delphi/internal/wire"
 )
 
 // NodeStore is the subset of the registry the agent channel needs.
@@ -39,8 +40,10 @@ type Options struct {
 	AdminToken string
 	CA         *pki.CA
 	Hub        *Hub
-	Heartbeat  time.Duration
-	Now        func() time.Time
+	// BridgeSender writes a bridge command to a node's agent channel.
+	BridgeSender func(ctx context.Context, nodeID string, frame wire.BridgeCommandFrame) error
+	Heartbeat    time.Duration
+	Now          func() time.Time
 }
 
 type server struct {
@@ -126,6 +129,8 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("POST /api/v1/api-keys", s.createAPIKey)
 
 	mux.HandleFunc("GET /api/v1/servers/{id}/metrics", s.getServerMetrics)
+	mux.HandleFunc("GET /api/v1/servers/{id}/bridge", s.getServerBridge)
+	mux.HandleFunc("POST /api/v1/servers/{id}/moderation", s.moderatePlayer)
 
 	mux.HandleFunc("GET /api/v1/users", s.listUsers)
 	mux.HandleFunc("POST /api/v1/users", s.createUser)
