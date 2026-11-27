@@ -54,6 +54,14 @@ criteria can be demonstrated on a clean host.
   Chunky and ViaVersion; two pinned builds updated to current with the server still running;
   unreferenced old artifacts were collected. Staging-clone boot-checks and `auto-*` policies
   remain deferred.
+- **M11** — automation: cron schedules with persisted `next_run` (power and backup actions),
+  agent-owned crash restart using the last desired set on disk (`on-failure`/`never`,
+  backoff), crash-loop/server-down rules, webhook (Discord payload) and SMTP channels with
+  sealed configs, maintenance windows that suppress delivery, and AI `create_schedule`.
+  Live: a minute cron restarted Plugins-Demo twice; killing the container produced a
+  Discord-shaped webhook alert and the agent restarted it; with the panel stopped, a kill was
+  still recovered by the offline supervisor. Leased multi-panel claims, pre-actions, group
+  targets, and block-updates enforcement remain deferred.
 - **M10** — backups: quiesced `tar.gz` snapshots (bridge `save-off`/`save-all flush`/
   `save-on`, stop/start fallback), upload over node mTLS, AES-256-GCM at rest with
   `<data_dir>/backup.key`, keep-last-7 retention, restore with directory replacement and a

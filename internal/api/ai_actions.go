@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/robfig/cron/v3"
+
 	"delphi.dev/delphi/internal/ai"
 	"delphi.dev/delphi/internal/auth"
 	"delphi.dev/delphi/internal/capability"
@@ -181,6 +183,34 @@ func (e *actionExecutor) Preview(ctx context.Context, p capability.Principal, to
 			Tool: "write_file", Summary: fmt.Sprintf("write %s on %s (%d bytes)", path, srv.Name, len(in.Content)),
 			ServerID: srv.ID, ServerName: srv.Name, Path: path, Content: in.Content,
 		}}, nil
+	case "create_schedule":
+		var in struct {
+			Name     string `json:"name"`
+			Server   string `json:"server"`
+			Cron     string `json:"cron"`
+			Timezone string `json:"timezone"`
+			Action   string `json:"action"`
+		}
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, fmt.Errorf("invalid arguments: %w", err)
+		}
+		if _, err := cron.ParseStandard(in.Cron); err != nil {
+			return nil, fmt.Errorf("cron: %w", err)
+		}
+		switch in.Action {
+		case "power.restart", "power.start", "power.stop", "backup.create":
+		default:
+			return nil, fmt.Errorf("unsupported schedule action")
+		}
+		srv, err := e.resolve(ctx, p, in.Server)
+		if err != nil {
+			return nil, err
+		}
+		return []ai.Action{{
+			Tool: "create_schedule", Summary: fmt.Sprintf("schedule %s: %s on %s (%s)", in.Name, in.Action, srv.Name, in.Cron),
+			ServerID: srv.ID, ServerName: srv.Name, NewName: in.Name, Cron: in.Cron,
+			Timezone: in.Timezone, ScheduleAction: in.Action,
+		}}, nil
 	case "backup":
 		var in struct {
 			Server string `json:"server"`
@@ -318,6 +348,18 @@ func (e *actionExecutor) Execute(ctx context.Context, p capability.Principal, ac
 			return "", err
 		}
 		out = fmt.Sprintf("wrote %s (revision %d)", action.Path, revision)
+	case "create_schedule":
+		if e.services.Schedules == nil {
+			return "", fmt.Errorf("the schedule service is not configured")
+		}
+		row, err := e.services.Schedules.Create(ctx, p, capability.ScheduleRequest{
+			Name: action.NewName, ServerID: action.ServerID, Action: action.ScheduleAction,
+			Cron: action.Cron, Timezone: action.Timezone,
+		})
+		if err != nil {
+			return "", err
+		}
+		out = fmt.Sprintf("created schedule %s (%s)", row.Name, row.ID)
 	case "backup":
 		if e.services.Backups == nil {
 			return "", fmt.Errorf("the backup service is not configured")

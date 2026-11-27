@@ -268,6 +268,9 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 			if json.Unmarshal(data, &frame) == nil && frame.ServerID != "" &&
 				s.opts.Services != nil && s.opts.Services.Servers != nil {
 				_ = s.opts.Services.Servers.ReportState(r.Context(), node.ID, frame)
+				if s.opts.Alerts != nil {
+					s.opts.Alerts.NotifyState(frame.ServerID, frame.State)
+				}
 			}
 		}
 		if revoked {

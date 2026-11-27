@@ -13,23 +13,26 @@ import (
 
 // Action is one concrete, reviewable mutation.
 type Action struct {
-	Tool       string `json:"tool"`
-	Summary    string `json:"summary"`
-	ServerID   string `json:"server_id,omitempty"`
-	ServerName string `json:"server_name,omitempty"`
-	Action     string `json:"action,omitempty"`
-	Command    string `json:"command,omitempty"`
-	Path       string `json:"path,omitempty"`
-	Content    string `json:"content,omitempty"`
-	Player     string `json:"player,omitempty"`
-	Reason     string `json:"reason,omitempty"`
-	TemplateID string `json:"template_id,omitempty"`
-	NewName    string `json:"new_name,omitempty"`
-	NodeID     string `json:"node_id,omitempty"`
-	Desired    string `json:"desired_state,omitempty"`
-	MemoryMB   int    `json:"memory_mb,omitempty"`
-	Port       int    `json:"port,omitempty"`
-	AcceptEULA bool   `json:"accept_eula,omitempty"`
+	Tool           string `json:"tool"`
+	Summary        string `json:"summary"`
+	ServerID       string `json:"server_id,omitempty"`
+	ServerName     string `json:"server_name,omitempty"`
+	Action         string `json:"action,omitempty"`
+	Command        string `json:"command,omitempty"`
+	Path           string `json:"path,omitempty"`
+	Content        string `json:"content,omitempty"`
+	Player         string `json:"player,omitempty"`
+	Reason         string `json:"reason,omitempty"`
+	TemplateID     string `json:"template_id,omitempty"`
+	NewName        string `json:"new_name,omitempty"`
+	NodeID         string `json:"node_id,omitempty"`
+	Desired        string `json:"desired_state,omitempty"`
+	MemoryMB       int    `json:"memory_mb,omitempty"`
+	Port           int    `json:"port,omitempty"`
+	AcceptEULA     bool   `json:"accept_eula,omitempty"`
+	Cron           string `json:"cron,omitempty"`
+	Timezone       string `json:"timezone,omitempty"`
+	ScheduleAction string `json:"schedule_action,omitempty"`
 }
 
 // ProposedCall is one tool call awaiting approval, with its concrete actions.
@@ -77,6 +80,7 @@ var (
 	writeFileSchema = json.RawMessage(`{"type":"object","properties":{"server":{"type":"string"},"path":{"type":"string"},"content":{"type":"string"}},"required":["server","path","content"]}`)
 	updateSchema    = json.RawMessage(`{"type":"object","properties":{"server":{"type":"string"}},"required":["server"]}`)
 	backupSchema    = json.RawMessage(`{"type":"object","properties":{"server":{"type":"string"}},"required":["server"]}`)
+	scheduleSchema  = json.RawMessage(`{"type":"object","properties":{"name":{"type":"string"},"server":{"type":"string"},"cron":{"type":"string"},"timezone":{"type":"string"},"action":{"type":"string","enum":["power.restart","power.start","power.stop","backup.create"]}},"required":["name","server","cron","action"]}`)
 )
 
 // writeTools are proposed to the model; the service pauses for approval
@@ -96,6 +100,10 @@ func writeTools() []Tool {
 				return ToolResult{}, fmt.Errorf("approval required")
 			}},
 		{Name: "write_file", Write: true, Description: "Propose writing a text file under the server directory. Requires approval.", Parameters: writeFileSchema,
+			Run: func(context.Context, capability.Principal, json.RawMessage) (ToolResult, error) {
+				return ToolResult{}, fmt.Errorf("approval required")
+			}},
+		{Name: "create_schedule", Write: true, Description: "Propose a cron schedule (power action or backup). Requires approval.", Parameters: scheduleSchema,
 			Run: func(context.Context, capability.Principal, json.RawMessage) (ToolResult, error) {
 				return ToolResult{}, fmt.Errorf("approval required")
 			}},

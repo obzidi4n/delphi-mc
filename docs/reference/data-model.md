@@ -9,6 +9,7 @@ nodes            (id, org_id, labels, capacity, agent_version, status, last_seen
                   fs_capability: reflink|zfs|copy,
                   cert_serial, cert_expires_at, revoked_at)
 servers          (id, org_id, node_id, name, image, java_version, memory_mb, cpu_cores,
+                  restart_policy,
                   port, desired_state, desired_revision, observed_state, applied_revision,
                   kill_requested, accept_eula, jar_url, jar_sha256, last_error,
                   base, template_id, template_version, variables jsonb, files jsonb,
@@ -76,6 +77,11 @@ FK. The rule is enforced with composite FKs where it matters, not by discipline.
 - **`file_revisions`** backs diff, rollback, and the audit of who wrote what.
 - **`backups`** stores plaintext sha256/size and the encrypted-file state; the archive lives at
   `<data_dir>/backups/<id>.enc`. Retention keeps the newest seven rows/files per server.
+- **`schedules`** persists `next_run`/`last_run`; the v1 panel advances rows after dispatch
+  (no multi-replica lease yet).
+- **`alert_rules`/`alert_channels`/`alerts`/`maintenance_windows`** back automation. Channel
+  configs are sealed (`config_enc`) with `secrets.key`; alert counters are in panel memory
+  (a restart forgets the rolling window, not the alert rows).
 - **`alert_rules.kind`** exists because "server down", "crash loop" and "update available" are
   not metric comparisons; a generic comparator column alone cannot express them.
 - **`docs_chunks`** is FTS (`tsvector` + GIN), not embeddings. No pgvector in v1.0. Each row

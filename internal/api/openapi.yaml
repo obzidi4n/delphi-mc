@@ -164,6 +164,179 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/schedules:
+    get:
+      operationId: listSchedules
+      summary: List cron schedules
+      responses:
+        "200":
+          description: Schedules
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScheduleListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: createSchedule
+      summary: Create a cron schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScheduleCreateRequest" }
+      responses:
+        "201":
+          description: Schedule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScheduleDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/schedules/{id}:
+    delete:
+      operationId: deleteSchedule
+      summary: Delete a schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/alert-rules:
+    get:
+      operationId: listAlertRules
+      summary: List alert rules
+      responses:
+        "200":
+          description: Rules
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertRuleListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: createAlertRule
+      summary: Create an alert rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AlertRuleCreateRequest" }
+      responses:
+        "201":
+          description: Rule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertRuleDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/alert-rules/{id}:
+    delete:
+      operationId: deleteAlertRule
+      summary: Delete an alert rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/alert-channels:
+    get:
+      operationId: listAlertChannels
+      summary: List alert channels (secrets omitted)
+      responses:
+        "200":
+          description: Channels
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertChannelListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: createAlertChannel
+      summary: Create a webhook or SMTP channel (config sealed at rest)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AlertChannelCreateRequest" }
+      responses:
+        "201":
+          description: Channel
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertChannelDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/alert-channels/{id}:
+    delete:
+      operationId: deleteAlertChannel
+      summary: Delete an alert channel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/alerts:
+    get:
+      operationId: listAlerts
+      summary: List recent alerts
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Alerts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/maintenance-windows:
+    get:
+      operationId: listMaintenanceWindows
+      summary: List maintenance windows
+      responses:
+        "200":
+          description: Windows
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MaintenanceWindowListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: createMaintenanceWindow
+      summary: Create a maintenance window
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MaintenanceWindowCreateRequest" }
+      responses:
+        "201":
+          description: Window
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MaintenanceWindowDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/maintenance-windows/{id}:
+    delete:
+      operationId: deleteMaintenanceWindow
+      summary: Delete a maintenance window
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/v1/servers/{id}/backups:
     get:
       operationId: listServerBackups
@@ -1050,6 +1223,127 @@ components:
           items: { $ref: "#/components/schemas/PluginUpdate" }
         revision: { type: integer, format: int64 }
         boot_check: { type: string, enum: [pending, skipped] }
+    ScheduleDTO:
+      type: object
+      required: [id, name, server_id, action, cron, timezone, enabled, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        server_id: { type: string }
+        action: { type: string }
+        cron: { type: string }
+        timezone: { type: string }
+        enabled: { type: boolean }
+        next_run: { type: string, format: date-time, nullable: true }
+        last_run: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    ScheduleCreateRequest:
+      type: object
+      required: [name, server_id, action, cron]
+      properties:
+        name: { type: string }
+        server_id: { type: string }
+        action: { type: string, enum: [power.restart, power.start, power.stop, backup.create] }
+        cron: { type: string }
+        timezone: { type: string }
+    ScheduleListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ScheduleDTO" }
+    AlertRuleDTO:
+      type: object
+      required: [id, kind, threshold, window_seconds, enabled, created_at]
+      properties:
+        id: { type: string }
+        kind: { type: string }
+        threshold: { type: integer }
+        window_seconds: { type: integer }
+        enabled: { type: boolean }
+        created_at: { type: string, format: date-time }
+    AlertRuleCreateRequest:
+      type: object
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [crash_loop, server_down] }
+        threshold: { type: integer }
+        window_seconds: { type: integer }
+    AlertRuleListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AlertRuleDTO" }
+    AlertChannelDTO:
+      type: object
+      required: [id, name, kind, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        kind: { type: string }
+        created_at: { type: string, format: date-time }
+    AlertChannelCreateRequest:
+      type: object
+      required: [name, kind, config]
+      properties:
+        name: { type: string }
+        kind: { type: string, enum: [webhook, smtp] }
+        config:
+          type: object
+          additionalProperties: true
+    AlertChannelListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AlertChannelDTO" }
+    AlertDTO:
+      type: object
+      required: [id, rule_id, server_id, state, summary, started_at]
+      properties:
+        id: { type: string }
+        rule_id: { type: string }
+        server_id: { type: string }
+        state: { type: string }
+        summary: { type: string }
+        started_at: { type: string, format: date-time }
+        resolved_at: { type: string, format: date-time, nullable: true }
+    AlertListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AlertDTO" }
+    MaintenanceWindowDTO:
+      type: object
+      required: [id, starts_at, ends_at, suppress_alerts, block_updates, created_at]
+      properties:
+        id: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        suppress_alerts: { type: boolean }
+        block_updates: { type: boolean }
+        created_at: { type: string, format: date-time }
+    MaintenanceWindowCreateRequest:
+      type: object
+      required: [starts_at, ends_at]
+      properties:
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        suppress_alerts: { type: boolean }
+        block_updates: { type: boolean }
+    MaintenanceWindowListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MaintenanceWindowDTO" }
     BackupDTO:
       type: object
       required: [id, server_id, state, size_bytes, sha256, format, encrypted, created_at]

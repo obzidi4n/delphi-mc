@@ -26,6 +26,12 @@ WebSocket channel (console, metrics, claims) and the blob download endpoint. Rot
 days; revocation records `revoked_at` and is checked on every reconnect. Details in
 [node enrollment](../operations/node-enrollment.md).
 
+**Alert channels:** webhook URLs and SMTP credentials are sealed with a 32-byte key at
+`<data_dir>/secrets.key` (0600, AES-256-GCM); list responses omit the config. Webhooks are
+operator-supplied URLs and therefore an SSRF surface; delivery is panel-side with a 10 s
+timeout and no redirects are followed by default. SMTP uses `net/smtp` (STARTTLS when the
+server offers it) and has no certificate pinning beyond the system roots.
+
 **Backups:** the panel encrypts archives with AES-256-GCM using a 32-byte key at
 `<data_dir>/backup.key` (mode 0600, generated once). The node uploads plaintext over its mTLS
 node identity and downloads a decrypted stream only after ownership is checked; the node

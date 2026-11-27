@@ -5,8 +5,8 @@ tool row names its scope and whether it is read-only. A tool that is not in this
 not be registered.
 
 The registry is capability-gated: a tool appears only when every capability it needs exists
-at the panel's and node's versions. Fourteen tools at M10 (eight read, six approval-gated);
-fifteen is the ceiling.
+at the panel's and node's versions. Fifteen tools at M11 (seven read, eight approval-gated);
+the ceiling is reached.
 
 ## Read-only (M6, implemented)
 
@@ -35,8 +35,9 @@ everything but `search_docs` from a principal without org read.
 | `write_file(server, path, content)` | Propose writing a text file; records a revision | `server:<id>:update` | server, path, content (≤1 MiB) |
 | `update_server(server)` | Propose installing available plugin updates, restarting, and boot-checking with rollback | `server:<id>:update` | server |
 | `backup(server)` | Propose a quiesced, encrypted snapshot | `server:<id>:update` | server |
+| `create_schedule(name, server, cron, action, timezone)` | Propose a cron power/backup schedule | `org:<id>:admin` (create) | name, server, cron, action, timezone |
 
-Fourteen registered tools in total (eight read, six approval-gated).
+Fifteen registered tools in total (seven read, eight approval-gated).
 
 Calling a write tool creates a pending approval, not a mutation. The user approves or rejects
 the card; approval executes as that user with their current scopes, then the model resumes
@@ -65,10 +66,10 @@ for.
 | `plugins(server)` | M9 (plugin manager) |
 | `get_metrics(server, range)` | series demand beyond `diagnose` |
 | `update_server(server, set)` | M9 (update policies + boot-check) |
-| `create_schedule(spec)` | M11 (automation) |
 
 `backup` landed at M10 as a create-only approval tool on `server:<id>:update`. Restore stays
 API/CLI-only for now: it needs a typed confirmation and dedicated backup/restore scopes.
+`create_schedule` is the fifteenth tool; the ceiling is now reached.
 
 Not tools, deliberately: audit viewing is the M12 audit viewer, maintenance windows are
 managed in the UI, and database provisioning waits for v1.1 — each would need a new tool

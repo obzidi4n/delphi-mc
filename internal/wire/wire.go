@@ -24,6 +24,8 @@ type ServerSpec struct {
 	Files map[string]string `json:"files,omitempty"`
 	// MCVersion is the resolved Minecraft version.
 	MCVersion string `json:"mc_version,omitempty"`
+	// RestartPolicy controls agent-local recovery: on-failure | never.
+	RestartPolicy string `json:"restart_policy,omitempty"`
 	// Plugins are managed plugin jars downloaded from the panel's artifact
 	// store, named stably per project.
 	Plugins []PluginSpec `json:"plugins,omitempty"`

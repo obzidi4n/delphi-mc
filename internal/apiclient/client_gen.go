@@ -193,6 +193,99 @@ func (c *Client) GetAIStatus(ctx context.Context) (*apitypes.AIStatusDTO, error)
 	return &out, nil
 }
 
+// GET /api/v1/alert-channels
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListAlertChannels(ctx context.Context) (*apitypes.AlertChannelListDTO, error) {
+	reqPath := "/api" + "/v1" + "/alert-channels"
+	var q url.Values
+
+	var out apitypes.AlertChannelListDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/alert-channels
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) CreateAlertChannel(ctx context.Context, body apitypes.AlertChannelCreateRequest) (*apitypes.AlertChannelDTO, error) {
+	reqPath := "/api" + "/v1" + "/alert-channels"
+	var q url.Values
+
+	var out apitypes.AlertChannelDTO
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DELETE /api/v1/alert-channels/{id}
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) DeleteAlertChannel(ctx context.Context, id string) error {
+	reqPath := "/api" + "/v1" + "/alert-channels" + "/" + url.PathEscape(fmt.Sprint(id))
+	var q url.Values
+
+	return c.do(ctx, "DELETE", reqPath, q, nil, nil)
+}
+
+// GET /api/v1/alert-rules
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListAlertRules(ctx context.Context) (*apitypes.AlertRuleListDTO, error) {
+	reqPath := "/api" + "/v1" + "/alert-rules"
+	var q url.Values
+
+	var out apitypes.AlertRuleListDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/alert-rules
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) CreateAlertRule(ctx context.Context, body apitypes.AlertRuleCreateRequest) (*apitypes.AlertRuleDTO, error) {
+	reqPath := "/api" + "/v1" + "/alert-rules"
+	var q url.Values
+
+	var out apitypes.AlertRuleDTO
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DELETE /api/v1/alert-rules/{id}
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) DeleteAlertRule(ctx context.Context, id string) error {
+	reqPath := "/api" + "/v1" + "/alert-rules" + "/" + url.PathEscape(fmt.Sprint(id))
+	var q url.Values
+
+	return c.do(ctx, "DELETE", reqPath, q, nil, nil)
+}
+
+// GET /api/v1/alerts
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListAlerts(ctx context.Context, limit *int) (*apitypes.AlertListDTO, error) {
+	reqPath := "/api" + "/v1" + "/alerts"
+	q := url.Values{}
+	if limit != nil {
+		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
+	}
+
+	var out apitypes.AlertListDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // POST /api/v1/api-keys
 //
 // Requires a bearer token configured on the Client.
@@ -356,6 +449,44 @@ func (c *Client) RemoveGroupMember(ctx context.Context, id string, serverID stri
 	return c.do(ctx, "DELETE", reqPath, q, nil, nil)
 }
 
+// GET /api/v1/maintenance-windows
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListMaintenanceWindows(ctx context.Context) (*apitypes.MaintenanceWindowListDTO, error) {
+	reqPath := "/api" + "/v1" + "/maintenance-windows"
+	var q url.Values
+
+	var out apitypes.MaintenanceWindowListDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/maintenance-windows
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) CreateMaintenanceWindow(ctx context.Context, body apitypes.MaintenanceWindowCreateRequest) (*apitypes.MaintenanceWindowDTO, error) {
+	reqPath := "/api" + "/v1" + "/maintenance-windows"
+	var q url.Values
+
+	var out apitypes.MaintenanceWindowDTO
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DELETE /api/v1/maintenance-windows/{id}
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) DeleteMaintenanceWindow(ctx context.Context, id string) error {
+	reqPath := "/api" + "/v1" + "/maintenance-windows" + "/" + url.PathEscape(fmt.Sprint(id))
+	var q url.Values
+
+	return c.do(ctx, "DELETE", reqPath, q, nil, nil)
+}
+
 // GET /api/v1/nodes
 //
 // Requires a bearer token configured on the Client.
@@ -384,6 +515,44 @@ func (c *Client) RevokeNode(ctx context.Context, id string) error {
 	var q url.Values
 
 	return c.do(ctx, "POST", reqPath, q, nil, nil)
+}
+
+// GET /api/v1/schedules
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListSchedules(ctx context.Context) (*apitypes.ScheduleListDTO, error) {
+	reqPath := "/api" + "/v1" + "/schedules"
+	var q url.Values
+
+	var out apitypes.ScheduleListDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/schedules
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) CreateSchedule(ctx context.Context, body apitypes.ScheduleCreateRequest) (*apitypes.ScheduleDTO, error) {
+	reqPath := "/api" + "/v1" + "/schedules"
+	var q url.Values
+
+	var out apitypes.ScheduleDTO
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DELETE /api/v1/schedules/{id}
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) DeleteSchedule(ctx context.Context, id string) error {
+	reqPath := "/api" + "/v1" + "/schedules" + "/" + url.PathEscape(fmt.Sprint(id))
+	var q url.Values
+
+	return c.do(ctx, "DELETE", reqPath, q, nil, nil)
 }
 
 // GET /api/v1/servers

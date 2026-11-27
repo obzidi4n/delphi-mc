@@ -73,6 +73,64 @@ type APIKeyRequest struct {
 	Name string `json:"name"`
 }
 
+// AlertChannelCreateRequest is generated from the spec.
+type AlertChannelCreateRequest struct {
+	Config json.RawMessage `json:"config"`
+	Kind   string          `json:"kind"`
+	Name   string          `json:"name"`
+}
+
+// AlertChannelDTO is generated from the spec.
+type AlertChannelDTO struct {
+	CreatedAt time.Time `json:"created_at"`
+	ID        string    `json:"id"`
+	Kind      string    `json:"kind"`
+	Name      string    `json:"name"`
+}
+
+// AlertChannelListDTO is generated from the spec.
+type AlertChannelListDTO struct {
+	Items []AlertChannelDTO `json:"items"`
+}
+
+// AlertDTO is generated from the spec.
+type AlertDTO struct {
+	ID         string     `json:"id"`
+	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
+	RuleID     string     `json:"rule_id"`
+	ServerID   string     `json:"server_id"`
+	StartedAt  time.Time  `json:"started_at"`
+	State      string     `json:"state"`
+	Summary    string     `json:"summary"`
+}
+
+// AlertListDTO is generated from the spec.
+type AlertListDTO struct {
+	Items []AlertDTO `json:"items"`
+}
+
+// AlertRuleCreateRequest is generated from the spec.
+type AlertRuleCreateRequest struct {
+	Kind          string `json:"kind"`
+	Threshold     *int   `json:"threshold,omitempty"`
+	WindowSeconds *int   `json:"window_seconds,omitempty"`
+}
+
+// AlertRuleDTO is generated from the spec.
+type AlertRuleDTO struct {
+	CreatedAt     time.Time `json:"created_at"`
+	Enabled       bool      `json:"enabled"`
+	ID            string    `json:"id"`
+	Kind          string    `json:"kind"`
+	Threshold     int       `json:"threshold"`
+	WindowSeconds int       `json:"window_seconds"`
+}
+
+// AlertRuleListDTO is generated from the spec.
+type AlertRuleListDTO struct {
+	Items []AlertRuleDTO `json:"items"`
+}
+
 // AuditEntryDTO is generated from the spec.
 type AuditEntryDTO struct {
 	Action    string          `json:"action"`
@@ -272,6 +330,29 @@ type GroupListDTO struct {
 	NextCursor *string    `json:"next_cursor"`
 }
 
+// MaintenanceWindowCreateRequest is generated from the spec.
+type MaintenanceWindowCreateRequest struct {
+	BlockUpdates   *bool     `json:"block_updates,omitempty"`
+	EndsAt         time.Time `json:"ends_at"`
+	StartsAt       time.Time `json:"starts_at"`
+	SuppressAlerts *bool     `json:"suppress_alerts,omitempty"`
+}
+
+// MaintenanceWindowDTO is generated from the spec.
+type MaintenanceWindowDTO struct {
+	BlockUpdates   bool      `json:"block_updates"`
+	CreatedAt      time.Time `json:"created_at"`
+	EndsAt         time.Time `json:"ends_at"`
+	ID             string    `json:"id"`
+	StartsAt       time.Time `json:"starts_at"`
+	SuppressAlerts bool      `json:"suppress_alerts"`
+}
+
+// MaintenanceWindowListDTO is generated from the spec.
+type MaintenanceWindowListDTO struct {
+	Items []MaintenanceWindowDTO `json:"items"`
+}
+
 // MemberListDTO is generated from the spec.
 type MemberListDTO struct {
 	Items      []string `json:"items"`
@@ -370,6 +451,34 @@ type RenameRequest struct {
 // RoleRequest is generated from the spec.
 type RoleRequest struct {
 	Role string `json:"role"`
+}
+
+// ScheduleCreateRequest is generated from the spec.
+type ScheduleCreateRequest struct {
+	Action   string  `json:"action"`
+	Cron     string  `json:"cron"`
+	Name     string  `json:"name"`
+	ServerID string  `json:"server_id"`
+	Timezone *string `json:"timezone,omitempty"`
+}
+
+// ScheduleDTO is generated from the spec.
+type ScheduleDTO struct {
+	Action    string     `json:"action"`
+	CreatedAt time.Time  `json:"created_at"`
+	Cron      string     `json:"cron"`
+	Enabled   bool       `json:"enabled"`
+	ID        string     `json:"id"`
+	LastRun   *time.Time `json:"last_run,omitempty"`
+	Name      string     `json:"name"`
+	NextRun   *time.Time `json:"next_run,omitempty"`
+	ServerID  string     `json:"server_id"`
+	Timezone  string     `json:"timezone"`
+}
+
+// ScheduleListDTO is generated from the spec.
+type ScheduleListDTO struct {
+	Items []ScheduleDTO `json:"items"`
 }
 
 // ServerCreateRequest is generated from the spec.

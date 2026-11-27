@@ -41,6 +41,7 @@ import (
 	"delphi.dev/delphi/internal/mc"
 	"delphi.dev/delphi/internal/pki"
 	"delphi.dev/delphi/internal/plugins"
+	"delphi.dev/delphi/internal/secret"
 	"delphi.dev/delphi/internal/store"
 	"delphi.dev/delphi/internal/template"
 	"delphi.dev/delphi/internal/version"
@@ -164,6 +165,8 @@ func runPanel(ctx context.Context, args []string) error {
 	var files *api.FileService
 	var artifacts *artifact.Store
 	var backups *capability.Backups
+	var schedules *capability.Schedules
+	var alerts *capability.Alerts
 	var identity api.IdentityStore
 	if db != nil {
 		identity = db
@@ -178,6 +181,12 @@ func runPanel(ctx context.Context, args []string) error {
 			return err
 		}
 		backups = &capability.Backups{Store: db, Files: backupFiles, Hub: hub, Notify: hub, Log: log}
+		box, err := secret.New(filepath.Join(cfg.DataDir, "secrets.key"))
+		if err != nil {
+			return err
+		}
+		alerts = &capability.Alerts{Store: db, Box: box, Log: log}
+		schedules = &capability.Schedules{Store: db, Servers: servers, Backups: backups, Log: log}
 		updates := &capability.Updates{
 			Store: db, Resolver: plugins.NewResolver(nil), Artifacts: artifacts,
 			HTTP: &http.Client{Timeout: 5 * time.Minute}, Notify: hub, Log: log,
@@ -192,9 +201,12 @@ func runPanel(ctx context.Context, args []string) error {
 			Templates: &capability.Templates{
 				Store: db, Servers: servers, Ports: db, Resolver: mc.NewClient(nil), Plugins: updates,
 			},
-			Updates: updates,
-			Backups: backups,
+			Updates:   updates,
+			Backups:   backups,
+			Schedules: schedules,
+			Alerts:    alerts,
 		}
+		go runSchedules(ctx, schedules, log)
 		if err := seedBuiltinTemplates(ctx, db); err != nil {
 			log.Warn("could not seed built-in templates", "err", err)
 		}
@@ -255,6 +267,7 @@ func runPanel(ctx context.Context, args []string) error {
 		Files:      files,
 		Artifacts:  artifacts,
 		Backups:    backups,
+		Alerts:     alerts,
 		CA:         ca,
 		Hub:        hub,
 		BridgeSender: func(ctx context.Context, nodeID string, frame wire.BridgeCommandFrame) error {
@@ -876,6 +889,24 @@ func runInit(ctx context.Context, args []string) error {
 
 // buildToolbox wires the assistant's read-only tools to the capability layer
 // and the live console/metrics hub.
+func runSchedules(ctx context.Context, schedules *capability.Schedules, log *slog.Logger) {
+	if schedules == nil {
+		return
+	}
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			if n := schedules.RunDue(ctx, now); n > 0 {
+				log.Info("schedules ran", "count", n)
+			}
+		}
+	}
+}
+
 func buildToolbox(services *capability.Services, console *api.ConsoleHub, db *store.DB) *ai.Toolbox {
 	resolve := func(ctx context.Context, p capability.Principal, ref string) (store.Server, error) {
 		ref = strings.TrimSpace(ref)

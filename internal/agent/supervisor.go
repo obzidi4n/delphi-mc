@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"delphi.dev/delphi/internal/wire"
@@ -30,6 +31,9 @@ type Supervisor struct {
 	// BlobHTTP carries the node certificate for panel blob requests; HTTP
 	// stays a normal client for upstream jar downloads.
 	BlobHTTP *http.Client
+	// RestartDelay is the first crash-restart delay (default 2s).
+	RestartDelay time.Duration
+	mu           sync.Mutex
 }
 
 // NewSupervisor builds a supervisor with a long download timeout.
@@ -53,6 +57,8 @@ type appliedState struct {
 
 // Apply converges one server and returns what the node observed.
 func (s *Supervisor) Apply(ctx context.Context, spec wire.ServerSpec) (string, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	dir := filepath.Join(s.DataDir, "servers", spec.ID)
 	if _, err := EnsureServerDir(dir); err != nil {
 		return "error", err.Error()
@@ -111,6 +117,9 @@ func (s *Supervisor) Apply(ctx context.Context, spec wire.ServerSpec) (string, s
 		s.captureCrash(ctx, spec, dir)
 	}
 
+	if state == "running" {
+		s.saveRestartState(dir, restartState{})
+	}
 	if spec.DesiredState == "stopped" {
 		switch state {
 		case "running", "stopping":
@@ -132,14 +141,21 @@ func (s *Supervisor) Apply(ctx context.Context, spec wire.ServerSpec) (string, s
 // keeps the panel honest between mutations, and it captures crash artifacts
 // when a container has exited.
 func (s *Supervisor) Observe(ctx context.Context, spec wire.ServerSpec) (string, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	state, err := s.Runtime.State(ctx, spec.ID)
 	if err != nil {
 		return "error", err.Error()
 	}
 
 	dir := filepath.Join(s.DataDir, "servers", spec.ID)
-	if state == "exited" && spec.DesiredState == "running" {
+	if (state == "exited" || state == "error") && spec.DesiredState == "running" {
 		s.captureCrash(ctx, spec, dir)
+		if spec.RestartPolicy != "never" {
+			if restarted, restartState := s.restartCrashed(ctx, spec, dir); restarted {
+				return restartState, "restarted after the container exited"
+			}
+		}
 	}
 	if spec.DesiredState == "stopped" && (state == "exited" || state == "created" || state == "missing") {
 		return "stopped", ""
@@ -156,6 +172,66 @@ func (s *Supervisor) Observe(ctx context.Context, spec wire.ServerSpec) (string,
 
 // appliedRevision combines the local state file with the container label, so
 // an agent restart neither restarts running servers nor re-downloads jars.
+type restartState struct {
+	Attempts int       `json:"attempts"`
+	NextAt   time.Time `json:"next_at"`
+}
+
+func restartStatePath(dir string) string { return filepath.Join(dir, ".delphi-restart.json") }
+
+// restartCrashed restarts a container after an unexpected exit. The first
+// observation reports the crash; the next observation (after a short delay)
+// starts it again. The panel-down path relies on this.
+func (s *Supervisor) restartCrashed(ctx context.Context, spec wire.ServerSpec, dir string) (bool, string) {
+	var state restartState
+	if data, err := os.ReadFile(restartStatePath(dir)); err == nil {
+		_ = json.Unmarshal(data, &state)
+	}
+	delay := s.RestartDelay
+	if delay <= 0 {
+		delay = 2 * time.Second
+	}
+	now := time.Now()
+	if state.NextAt.IsZero() {
+		state.NextAt = now.Add(delay)
+		s.saveRestartState(dir, state)
+		return false, ""
+	}
+	if now.Before(state.NextAt) {
+		return false, ""
+	}
+	state.Attempts++
+	backoff := time.Duration(1<<min(state.Attempts, 5)) * 2 * time.Second
+	if backoff > 60*time.Second {
+		backoff = 60 * time.Second
+	}
+	state.NextAt = now.Add(backoff)
+	s.saveRestartState(dir, state)
+	if err := s.Runtime.Start(ctx, spec.ID); err != nil {
+		s.Log.Warn("agent restart failed", "server", spec.ID, "err", err)
+		return false, ""
+	}
+	state = restartState{}
+	s.saveRestartState(dir, state)
+	stateNow, err := s.Runtime.State(ctx, spec.ID)
+	if err != nil {
+		return true, "starting"
+	}
+	return true, stateNow
+}
+
+func (s *Supervisor) saveRestartState(dir string, state restartState) {
+	data, _ := json.Marshal(state)
+	_ = os.WriteFile(restartStatePath(dir), data, 0o644)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func (s *Supervisor) appliedRevision(ctx context.Context, id, dir string) int64 {
 	var applied int64
 	var local appliedState

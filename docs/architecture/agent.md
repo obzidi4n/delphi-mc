@@ -13,7 +13,11 @@ panel over a single mTLS WebSocket, and keeps serving when the panel is unreacha
   `observed_state` + `applied_revision`. Convergence is idempotent, so a lost frame or a
   panel restart is never a correctness problem.
 - Crash restart policy lives in desired state and is executed here, not by the panel
-  (ADR [0017](../decisions/0017-agent-owned-restart-policy.md)).
+  (ADR [0017](../decisions/0017-agent-owned-restart-policy.md)). Policies are `on-failure`
+  (default) and `never`; the first exit is reported, the next observation restarts with
+  exponential backoff.
+- The last desired set is persisted at `<data_dir>/desired.json`. When the channel is down, a
+  supervisor loop reconciles it every 2 s so crashes still recover without the panel.
 - **On start the agent adopts what exists.** Containers are labelled
   `delphi.server=<uuid>`; a restarted agent re-attaches to running containers instead of
   recreating them, and a running server is never restarted by an agent restart. Missing or

@@ -312,6 +312,7 @@ func (c *Servers) SpecsForNode(ctx context.Context, nodeID string) ([]wire.Serve
 			Base:          s.Base,
 			Files:         s.Files,
 			MCVersion:     s.MCVersion,
+			RestartPolicy: s.RestartPolicy,
 			Plugins:       pluginSpecs(s.Plugins),
 			Deleted:       s.DeletedAt != nil,
 		})

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -58,10 +59,15 @@ func Connect(ctx context.Context, opts ConnectOptions, log *slog.Logger) error {
 		return err
 	}
 
+	var online atomic.Bool
+	go superviseOffline(ctx, opts.Supervisor, &online, log)
+
 	backoff := time.Second
 	for {
 		started := time.Now()
+		online.Store(true)
 		err := session(ctx, client, endpoint, opts, interval, log)
+		online.Store(false)
 		if ctx.Err() != nil {
 			return nil
 		}
@@ -156,6 +162,7 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 			case wire.TypeServers:
 				var frame wire.ServersFrame
 				if json.Unmarshal(data, &frame) == nil {
+					_ = saveDesired(opts.Supervisor.DataDir, frame.Items)
 					reconciler.submit(sctx, frame)
 				}
 			case wire.TypeFileRequest:

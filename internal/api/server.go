@@ -42,6 +42,7 @@ type Options struct {
 	Files      *FileService
 	Artifacts  *artifact.Store
 	Backups    *capability.Backups
+	Alerts     *capability.Alerts
 	Identity   IdentityStore
 	AdminToken string
 	CA         *pki.CA
@@ -137,6 +138,20 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("POST /api/v1/servers/{id}/backups", s.createBackup)
 	mux.HandleFunc("POST /api/v1/backups/{id}/restore", s.restoreBackup)
 	mux.HandleFunc("DELETE /api/v1/backups/{id}", s.deleteBackup)
+
+	mux.HandleFunc("GET /api/v1/schedules", s.listSchedules)
+	mux.HandleFunc("POST /api/v1/schedules", s.createSchedule)
+	mux.HandleFunc("DELETE /api/v1/schedules/{id}", s.deleteSchedule)
+	mux.HandleFunc("GET /api/v1/alert-rules", s.listAlertRules)
+	mux.HandleFunc("POST /api/v1/alert-rules", s.createAlertRule)
+	mux.HandleFunc("DELETE /api/v1/alert-rules/{id}", s.deleteAlertRule)
+	mux.HandleFunc("GET /api/v1/alert-channels", s.listAlertChannels)
+	mux.HandleFunc("POST /api/v1/alert-channels", s.createAlertChannel)
+	mux.HandleFunc("DELETE /api/v1/alert-channels/{id}", s.deleteAlertChannel)
+	mux.HandleFunc("GET /api/v1/alerts", s.listAlerts)
+	mux.HandleFunc("GET /api/v1/maintenance-windows", s.listMaintenanceWindows)
+	mux.HandleFunc("POST /api/v1/maintenance-windows", s.createMaintenanceWindow)
+	mux.HandleFunc("DELETE /api/v1/maintenance-windows/{id}", s.deleteMaintenanceWindow)
 
 	mux.HandleFunc("GET /api/v1/groups", s.listGroups)
 	mux.HandleFunc("POST /api/v1/groups", s.createGroup)
