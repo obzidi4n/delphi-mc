@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "builtin-creative",
+  "name": "Creative",
+  "description": "Paper creative sandbox with peaceful difficulty.",
+  "base": "paper",
+  "mc_version": "1.21.11",
+  "java": 21,
+  "defaults": {
+    "memory_mb": 3072,
+    "cpu_cores": 1,
+    "port": 0
+  },
+  "files": {
+    "server.properties": "allow-flight=true\ndifficulty=peaceful\nenable-command-block=true\ngamemode=creative\nlevel-name=world\nmax-players=20\nmotd={{server.name}} \u2014 creative\nonline-mode=true\npvp=false\nserver-ip=\nserver-port={{server.port}}\nspawn-protection=0\nview-distance=10\n"
+  },
+  "plugins": [],
+  "variables": {}
+}

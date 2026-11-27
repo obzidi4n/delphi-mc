@@ -99,6 +99,8 @@ func (f *fakeStore) Audit(_ context.Context, _, _, _, action, target string, _ a
 	return nil
 }
 
+func (f *fakeStore) AllocatePort(context.Context, string) (int, error) { return 25570, nil }
+
 var testPrincipal = Principal{UserID: "u_1", OrgID: "default", Via: "api", Scopes: []string{"*"}}
 
 type fakeNotifier struct{ synced []string }

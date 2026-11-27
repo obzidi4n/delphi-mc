@@ -126,6 +126,10 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("POST /api/v1/users", s.createUser)
 	mux.HandleFunc("PATCH /api/v1/users/{id}/role", s.setUserRole)
 
+	mux.HandleFunc("GET /api/v1/templates", s.listTemplates)
+	mux.HandleFunc("POST /api/v1/templates", s.importTemplate)
+	mux.HandleFunc("GET /api/v1/templates/{id}", s.getTemplate)
+
 	return mux, nil
 }
 

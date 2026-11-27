@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "builtin-survival",
+  "name": "Survival",
+  "description": "Paper survival with normal difficulty and the operator's EULA.",
+  "base": "paper",
+  "mc_version": "1.21.11",
+  "java": 21,
+  "defaults": {
+    "memory_mb": 4096,
+    "cpu_cores": 2,
+    "port": 0
+  },
+  "files": {
+    "server.properties": "allow-flight=false\ndifficulty=normal\nenable-command-block=false\ngamemode=survival\nlevel-name=world\nmax-players=20\nmotd={{server.name}}\nonline-mode=true\npvp=true\nserver-ip=\nserver-port={{server.port}}\nspawn-protection=16\nview-distance=10\n"
+  },
+  "plugins": [],
+  "variables": {}
+}

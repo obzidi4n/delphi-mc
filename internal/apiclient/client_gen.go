@@ -346,6 +346,54 @@ func (c *Client) PowerServer(ctx context.Context, id string, body apitypes.Power
 	return &out, nil
 }
 
+// GET /api/v1/templates
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListTemplates(ctx context.Context, limit *int64, after *string) (*apitypes.TemplateListDTO, error) {
+	path := "/api" + "/v1" + "/templates"
+	q := url.Values{}
+	if limit != nil {
+		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
+	}
+	if after != nil {
+		q.Set("after", *after)
+	}
+
+	var out apitypes.TemplateListDTO
+	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/templates
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ImportTemplate(ctx context.Context, body apitypes.TemplateInputDTO) (*apitypes.TemplateDTO, error) {
+	path := "/api" + "/v1" + "/templates"
+	var q url.Values
+
+	var out apitypes.TemplateDTO
+	if err := c.do(ctx, "POST", path, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GET /api/v1/templates/{id}
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) GetTemplate(ctx context.Context, id string) (*apitypes.TemplateDTO, error) {
+	path := "/api" + "/v1" + "/templates" + "/" + url.PathEscape(id)
+	var q url.Values
+
+	var out apitypes.TemplateDTO
+	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GET /api/v1/users
 //
 // Requires a bearer token configured on the Client.

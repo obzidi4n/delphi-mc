@@ -146,22 +146,25 @@ type RoleRequest struct {
 
 // ServerCreateRequest is generated from the spec.
 type ServerCreateRequest struct {
-	AcceptEULA   bool     `json:"accept_eula"`
-	CPUCores     *float64 `json:"cpu_cores,omitempty"`
-	DesiredState *string  `json:"desired_state,omitempty"`
-	GroupID      *string  `json:"group_id,omitempty"`
-	Image        string   `json:"image"`
-	JarSHA256    string   `json:"jar_sha256"`
-	JarURL       string   `json:"jar_url"`
-	MemoryMB     int      `json:"memory_mb"`
-	Name         string   `json:"name"`
-	NodeID       string   `json:"node_id"`
-	Port         *int     `json:"port,omitempty"`
+	AcceptEULA   bool              `json:"accept_eula"`
+	CPUCores     *float64          `json:"cpu_cores,omitempty"`
+	DesiredState *string           `json:"desired_state,omitempty"`
+	GroupID      *string           `json:"group_id,omitempty"`
+	Image        string            `json:"image"`
+	JarSHA256    string            `json:"jar_sha256"`
+	JarURL       string            `json:"jar_url"`
+	MemoryMB     int               `json:"memory_mb"`
+	Name         string            `json:"name"`
+	NodeID       string            `json:"node_id"`
+	Overrides    map[string]string `json:"overrides,omitempty"`
+	Port         *int              `json:"port,omitempty"`
+	Template     *string           `json:"template,omitempty"`
 }
 
 // ServerDTO is generated from the spec.
 type ServerDTO struct {
 	AppliedRevision int64      `json:"applied_revision"`
+	Base            string     `json:"base"`
 	CPUCores        float64    `json:"cpu_cores"`
 	CreatedAt       time.Time  `json:"created_at"`
 	DeletedAt       *time.Time `json:"deleted_at,omitempty"`
@@ -179,12 +182,88 @@ type ServerDTO struct {
 	Port            int        `json:"port"`
 	PurgeAfter      *time.Time `json:"purge_after,omitempty"`
 	SummaryState    string     `json:"summary_state"`
+	TemplateID      string     `json:"template_id"`
+	TemplateVersion int        `json:"template_version"`
 }
 
 // ServerListDTO is generated from the spec.
 type ServerListDTO struct {
 	Items      []ServerDTO `json:"items"`
 	NextCursor *string     `json:"next_cursor"`
+}
+
+// TemplateDTO is generated from the spec.
+type TemplateDTO struct {
+	Base          string                         `json:"base"`
+	Builtin       bool                           `json:"builtin"`
+	CreatedAt     time.Time                      `json:"created_at"`
+	Defaults      TemplateDefaultsDTO            `json:"defaults"`
+	Description   string                         `json:"description"`
+	Files         map[string]string              `json:"files"`
+	ID            string                         `json:"id"`
+	Java          int                            `json:"java"`
+	MCVersion     string                         `json:"mc_version"`
+	Name          string                         `json:"name"`
+	Plugins       []TemplatePluginDTO            `json:"plugins"`
+	Revision      int                            `json:"revision"`
+	SchemaVersion int                            `json:"schema_version"`
+	UpdatedAt     time.Time                      `json:"updated_at"`
+	Variables     map[string]TemplateVariableDTO `json:"variables"`
+}
+
+// TemplateDefaultsDTO is generated from the spec.
+type TemplateDefaultsDTO struct {
+	CPUCores float64 `json:"cpu_cores"`
+	MemoryMB int     `json:"memory_mb"`
+	Port     int     `json:"port"`
+}
+
+// TemplateInputDTO is generated from the spec.
+type TemplateInputDTO struct {
+	Base          string                         `json:"base"`
+	Defaults      *TemplateDefaultsDTO           `json:"defaults,omitempty"`
+	Description   *string                        `json:"description,omitempty"`
+	Files         map[string]string              `json:"files,omitempty"`
+	Java          int                            `json:"java"`
+	MCVersion     string                         `json:"mc_version"`
+	Name          string                         `json:"name"`
+	Plugins       []TemplatePluginDTO            `json:"plugins,omitempty"`
+	SchemaVersion int                            `json:"schema_version"`
+	Variables     map[string]TemplateVariableDTO `json:"variables,omitempty"`
+}
+
+// TemplateListDTO is generated from the spec.
+type TemplateListDTO struct {
+	Items      []TemplateSummaryDTO `json:"items"`
+	NextCursor *string              `json:"next_cursor"`
+}
+
+// TemplatePluginDTO is generated from the spec.
+type TemplatePluginDTO struct {
+	Project  string  `json:"project"`
+	Provider string  `json:"provider"`
+	Range    *string `json:"range,omitempty"`
+	Required *bool   `json:"required,omitempty"`
+	Version  *string `json:"version,omitempty"`
+}
+
+// TemplateSummaryDTO is generated from the spec.
+type TemplateSummaryDTO struct {
+	Base        string `json:"base"`
+	Builtin     bool   `json:"builtin"`
+	Description string `json:"description"`
+	ID          string `json:"id"`
+	Java        int    `json:"java"`
+	MCVersion   string `json:"mc_version"`
+	Name        string `json:"name"`
+	Revision    int    `json:"revision"`
+}
+
+// TemplateVariableDTO is generated from the spec.
+type TemplateVariableDTO struct {
+	Default     *string `json:"default,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Required    *bool   `json:"required,omitempty"`
 }
 
 // UserCreateRequest is generated from the spec.

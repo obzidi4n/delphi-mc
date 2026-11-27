@@ -17,6 +17,11 @@ type ServerSpec struct {
 	Port          int     `json:"port"`
 	JarURL        string  `json:"jar_url"`
 	JarSHA256     string  `json:"jar_sha256"`
+	// Base is paper or velocity; it selects the launch arguments and whether
+	// the EULA files apply.
+	Base string `json:"base,omitempty"`
+	// Files are rendered template files, written on first boot only.
+	Files map[string]string `json:"files,omitempty"`
 	// Deleted asks the node to stop and remove the container; files stay for
 	// the retention window.
 	Deleted bool `json:"deleted,omitempty"`

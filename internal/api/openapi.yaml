@@ -389,6 +389,65 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+  /api/v1/templates:
+    get:
+      operationId: listTemplates
+      summary: List built-in and org templates
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, format: int64 }
+        - name: after
+          in: query
+          required: false
+          description: Opaque cursor from next_cursor.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TemplateListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: importTemplate
+      summary: Import a template (JSON or YAML body)
+      description: |
+        The body is validated as a template; the stored name must be unique in
+        the org. The request content type may be application/json or
+        application/yaml.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TemplateInputDTO" }
+      responses:
+        "201":
+          description: Imported
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TemplateDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /api/v1/templates/{id}:
+    get:
+      operationId: getTemplate
+      summary: Fetch one template with its files
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Template
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TemplateDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
   /agent/enroll:
     post:
       operationId: enrollNode
@@ -441,7 +500,8 @@ components:
       required:
         [id, name, node_id, desired_state, desired_revision, observed_state,
          summary_state, applied_revision, kill_requested, port, image,
-         java_version, memory_mb, cpu_cores, created_at]
+         java_version, memory_mb, cpu_cores, base, template_id,
+         template_version, created_at]
       properties:
         id: { type: string }
         name: { type: string }
@@ -457,6 +517,9 @@ components:
         java_version: { type: integer }
         memory_mb: { type: integer }
         cpu_cores: { type: number, format: double }
+        base: { type: string }
+        template_id: { type: string }
+        template_version: { type: integer }
         last_error: { type: string }
         created_at: { type: string, format: date-time }
         deleted_at: { type: string, format: date-time, nullable: true }
@@ -476,6 +539,10 @@ components:
         accept_eula: { type: boolean }
         group_id: { type: string }
         desired_state: { type: string }
+        template: { type: string }
+        overrides:
+          type: object
+          additionalProperties: { type: string }
     ServerListDTO:
       type: object
       required: [items, next_cursor]
@@ -599,6 +666,95 @@ components:
       properties:
         user: { $ref: "#/components/schemas/UserDTO" }
         password: { type: string }
+    TemplateDefaultsDTO:
+      type: object
+      required: [memory_mb, cpu_cores, port]
+      properties:
+        memory_mb: { type: integer }
+        cpu_cores: { type: number, format: double }
+        port: { type: integer }
+    TemplatePluginDTO:
+      type: object
+      required: [project, provider]
+      properties:
+        project: { type: string }
+        provider: { type: string }
+        version: { type: string }
+        range: { type: string }
+        required: { type: boolean }
+    TemplateVariableDTO:
+      type: object
+      properties:
+        description: { type: string }
+        default: { type: string }
+        required: { type: boolean }
+    TemplateSummaryDTO:
+      type: object
+      required: [id, name, description, base, mc_version, java, revision, builtin]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        base: { type: string }
+        mc_version: { type: string }
+        java: { type: integer }
+        revision: { type: integer }
+        builtin: { type: boolean }
+    TemplateListDTO:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/TemplateSummaryDTO" }
+        next_cursor: { type: string, nullable: true }
+    TemplateInputDTO:
+      type: object
+      required: [schema_version, name, base, mc_version, java]
+      properties:
+        schema_version: { type: integer }
+        name: { type: string }
+        description: { type: string }
+        base: { type: string }
+        mc_version: { type: string }
+        java: { type: integer }
+        defaults: { $ref: "#/components/schemas/TemplateDefaultsDTO" }
+        files:
+          type: object
+          additionalProperties: { type: string }
+        plugins:
+          type: array
+          items: { $ref: "#/components/schemas/TemplatePluginDTO" }
+        variables:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/TemplateVariableDTO" }
+    TemplateDTO:
+      type: object
+      required:
+        [schema_version, id, name, description, base, mc_version, java, defaults,
+         files, plugins, variables, revision, builtin, created_at, updated_at]
+      properties:
+        schema_version: { type: integer }
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        base: { type: string }
+        mc_version: { type: string }
+        java: { type: integer }
+        defaults: { $ref: "#/components/schemas/TemplateDefaultsDTO" }
+        files:
+          type: object
+          additionalProperties: { type: string }
+        plugins:
+          type: array
+          items: { $ref: "#/components/schemas/TemplatePluginDTO" }
+        variables:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/TemplateVariableDTO" }
+        revision: { type: integer }
+        builtin: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
     NodeDTO:
       type: object
       required:

@@ -172,23 +172,59 @@ func (s *Supervisor) recordApplied(dir string, revision int64, state string) {
 
 func stateFilePath(dir string) string { return filepath.Join(dir, ".delphi-state.json") }
 
-// prepare writes the files a Paper server needs before its first boot and
-// ensures the pinned jar is present and verified.
+// prepare writes rendered template files, the Paper boot files when the base
+// needs them, and the pinned jar. Existing files are never overwritten: a
+// template applies on first boot, later edits are the operator's.
 func (s *Supervisor) prepare(ctx context.Context, spec wire.ServerSpec, dir string) error {
-	if !spec.AcceptEULA {
-		return errors.New("the Minecraft EULA was not accepted for this server")
-	}
-	if err := ensureFile(filepath.Join(dir, "eula.txt"), "eula=true\n"); err != nil {
+	if err := writeTemplateFiles(dir, spec.Files); err != nil {
 		return err
 	}
-	properties := fmt.Sprintf(
-		"server-port=25565\nserver-ip=\nonline-mode=true\nenable-rcon=false\nmotd=%s\nlevel-name=world\n",
-		oneLine(spec.Name),
-	)
-	if err := ensureFile(filepath.Join(dir, "server.properties"), properties); err != nil {
-		return err
+	if spec.Base != "velocity" {
+		if !spec.AcceptEULA {
+			return errors.New("the Minecraft EULA was not accepted for this server")
+		}
+		if err := ensureFile(filepath.Join(dir, "eula.txt"), "eula=true\n"); err != nil {
+			return err
+		}
+		properties := fmt.Sprintf(
+			"server-port=%d\nserver-ip=\nonline-mode=true\nenable-rcon=false\nmotd=%s\nlevel-name=world\n",
+			spec.Port, oneLine(spec.Name),
+		)
+		if err := ensureFile(filepath.Join(dir, "server.properties"), properties); err != nil {
+			return err
+		}
 	}
 	return s.ensureJar(ctx, spec, dir)
+}
+
+// writeTemplateFiles creates parent directories and writes each file only if
+// it does not exist yet.
+func writeTemplateFiles(dir string, files map[string]string) error {
+	for path, content := range files {
+		if !safeRelPath(path) {
+			return fmt.Errorf("template file %q is not a safe relative path", path)
+		}
+		full := filepath.Join(dir, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			return fmt.Errorf("create %s: %w", filepath.Dir(full), err)
+		}
+		if err := ensureFile(full, content); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func safeRelPath(path string) bool {
+	if path == "" || len(path) > 255 || strings.HasPrefix(path, "/") || strings.ContainsAny(path, "\\\x00") {
+		return false
+	}
+	for _, part := range strings.Split(path, "/") {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 func ensureFile(path, content string) error {

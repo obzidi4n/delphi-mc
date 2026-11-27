@@ -158,7 +158,7 @@ func runArgs(r *execRuntime, spec wire.ServerSpec, dir string) []string {
 		"--label", fmt.Sprintf("delphi.revision=%d", spec.Revision),
 		"-v", dir + ":/data",
 		"-w", "/data",
-		"-p", fmt.Sprintf("%d:25565", spec.Port),
+		"-p", fmt.Sprintf("%d:%d", spec.Port, spec.Port),
 		"--memory", fmt.Sprintf("%dm", spec.MemoryMB),
 		"--cpus", strconv.FormatFloat(cores, 'f', -1, 64),
 		"--shm-size", "512m",
@@ -182,8 +182,12 @@ func runArgs(r *execRuntime, spec wire.ServerSpec, dir string) []string {
 		"java",
 		fmt.Sprintf("-Xms%dm", heap/2),
 		fmt.Sprintf("-Xmx%dm", heap),
-		"-jar", "paper.jar", "--nogui",
+		"-jar", "paper.jar",
 	)
+	if spec.Base != "velocity" {
+		// Velocity has no --nogui; it runs headless from velocity.toml.
+		args = append(args, "--nogui")
+	}
 	return args
 }
 

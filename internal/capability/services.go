@@ -10,12 +10,13 @@ import (
 
 // Services bundles the capabilities the API exposes.
 type Services struct {
-	Servers *Servers
-	Fleet   *Fleet
-	Groups  *Groups
-	Audit   *Audit
-	Keys    *Keys
-	Users   *Users
+	Servers   *Servers
+	Fleet     *Fleet
+	Groups    *Groups
+	Audit     *Audit
+	Keys      *Keys
+	Users     *Users
+	Templates *Templates
 }
 
 // FleetStore is node and enrollment persistence.

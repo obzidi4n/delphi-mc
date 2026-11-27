@@ -44,6 +44,22 @@ func TestRunArgs(t *testing.T) {
 	}
 }
 
+func TestRunArgsVelocityOmitsNoGUI(t *testing.T) {
+	rt := &execRuntime{bin: "podman", podman: true}
+	spec := wire.ServerSpec{
+		ID: "s_v", Name: "proxy", Revision: 1, Base: "velocity",
+		Image: "delphi/java:17-temurin", MemoryMB: 1024, CPUCores: 1, Port: 25566,
+		JarURL: "https://example.invalid/velocity.jar", JarSHA256: strings.Repeat("a", 64),
+	}
+	joined := strings.Join(runArgs(rt, spec, "/var/lib/delphi/servers/s_v"), " ")
+	if strings.Contains(joined, "--nogui") {
+		t.Fatalf("velocity got --nogui: %s", joined)
+	}
+	if !strings.Contains(joined, "-p 25566:25566") {
+		t.Fatalf("port mapping wrong: %s", joined)
+	}
+}
+
 func TestContainerName(t *testing.T) {
 	if got := containerName("s_abc"); got != "delphi-s_abc" {
 		t.Fatalf("containerName = %q", got)

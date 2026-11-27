@@ -43,20 +43,28 @@ type Server struct {
 	DeletedAt       *time.Time
 	PurgeAfter      *time.Time
 	SummaryState    string
+
+	Base            string
+	TemplateID      string
+	TemplateVersion int
+	Variables       map[string]string
+	Files           map[string]string
 }
 
 const serverColumns = `s.id, s.org_id, s.node_id, s.name, s.desired_state, s.desired_revision,
 	s.observed_state, s.applied_revision, s.kill_requested, s.accept_eula, s.image, s.java_version,
 	s.memory_mb, s.cpu_cores, s.port, s.jar_url, s.jar_sha256, s.last_error, s.created_at,
 	s.deleted_at, s.purge_after,
-	coalesce((select state from server_summary where server_id = s.id), s.observed_state)`
+	coalesce((select state from server_summary where server_id = s.id), s.observed_state),
+	s.base, s.template_id, s.template_version, s.variables, s.files`
 
 func scanServer(row pgx.Row) (Server, error) {
 	var s Server
 	err := row.Scan(&s.ID, &s.OrgID, &s.NodeID, &s.Name, &s.DesiredState, &s.DesiredRevision,
 		&s.ObservedState, &s.AppliedRevision, &s.KillRequested, &s.AcceptEULA, &s.Image,
 		&s.JavaVersion, &s.MemoryMB, &s.CPUCores, &s.Port, &s.JarURL, &s.JarSHA256,
-		&s.LastError, &s.CreatedAt, &s.DeletedAt, &s.PurgeAfter, &s.SummaryState)
+		&s.LastError, &s.CreatedAt, &s.DeletedAt, &s.PurgeAfter, &s.SummaryState,
+		&s.Base, &s.TemplateID, &s.TemplateVersion, &s.Variables, &s.Files)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Server{}, ErrNoServer
 	}
@@ -65,6 +73,20 @@ func scanServer(row pgx.Row) (Server, error) {
 
 // CreateServer inserts a server, taking org_id from its node. Port 0 asks the
 // panel to allocate the lowest free port on that node.
+// AllocatePort picks a free port for the node, for callers that must know the
+// port before the row exists (template rendering).
+func (d *DB) AllocatePort(ctx context.Context, nodeID string) (int, error) {
+	var port int
+	err := d.pool.QueryRow(ctx, `
+		select p from generate_series(25565, 25600) p
+		where not exists (select 1 from servers where node_id = $1 and port = p)
+		order by p limit 1`, nodeID).Scan(&port)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNoPort
+	}
+	return port, err
+}
+
 func (d *DB) CreateServer(ctx context.Context, s Server) (Server, error) {
 	if s.Port == 0 {
 		err := d.pool.QueryRow(ctx, `
@@ -82,14 +104,26 @@ func (d *DB) CreateServer(ctx context.Context, s Server) (Server, error) {
 	if s.DesiredState == "" {
 		s.DesiredState = "stopped"
 	}
+	if s.Base == "" {
+		s.Base = "paper"
+	}
+	if s.Variables == nil {
+		s.Variables = map[string]string{}
+	}
+	if s.Files == nil {
+		s.Files = map[string]string{}
+	}
 	tag, err := d.pool.Exec(ctx, `
 		insert into servers (id, org_id, node_id, name, desired_state, desired_revision,
 			observed_state, applied_revision, kill_requested, accept_eula, image, java_version,
-			memory_mb, cpu_cores, port, jar_url, jar_sha256)
-		select $1, n.org_id, n.id, $3, $4, 1, 'unknown', 0, false, $5, $6, $7, $8, $9, $10, $11, $12
+			memory_mb, cpu_cores, port, jar_url, jar_sha256, base, template_id, template_version,
+			variables, files)
+		select $1, n.org_id, n.id, $3, $4, 1, 'unknown', 0, false, $5, $6, $7, $8, $9, $10, $11, $12,
+			$13, $14, $15, $16, $17
 		from nodes n where n.id = $2`,
 		s.ID, s.NodeID, s.Name, s.DesiredState, s.AcceptEULA, s.Image, s.JavaVersion,
-		s.MemoryMB, s.CPUCores, s.Port, s.JarURL, s.JarSHA256)
+		s.MemoryMB, s.CPUCores, s.Port, s.JarURL, s.JarSHA256,
+		s.Base, s.TemplateID, s.TemplateVersion, s.Variables, s.Files)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {

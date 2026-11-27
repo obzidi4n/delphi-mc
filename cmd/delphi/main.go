@@ -12,6 +12,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"gopkg.in/yaml.v3"
 
 	"delphi.dev/delphi/internal/agent"
 	"delphi.dev/delphi/internal/api"
@@ -32,8 +34,10 @@ import (
 	"delphi.dev/delphi/internal/auth"
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/config"
+	"delphi.dev/delphi/internal/mc"
 	"delphi.dev/delphi/internal/pki"
 	"delphi.dev/delphi/internal/store"
+	"delphi.dev/delphi/internal/template"
 	"delphi.dev/delphi/internal/version"
 )
 
@@ -62,6 +66,8 @@ func main() {
 		err = runNodes(ctx, os.Args[2:])
 	case "servers":
 		err = runServers(ctx, os.Args[2:])
+	case "templates":
+		err = runTemplates(ctx, os.Args[2:])
 	case "audit":
 		err = runAudit(ctx, os.Args[2:])
 	case "init":
@@ -96,8 +102,12 @@ commands:
   nodes token       issue an enrollment token
   nodes revoke ID   revoke a node certificate
   servers list      list servers
+  servers create    create a server from a template
   servers start ID  start / stop / restart / kill a server
   servers delete ID delete a server (data kept 7 days)
+  templates list    list built-in and org templates
+  templates export  print a template as JSON or YAML
+  templates import  import a template file
   audit list        recent mutations
   init              write config, create the CA and owner, apply migrations
   version           print the build version
@@ -154,6 +164,12 @@ func runPanel(ctx context.Context, args []string) error {
 			Audit:   &capability.Audit{Store: db},
 			Keys:    &capability.Keys{Store: db},
 			Users:   &capability.Users{Store: db},
+			Templates: &capability.Templates{
+				Store: db, Servers: servers, Ports: db, Resolver: mc.NewClient(nil),
+			},
+		}
+		if err := seedBuiltinTemplates(ctx, db); err != nil {
+			log.Warn("could not seed built-in templates", "err", err)
 		}
 		hub.Build = servers.SpecsForNode
 	}
@@ -542,6 +558,15 @@ func runServers(ctx context.Context, args []string) error {
 	jsonOut := fs.Bool("json", false, "print JSON")
 	limit := fs.Int("limit", 50, "servers per page")
 	after := fs.String("after", "", "cursor from a previous page")
+	createName := fs.String("name", "", "server name (create)")
+	createNode := fs.String("node", "", "node id (create)")
+	createTemplate := fs.String("template", "", "template id (create)")
+	fs.Int("memory-mb", 0, "memory override (create)")
+	fs.Float64("cpu-cores", 0, "cpu override (create)")
+	fs.Int("port", 0, "port override (create, 0 allocates)")
+	fs.Int("java", 0, "java override (create)")
+	createStart := fs.Bool("start", false, "start after create")
+	createEULA := fs.Bool("eula", false, "accept the Minecraft EULA (create)")
 	if err := parseFlags(fs, rest); err != nil {
 		return err
 	}
@@ -575,6 +600,42 @@ func runServers(ctx context.Context, args []string) error {
 		if out.NextCursor != nil {
 			fmt.Printf("next: %s\n", *out.NextCursor)
 		}
+		return nil
+
+	case "create":
+		if *createName == "" || *createNode == "" || *createTemplate == "" {
+			return errors.New("usage: delphi servers create --name NAME --node NODE --template TEMPLATE [--eula] [--start] [flags]")
+		}
+		client, err := admin.newClient()
+		if err != nil {
+			return err
+		}
+		overrides := map[string]string{}
+		fs.Visit(func(f *flag.Flag) {
+			switch f.Name {
+			case "memory-mb":
+				overrides["memory_mb"] = f.Value.String()
+			case "cpu-cores":
+				overrides["cpu_cores"] = f.Value.String()
+			case "port":
+				overrides["port"] = f.Value.String()
+			case "java":
+				overrides["java"] = f.Value.String()
+			}
+		})
+		state := "stopped"
+		if *createStart {
+			state = "running"
+		}
+		templateID := *createTemplate
+		srv, err := client.CreateServer(ctx, apitypes.ServerCreateRequest{
+			Name: *createName, NodeID: *createNode, Template: &templateID,
+			AcceptEULA: *createEULA, DesiredState: &state, Overrides: overrides,
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s: id=%s base=%s port=%d desired=%s\n", srv.Name, srv.ID, srv.Base, srv.Port, srv.DesiredState)
 		return nil
 
 	case "get":
@@ -753,8 +814,30 @@ func runInit(ctx context.Context, args []string) error {
 	for _, name := range applied {
 		fmt.Printf("  %s\n", name)
 	}
+	if err := seedBuiltinTemplates(ctx, db); err != nil {
+		return err
+	}
 	if err := ensureOwner(ctx, db); err != nil {
 		return err
+	}
+	return nil
+}
+
+// seedBuiltinTemplates inserts the embedded templates once; existing rows are
+// left untouched so an operator's import cannot be clobbered.
+func seedBuiltinTemplates(ctx context.Context, db *store.DB) error {
+	all, err := template.Builtins()
+	if err != nil {
+		return err
+	}
+	for _, tpl := range all {
+		body, err := json.Marshal(tpl)
+		if err != nil {
+			return err
+		}
+		if err := db.UpsertBuiltinTemplate(ctx, tpl.ID, tpl.Name, body); err != nil {
+			return fmt.Errorf("seed %s: %w", tpl.ID, err)
+		}
 	}
 	return nil
 }
@@ -860,4 +943,141 @@ func writePanelConfig(file string, cfg config.Panel) error {
 		return fmt.Errorf("write %s: %w", file, err)
 	}
 	return nil
+}
+
+func runTemplates(ctx context.Context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: delphi templates <list|get|export|import> [flags]")
+	}
+	sub, rest := args[0], args[1:]
+	valueFlags := map[string]bool{
+		"panel": true, "token": true, "ca": true,
+		"limit": true, "after": true, "format": true,
+	}
+	var id, file string
+	switch sub {
+	case "get", "export":
+		id, rest = extractPositional(rest, valueFlags)
+	case "import":
+		file, rest = extractPositional(rest, valueFlags)
+	}
+
+	fs := flag.NewFlagSet("templates "+sub, flag.ContinueOnError)
+	var admin adminConfig
+	addAdminFlags(fs, &admin)
+	limit := fs.Int("limit", 50, "templates per page")
+	after := fs.String("after", "", "cursor from a previous page")
+	format := fs.String("format", "yaml", "export format: yaml or json")
+	jsonOut := fs.Bool("json", false, "print JSON")
+	if err := parseFlags(fs, rest); err != nil {
+		return err
+	}
+	if err := admin.resolve(); err != nil {
+		return err
+	}
+	client, err := admin.newClient()
+	if err != nil {
+		return err
+	}
+
+	switch sub {
+	case "list":
+		pageSize := int64(*limit)
+		out, err := client.ListTemplates(ctx, &pageSize, optString(*after))
+		if err != nil {
+			return err
+		}
+		if *jsonOut {
+			return printJSON(out)
+		}
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tBASE\tMC\tJAVA\tREV\tBUILTIN\tID")
+		for _, tpl := range out.Items {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%d\t%t\t%s\n",
+				tpl.Name, tpl.Base, tpl.MCVersion, tpl.Java, tpl.Revision, tpl.Builtin, tpl.ID)
+		}
+		if err := w.Flush(); err != nil {
+			return err
+		}
+		if out.NextCursor != nil {
+			fmt.Printf("next: %s\n", *out.NextCursor)
+		}
+		return nil
+
+	case "get":
+		if id == "" {
+			return errors.New("usage: delphi templates get <id> [flags]")
+		}
+		tpl, err := client.GetTemplate(ctx, id)
+		if err != nil {
+			return err
+		}
+		return printJSON(tpl)
+
+	case "export":
+		if id == "" {
+			return errors.New("usage: delphi templates export <id> [--format yaml|json]")
+		}
+		tpl, err := client.GetTemplate(ctx, id)
+		if err != nil {
+			return err
+		}
+		raw, err := json.Marshal(tpl)
+		if err != nil {
+			return err
+		}
+		var generic any
+		if err := json.Unmarshal(raw, &generic); err != nil {
+			return err
+		}
+		switch *format {
+		case "json":
+			fmt.Println(string(raw))
+		case "yaml":
+			data, err := yaml.Marshal(generic)
+			if err != nil {
+				return err
+			}
+			_, err = os.Stdout.Write(data)
+			return err
+		default:
+			return errors.New("--format must be yaml or json")
+		}
+		return nil
+
+	case "import":
+		if file == "" {
+			return errors.New("usage: delphi templates import <file|-> [flags]")
+		}
+		var data []byte
+		if file == "-" {
+			data, err = io.ReadAll(os.Stdin)
+		} else {
+			data, err = os.ReadFile(file)
+		}
+		if err != nil {
+			return err
+		}
+		var generic any
+		if err := yaml.Unmarshal(data, &generic); err != nil {
+			return err
+		}
+		normalized, err := json.Marshal(generic)
+		if err != nil {
+			return err
+		}
+		var input apitypes.TemplateInputDTO
+		if err := json.Unmarshal(normalized, &input); err != nil {
+			return err
+		}
+		created, err := client.ImportTemplate(ctx, input)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s: id=%s base=%s revision=%d\n", created.Name, created.ID, created.Base, created.Revision)
+		return nil
+
+	default:
+		return fmt.Errorf("unknown templates command %q", sub)
+	}
 }

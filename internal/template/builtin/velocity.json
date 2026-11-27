@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "builtin-velocity",
+  "name": "Velocity Network",
+  "description": "Velocity proxy skeleton. Backend registration and forwarding arrive with networks (M14).",
+  "base": "velocity",
+  "mc_version": "latest",
+  "java": 21,
+  "defaults": {
+    "memory_mb": 1024,
+    "cpu_cores": 1,
+    "port": 0
+  },
+  "files": {
+    "velocity.toml": "bind = \"0.0.0.0:{{server.port}}\"\nmotd = \"{{server.name}}\"\nshow-max-players = 500\nonline-mode = true\nplayer-info-forwarding-mode = \"none\"\nforwarding-secret-file = \"forwarding.secret\"\n"
+  },
+  "plugins": [],
+  "variables": {}
+}

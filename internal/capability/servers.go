@@ -49,6 +49,7 @@ type ServerStore interface {
 	CreateServer(ctx context.Context, s store.Server) (store.Server, error)
 	GetServer(ctx context.Context, id string) (store.Server, error)
 	ListServers(ctx context.Context, limit int, after string) ([]store.Server, string, error)
+	AllocatePort(ctx context.Context, nodeID string) (int, error)
 	ListServersByNode(ctx context.Context, nodeID string) ([]store.Server, error)
 	SetDesiredState(ctx context.Context, id, desired string, kill bool) (store.Server, error)
 	RenameServer(ctx context.Context, id, name string) (store.Server, error)
@@ -70,17 +71,23 @@ type Servers struct {
 
 // CreateRequest is a server creation request.
 type CreateRequest struct {
-	Name         string
-	NodeID       string
-	Image        string
-	MemoryMB     int
-	CPUCores     float64
-	Port         int
-	JarURL       string
-	JarSHA256    string
-	AcceptEULA   bool
-	GroupID      string
-	DesiredState string
+	Name            string
+	NodeID          string
+	Image           string
+	MemoryMB        int
+	CPUCores        float64
+	Port            int
+	JarURL          string
+	JarSHA256       string
+	AcceptEULA      bool
+	GroupID         string
+	DesiredState    string
+	Base            string
+	TemplateID      string
+	TemplateVersion int
+	JavaVersion     int
+	Variables       map[string]string
+	Files           map[string]string
 }
 
 var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -126,30 +133,55 @@ func (c *Servers) Create(ctx context.Context, p Principal, req CreateRequest) (s
 	if !sha256Hex.MatchString(strings.ToLower(req.JarSHA256)) {
 		return store.Server{}, invalid("jar_sha256 must be 64 lowercase hex characters")
 	}
-	if !req.AcceptEULA {
+	if req.Base == "" {
+		req.Base = "paper"
+	}
+	if req.Base != "paper" && req.Base != "velocity" {
+		return store.Server{}, invalid("base must be paper or velocity")
+	}
+	if req.Base == "paper" && !req.AcceptEULA {
 		return store.Server{}, invalid("accept_eula must be true: the operator accepts the Minecraft EULA")
+	}
+	if req.JavaVersion == 0 {
+		req.JavaVersion = 21
+	}
+	if req.Variables == nil {
+		req.Variables = map[string]string{}
+	}
+	if req.Files == nil {
+		req.Files = map[string]string{}
 	}
 
 	created, err := c.Store.CreateServer(ctx, store.Server{
-		ID:           newServerID(),
-		NodeID:       req.NodeID,
-		Name:         req.Name,
-		DesiredState: req.DesiredState,
-		AcceptEULA:   req.AcceptEULA,
-		Image:        req.Image,
-		JavaVersion:  21,
-		MemoryMB:     req.MemoryMB,
-		CPUCores:     req.CPUCores,
-		Port:         req.Port,
-		JarURL:       req.JarURL,
-		JarSHA256:    strings.ToLower(req.JarSHA256),
+		ID:              newServerID(),
+		NodeID:          req.NodeID,
+		Name:            req.Name,
+		DesiredState:    req.DesiredState,
+		AcceptEULA:      req.AcceptEULA,
+		Image:           req.Image,
+		JavaVersion:     req.JavaVersion,
+		MemoryMB:        req.MemoryMB,
+		CPUCores:        req.CPUCores,
+		Port:            req.Port,
+		JarURL:          req.JarURL,
+		JarSHA256:       strings.ToLower(req.JarSHA256),
+		Base:            req.Base,
+		TemplateID:      req.TemplateID,
+		TemplateVersion: req.TemplateVersion,
+		Variables:       req.Variables,
+		Files:           req.Files,
 	})
 	if err != nil {
 		return store.Server{}, err
 	}
-	if err := c.audit(ctx, p, "server.create", created.ID, map[string]any{
+	diff := map[string]any{
 		"name": created.Name, "node_id": created.NodeID, "port": created.Port,
-	}); err != nil {
+	}
+	if created.TemplateID != "" {
+		diff["template"] = created.TemplateID
+		diff["template_version"] = created.TemplateVersion
+	}
+	if err := c.audit(ctx, p, "server.create", created.ID, diff); err != nil {
 		return store.Server{}, err
 	}
 
@@ -273,6 +305,8 @@ func (c *Servers) SpecsForNode(ctx context.Context, nodeID string) ([]wire.Serve
 			Port:          s.Port,
 			JarURL:        s.JarURL,
 			JarSHA256:     s.JarSHA256,
+			Base:          s.Base,
+			Files:         s.Files,
 			Deleted:       s.DeletedAt != nil,
 		})
 	}

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "builtin-dev",
+  "name": "Dev",
+  "description": "Local development: offline mode, command blocks, no spawn protection.",
+  "base": "paper",
+  "mc_version": "1.21.11",
+  "java": 21,
+  "defaults": {
+    "memory_mb": 2048,
+    "cpu_cores": 1,
+    "port": 0
+  },
+  "files": {
+    "server.properties": "allow-flight=true\ndifficulty=peaceful\nenable-command-block=true\ngamemode=creative\nlevel-name=world\nmax-players=10\nmotd={{server.name}} \u2014 dev\nonline-mode=false\npvp=true\nserver-ip=\nserver-port={{server.port}}\nspawn-protection=0\nview-distance=6\n"
+  },
+  "plugins": [],
+  "variables": {}
+}

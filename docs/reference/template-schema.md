@@ -1,62 +1,60 @@
 # Template schema
 
-**Status:** design · implemented at M3b, when the canonical JSON Schema file lands and this page
-links to it. Rationale: [templates](../architecture/templates.md).
+**Status:** current at M3b. Rationale: [templates](../architecture/templates.md). The Go
+types in `internal/template` are the source of truth; built-ins live in
+`internal/template/builtin/*.json`.
 
-Import/export format is JSON (YAML accepted on import; export is JSON). A template is data
-plus an optional file set; nothing in it executes at import time.
+Import/export is JSON or YAML. A template is data plus a small file set; nothing in it executes
+at import time.
 
 ```json
 {
-  "schema": 1,
+  "schema_version": 1,
   "name": "Survival",
-  "description": "Paper survival server with the house ruleset",
-  "icon": "survival",
-  "builtin": true,
+  "description": "Paper survival server",
   "base": "paper",
-  "mc_version": "1.21.4",
+  "mc_version": "1.21.11",
   "java": 21,
-  "defaults": {
-    "memory_mb": 4096,
-    "cpu_cores": 2.0,
-    "jvm_profile": "aikar",
-    "startup": "paper.jar --nogui",
-    "env": {}
+  "defaults": { "memory_mb": 4096, "cpu_cores": 2.0, "port": 0 },
+  "files": {
+    "server.properties": "server-port={{server.port}}\nmotd={{server.name}}\n"
   },
-  "files": [
-    { "path": "server.properties", "mode": "0644", "content": "..." },
-    { "path": "plugins/config/essentials.yml", "mode": "0644", "source": "files/essentials.yml" }
-  ],
   "plugins": [
-    { "project": "essentialsx", "provider": "modrinth", "version": "2.20.1",
-      "sha256": "…", "required": true }
+    { "project": "essentialsx", "provider": "modrinth", "version": "2.20.1", "required": true }
   ],
   "variables": {
-    "motd": { "default": "A DelphiMC server" },
-    "difficulty": { "default": "normal" }
+    "difficulty": { "description": "World difficulty", "default": "normal" }
   }
 }
 ```
+
+Built-in variables: `{{server.name}}`, `{{server.port}}`, `{{server.memory_mb}}`,
+`{{server.cpu_cores}}`, `{{server.java}}`, `{{template.mc_version}}`. Custom variables are
+declared in `variables` and substituted by name.
 
 ## Field rules
 
 | Field | Rule |
 |---|---|
-| `base` | `paper` or `purpur` in v1.0; `velocity` with networks (v1.1) |
-| `mc_version` | A literal version, or `latest` / `recommended` resolved at instantiation and then pinned |
-| `java` | `21` or `25` (support floor: Paper 1.20.5+) |
-| `files[].path` | Relative, no `..`, no absolute paths, no symlinks |
-| `files[].content` / `source` | Exactly one; `source` is resolved from the template bundle at import |
-| `plugins[].sha256` | Required after resolution; a version range without a hash is rejected on import |
-| `variables` | Flat string map; substitution is `{{name}}` only, no expressions |
+| `schema_version` | must be `1` |
+| `name` | 1–64 characters; unique per org on import |
+| `base` | `paper` or `velocity`; `purpur` is rejected until M9 |
+| `mc_version` | literal `X.Y[.Z]`, or `latest` / `recommended` (resolved at instantiation) |
+| `java` | `8`, `17`, `21`, or `25` |
+| `defaults.memory_mb` | 512–32768 when set |
+| `defaults.cpu_cores` | 0–16 |
+| `defaults.port` | `0` (allocate) or 1024–65535 |
+| `files` | at most 64 files, 64 KiB each, 256 KiB total; relative paths only; `eula.txt` and `paper.jar` are reserved |
+| `plugins[].provider` | `modrinth`, `hangar`, or `github`; `version` and `range` are mutually exclusive |
+| `variables` | name `^[a-z][a-z0-9_-]{0,31}$`; `server*` and `template*` are reserved |
 
 ## Installation-time semantics
 
-1. Resolve `mc_version` and each plugin (`version|range` → concrete build + hash).
-2. Render variables into files; unresolved variables fail the instantiation, not the server.
-3. Write files atomically; the bundle and every jar are sha256-addressed artifacts fetched over
-   the blob path — the job references hashes, never bytes.
-4. Record `template_id` + `template_version` on the server.
+1. Resolve `mc_version` through PaperMC v3 to a build URL and sha256.
+2. Apply defaults and overrides; allocate a port when it is zero.
+3. Render files; unresolved references fail the create request.
+4. Store files, variables, `template_id`, and `template_version` on the server; the agent
+   writes the files once, on first boot, and never overwrites them.
 
 ## Re-apply
 

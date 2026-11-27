@@ -112,6 +112,8 @@ func (f *fakeServerStore) Audit(context.Context, string, string, string, string,
 	return nil
 }
 
+func (f *fakeServerStore) AllocatePort(context.Context, string) (int, error) { return 25570, nil }
+
 func newServerAPI(t *testing.T) (http.Handler, *fakeServerStore) {
 	t.Helper()
 	fs := &fakeServerStore{}

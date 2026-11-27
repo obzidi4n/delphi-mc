@@ -6,6 +6,7 @@ import (
 
 	"delphi.dev/delphi/internal/apitypes"
 	"delphi.dev/delphi/internal/capability"
+	"delphi.dev/delphi/internal/mc"
 	"delphi.dev/delphi/internal/store"
 )
 
@@ -21,6 +22,7 @@ func toServerDTO(sv store.Server) apitypes.ServerDTO {
 		AppliedRevision: sv.AppliedRevision,
 		KillRequested:   sv.KillRequested, Port: sv.Port, Image: sv.Image,
 		JavaVersion: sv.JavaVersion, MemoryMB: sv.MemoryMB, CPUCores: sv.CPUCores,
+		Base: sv.Base, TemplateID: sv.TemplateID, TemplateVersion: sv.TemplateVersion,
 		LastError: lastErr, CreatedAt: sv.CreatedAt,
 		DeletedAt: sv.DeletedAt, PurgeAfter: sv.PurgeAfter,
 	}
@@ -44,29 +46,50 @@ func (s *server) createServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Name         string  `json:"name"`
-		NodeID       string  `json:"node_id"`
-		Image        string  `json:"image"`
-		MemoryMB     int     `json:"memory_mb"`
-		CPUCores     float64 `json:"cpu_cores"`
-		Port         int     `json:"port"`
-		JarURL       string  `json:"jar_url"`
-		JarSHA256    string  `json:"jar_sha256"`
-		AcceptEULA   bool    `json:"accept_eula"`
-		GroupID      string  `json:"group_id"`
-		DesiredState string  `json:"desired_state"`
-	}
+	var req apitypes.ServerCreateRequest
 	if err := decodeJSON(w, r, &req); err != nil {
 		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	cpu := 0.0
+	if req.CPUCores != nil {
+		cpu = *req.CPUCores
+	}
+	port := 0
+	if req.Port != nil {
+		port = *req.Port
+	}
+	group := ""
+	if req.GroupID != nil {
+		group = *req.GroupID
+	}
+	state := ""
+	if req.DesiredState != nil {
+		state = *req.DesiredState
+	}
+
+	if req.Template != nil && *req.Template != "" {
+		if s.opts.Services.Templates == nil {
+			writeProblem(w, http.StatusNotImplemented, "templates_disabled", "the template service is not configured")
+			return
+		}
+		created, err := s.opts.Services.Templates.CreateServer(r.Context(), principal, capability.InstantiateRequest{
+			Name: req.Name, NodeID: req.NodeID, TemplateID: *req.Template,
+			Overrides: req.Overrides, DesiredState: state, AcceptEULA: req.AcceptEULA,
+		})
+		if err != nil {
+			writeCapabilityError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, toServerDTO(created))
 		return
 	}
 
 	created, err := service.Create(r.Context(), principal, capability.CreateRequest{
 		Name: req.Name, NodeID: req.NodeID, Image: req.Image, MemoryMB: req.MemoryMB,
-		CPUCores: req.CPUCores, Port: req.Port, JarURL: req.JarURL,
-		JarSHA256: req.JarSHA256, AcceptEULA: req.AcceptEULA, GroupID: req.GroupID,
-		DesiredState: req.DesiredState,
+		CPUCores: cpu, Port: port, JarURL: req.JarURL,
+		JarSHA256: req.JarSHA256, AcceptEULA: req.AcceptEULA, GroupID: group,
+		DesiredState: state,
 	})
 	if err != nil {
 		writeCapabilityError(w, err)
@@ -199,6 +222,12 @@ func writeCapabilityError(w http.ResponseWriter, err error) {
 		writeProblem(w, http.StatusForbidden, "forbidden", err.Error())
 	case errors.Is(err, capability.ErrInvalid):
 		writeProblem(w, http.StatusBadRequest, "invalid_request", err.Error())
+	case errors.Is(err, mc.ErrResolve):
+		writeProblem(w, http.StatusBadGateway, "artifact_unavailable", err.Error())
+	case errors.Is(err, store.ErrNoTemplate):
+		writeProblem(w, http.StatusNotFound, "template_not_found", "no such template")
+	case errors.Is(err, store.ErrTemplateInUse):
+		writeProblem(w, http.StatusConflict, "template_in_use", "that template name is already used in this org")
 	case errors.Is(err, store.ErrInvalidCursor):
 		writeProblem(w, http.StatusBadRequest, "invalid_cursor", "the cursor is not valid")
 	case errors.Is(err, capability.ErrLastOwner):

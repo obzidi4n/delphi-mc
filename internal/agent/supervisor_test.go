@@ -274,3 +274,51 @@ func TestCrashArtifactsOnlyOnUnexpectedExit(t *testing.T) {
 		t.Fatal("graceful stop was captured as a crash")
 	}
 }
+
+func TestVelocitySkipsPaperBootFiles(t *testing.T) {
+	rt := newFakeRuntime()
+	sup, spec, dir := newTestSupervisor(t, rt, []byte("velocity-bytes"))
+	spec.Base = "velocity"
+	spec.AcceptEULA = false
+	spec.Port = 25566
+	spec.Files = map[string]string{"velocity.toml": "bind = \"0.0.0.0:25566\"\n"}
+
+	if state, detail := sup.Apply(context.Background(), spec); state != "running" || detail != "" {
+		t.Fatalf("state=%q detail=%q", state, detail)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "velocity.toml")); err != nil {
+		t.Fatalf("velocity.toml missing: %v", err)
+	}
+	for _, name := range []string{"eula.txt", "server.properties"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatalf("%s should not exist for velocity (err=%v)", name, err)
+		}
+	}
+}
+
+func TestTemplateFilesApplyOnce(t *testing.T) {
+	rt := newFakeRuntime()
+	sup, spec, dir := newTestSupervisor(t, rt, []byte("jar"))
+	spec.Files = map[string]string{
+		"server.properties": "motd=from-template\nserver-port=25565\n",
+		"config/extra.yml":  "a: 1\n",
+	}
+	if _, detail := sup.Apply(context.Background(), spec); detail != "" {
+		t.Fatal(detail)
+	}
+
+	spec.Files["server.properties"] = "motd=changed\n"
+	if err := sup.prepare(context.Background(), spec, dir); err != nil {
+		t.Fatal(err)
+	}
+	props, err := os.ReadFile(filepath.Join(dir, "server.properties"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(props) != "motd=from-template\nserver-port=25565\n" {
+		t.Fatalf("template file was overwritten: %q", props)
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "config/extra.yml")); err != nil || string(data) != "a: 1\n" {
+		t.Fatalf("nested file = %q, err = %v", data, err)
+	}
+}

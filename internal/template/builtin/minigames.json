@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "builtin-minigames",
+  "name": "Minigames",
+  "description": "Paper minigames host: adventure mode, spawn protection off.",
+  "base": "paper",
+  "mc_version": "1.21.11",
+  "java": 21,
+  "defaults": {
+    "memory_mb": 4096,
+    "cpu_cores": 2,
+    "port": 0
+  },
+  "files": {
+    "server.properties": "allow-flight=true\ndifficulty=normal\nenable-command-block=true\ngamemode=adventure\nlevel-name=world\nmax-players=30\nmotd={{server.name}} \u2014 minigames\nonline-mode=true\npvp=true\nserver-ip=\nserver-port={{server.port}}\nspawn-protection=0\nview-distance=8\n"
+  },
+  "plugins": [],
+  "variables": {}
+}

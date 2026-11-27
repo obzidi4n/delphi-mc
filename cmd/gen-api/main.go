@@ -175,6 +175,15 @@ func (g *gen) goType(s schema) (string, error) {
 		return "[]" + item, nil
 	case "object":
 		if len(s.Properties) == 0 {
+			if sub, ok, err := s.additionalSchema(); err != nil {
+				return "", err
+			} else if ok && sub != nil {
+				t, err := g.goType(*sub)
+				if err != nil {
+					return "", err
+				}
+				return "map[string]" + t, nil
+			}
 			g.needsJSON = true
 			return "json.RawMessage", nil
 		}
@@ -188,10 +197,33 @@ func isPointer(t string, optional, nullable bool) bool {
 	if !optional && !nullable {
 		return false
 	}
-	if strings.HasPrefix(t, "[]") || t == "json.RawMessage" {
+	if strings.HasPrefix(t, "[]") || strings.HasPrefix(t, "map[") || t == "json.RawMessage" {
 		return false
 	}
 	return true
+}
+
+// additionalSchema decodes additionalProperties into a schema. A bool (true or
+// false) means "any" and yields no typed schema.
+func (s schema) additionalSchema() (*schema, bool, error) {
+	if s.Additional == nil {
+		return nil, false, nil
+	}
+	if _, isBool := s.Additional.(bool); isBool {
+		return nil, false, nil
+	}
+	data, err := yaml.Marshal(s.Additional)
+	if err != nil {
+		return nil, false, err
+	}
+	var sub schema
+	if err := yaml.Unmarshal(data, &sub); err != nil {
+		return nil, false, err
+	}
+	if sub.Type == "" && sub.Ref == "" {
+		return nil, false, nil
+	}
+	return &sub, true, nil
 }
 
 func main() {
