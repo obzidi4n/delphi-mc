@@ -23,7 +23,19 @@ type Panel struct {
 	DataDir     string `toml:"data_dir"`
 	AdminToken  string `toml:"admin_token"`
 	TLS         bool   `toml:"tls"`
+	AI          AI     `toml:"ai"`
 }
+
+// AI configures the OpenAI-compatible chat provider. It is optional: with no
+// base_url or model the AI surface is disabled.
+type AI struct {
+	BaseURL string `toml:"base_url"`
+	Model   string `toml:"model"`
+	APIKey  string `toml:"api_key"`
+}
+
+// Enabled reports whether a provider is configured.
+func (a AI) Enabled() bool { return a.BaseURL != "" && a.Model != "" }
 
 // DefaultPanel returns the defaults used when no file exists.
 func DefaultPanel() Panel {
@@ -61,6 +73,14 @@ func (p Panel) validate() error {
 	}
 	if _, err := ParseLevel(p.LogLevel); err != nil {
 		return err
+	}
+	if p.AI.BaseURL != "" {
+		if _, err := url.Parse(p.AI.BaseURL); err != nil {
+			return fmt.Errorf("ai.base_url: %w", err)
+		}
+		if strings.TrimSpace(p.AI.Model) == "" {
+			return errors.New("ai.model is required when ai.base_url is set")
+		}
 	}
 	return nil
 }

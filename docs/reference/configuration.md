@@ -22,6 +22,9 @@ Examples live at [`panel.example.toml`](../../panel.example.toml) and
 | `data_dir` | `/var/lib/delphi` | Holds `pki/` (CA, server certificate) and node data. |
 | `admin_token` | empty | Break-glass bearer token for `/api/v1`. Optional: API keys minted for a user are the normal credential. |
 | `tls` | `true` | Serve TLS with the org CA's server certificate. The agent channel requires TLS. |
+| `ai.base_url` | empty | OpenAI-compatible API root (for example `http://127.0.0.1:11434/v1`). Empty disables the AI surface. |
+| `ai.model` | empty | Model name; required when `ai.base_url` is set. |
+| `ai.api_key` | empty | Bearer key for the provider, if it needs one. |
 
 The pool connects lazily, so the panel starts (and serves `/healthz` and the page) while
 Postgres is down, and becomes ready when it comes back.
@@ -80,3 +83,16 @@ create named users and keys. The CLI reads `DELPHI_API_TOKEN` (or the legacy
 
 Health endpoints stay at the root even when `base_path` is a subpath; the page and the API
 follow `base_path`.
+
+## AI
+
+```toml
+[ai]
+base_url = "http://127.0.0.1:11434/v1"   # Ollama, vLLM, LM Studio, OpenAI, OpenRouter…
+model = "qwen2.5:3b"
+api_key = ""                              # empty for local providers
+```
+
+With no `base_url`/`model` the AI page reports "not configured" and the API returns 503.
+A model that rejects tool definitions is retried without tools and its answers are labelled
+chat-only on the page.

@@ -28,6 +28,10 @@ alert_channels   (id, org_id, kind: discord|email|webhook, config, secret_ref)
 alerts           (rule_id, server_id, state: firing|resolved, started_at)
 maintenance_windows (org_id, scope, starts_at, ends_at, suppress_alerts, block_updates)
 artifacts        (sha256, size, kind, source, refcount, last_referenced)
+conversations    (id, org_id, user_id, title, created_at, updated_at)
+messages         (id, conversation_id, role, content, tool_calls jsonb, tool_call_id, created_at)
+docs_chunks      (path, ordinal, heading, content, tsv)       # GIN FTS, replaced on startup when the corpus changed
+docs_meta        (id=1, hash)
 plugins          (server_id, project, provider, installed_version, installed_hash,
                   previous_version, previous_hash, pinned_version, policy)
 file_revisions   (server_id, path, revision, sha256, author, via, created_at)

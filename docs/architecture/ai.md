@@ -1,6 +1,7 @@
 # AI operator
 
-**Status:** current design · implementation target M6–M7 (proactive AI at M19). ADRs
+**Status:** M6 foundation landed (read-only). Write actions, approvals, and proactive AI
+remain M7/M19. ADRs
 [0005](../decisions/0005-ai-two-phase-approvals.md),
 [0012](../decisions/0012-ai-no-bundled-runtime.md).
 
@@ -21,7 +22,24 @@ chat UI ──WS──> panel/api/ai ──> ai loop ──> ai/tools ──> ca
                                      └── store    (conversations, actions, usage)
 ```
 
-One Go package until an import cycle forces a split.
+One Go package (`internal/ai`) until an import cycle forces a split.
+
+### M6 as built
+
+- **Provider:** OpenAI-compatible `/chat/completions`, one completion per step (token
+  streaming is the next improvement; the provider channel already carries deltas). Tools are
+  sent on every step; when the endpoint rejects tools ("does not support tools") the service
+  retries once without them and labels the answer chat-only.
+- **Loop:** at most four provider steps per turn. Tool calls are executed sequentially, each
+  result is stored as a `tool` message and fed back; citations are collected and deduped.
+- **Context broker:** system prompt plus the newest history that fits 48k characters, tool
+  output truncated to 6k each. No embeddings; documentation comes from Postgres FTS.
+- **Docs retrieval:** the embedded `docs/` tree is chunked at headings (1.6k chars), hashed,
+  and replaced in `docs_chunks` (tsvector, GIN) on panel start when changed.
+- **Conversations:** `conversations` + `messages` in Postgres, owned per user/org.
+- **UI:** `/chat` streams SSE events (`delta`, `tool`, `citation`, `done`, `error`) from
+  `POST /api/v1/ai/chat`; tool chips, citations, conversation list, and a visible
+  "chat-only answer (no tools used)" badge.
 
 **Provider** — one adapter: OpenAI-compatible, covering OpenAI, OpenRouter, Ollama, vLLM,
 LM Studio, Groq and Together (including Claude via OpenRouter). A native Anthropic adapter

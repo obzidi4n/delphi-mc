@@ -59,7 +59,9 @@ revocable, and scoped like any other principal.
   origin-checked and accepts a session cookie or bearer key.
 - Every mutation is audited with `Via` (ui/cli/api/ai) and, for AI actions, `Model`.
 - The AI tool registry is filtered by scope and capability, and the capability layer checks
-  again — two independent gates for the same rule.
+  again — two independent gates for the same rule. In M6 the assistant is read-only: five
+  retrieval/diagnostic tools, no writes, no approvals. A model that cannot call tools is
+  retried without them and the answer is labelled chat-only.
 
 ## Secrets at rest
 

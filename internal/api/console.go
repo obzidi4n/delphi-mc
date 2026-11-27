@@ -271,6 +271,26 @@ func (h *ConsoleHub) broadcastBridgeLocked(serverID string, update bridgeUpdate)
 	}
 }
 
+// Tail returns up to n recent console lines for a server.
+func (h *ConsoleHub) Tail(serverID string, n int) []wire.ConsoleLine {
+	if n <= 0 || n > consoleRing {
+		n = 100
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	room := h.rooms[serverID]
+	if room == nil {
+		return nil
+	}
+	lines := room.lines
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	out := make([]wire.ConsoleLine, len(lines))
+	copy(out, lines)
+	return out
+}
+
 // BridgeState returns the latest snapshot, if one arrived.
 func (h *ConsoleHub) BridgeState(serverID string) (wire.BridgeStateFrame, bool) {
 	h.mu.Lock()

@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// AIMessageDTO is generated from the spec.
+type AIMessageDTO struct {
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+	ID        string    `json:"id"`
+	Role      string    `json:"role"`
+}
+
+// AIStatusDTO is generated from the spec.
+type AIStatusDTO struct {
+	Enabled bool   `json:"enabled"`
+	Model   string `json:"model"`
+}
+
 // APIKeyCreatedDTO is generated from the spec.
 type APIKeyCreatedDTO struct {
 	ID     string   `json:"id"`
@@ -50,6 +64,31 @@ type BridgeDTO struct {
 type BridgePlayerDTO struct {
 	Name string `json:"name"`
 	UUID string `json:"uuid"`
+}
+
+// ChatRequestDTO is generated from the spec.
+type ChatRequestDTO struct {
+	ConversationID *string `json:"conversation_id,omitempty"`
+	Message        string  `json:"message"`
+}
+
+// ConversationDTO is generated from the spec.
+type ConversationDTO struct {
+	CreatedAt time.Time `json:"created_at"`
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ConversationDetailDTO is generated from the spec.
+type ConversationDetailDTO struct {
+	Conversation ConversationDTO `json:"conversation"`
+	Messages     []AIMessageDTO  `json:"messages"`
+}
+
+// ConversationListDTO is generated from the spec.
+type ConversationListDTO struct {
+	Items []ConversationDTO `json:"items"`
 }
 
 // CreatedUserDTO is generated from the spec.

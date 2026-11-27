@@ -41,6 +41,11 @@ criteria can be demonstrated on a clean host.
   state/commands, chat events, online players, TPS, the root command tree, and kick/ban
   moderation through `POST /servers/{id}/moderation`. A console sidebar shows TPS, players,
   chat and the command tree. Live chat with a real player is the remaining manual check.
+- **M6** — AI foundation: OpenAI-compatible provider, conversations and messages in
+  Postgres, docs FTS over the embedded corpus (288 chunks), five read-only tools (docs
+  search, servers, server detail, health, console tail), a 48k-character context broker, and
+  a streaming chat page with tool chips, citations, and a visible chat-only fallback.
+  Demonstrated on Ollama qwen2.5:3b (tools) and gemma3:4b (chat-only).
 
 ## Alpha: the vertical slice (M0–M5)
 

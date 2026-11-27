@@ -27,7 +27,9 @@ import (
 	"github.com/BurntSushi/toml"
 	"gopkg.in/yaml.v3"
 
+	"delphi.dev/delphi/docs"
 	"delphi.dev/delphi/internal/agent"
+	"delphi.dev/delphi/internal/ai"
 	"delphi.dev/delphi/internal/api"
 	"delphi.dev/delphi/internal/apiclient"
 	"delphi.dev/delphi/internal/apitypes"
@@ -155,6 +157,7 @@ func runPanel(ctx context.Context, args []string) error {
 	hub := api.NewHub()
 	console := api.NewConsoleHub()
 	var services *capability.Services
+	var aiService *ai.Service
 	var identity api.IdentityStore
 	if db != nil {
 		identity = db
@@ -173,7 +176,21 @@ func runPanel(ctx context.Context, args []string) error {
 		if err := seedBuiltinTemplates(ctx, db); err != nil {
 			log.Warn("could not seed built-in templates", "err", err)
 		}
+		if chunks, changed, err := ai.IndexDocs(ctx, db, docs.FS); err != nil {
+			log.Warn("could not index documentation", "err", err)
+		} else if changed {
+			log.Info("indexed documentation", "chunks", chunks)
+		}
 		hub.Build = servers.SpecsForNode
+		if cfg.AI.Enabled() {
+			aiService = &ai.Service{
+				Store:    db,
+				Provider: ai.NewOpenAI(cfg.AI.BaseURL, cfg.AI.APIKey, cfg.AI.Model),
+				Model:    cfg.AI.Model,
+				Tools:    buildToolbox(services, console, db),
+				MaxSteps: 4,
+			}
+		}
 	}
 
 	var ca *pki.CA
@@ -210,6 +227,7 @@ func runPanel(ctx context.Context, args []string) error {
 		Identity:   identity,
 		AdminToken: cfg.AdminToken,
 		Console:    console,
+		AI:         aiService,
 		CA:         ca,
 		Hub:        hub,
 		BridgeSender: func(ctx context.Context, nodeID string, frame wire.BridgeCommandFrame) error {
@@ -827,6 +845,89 @@ func runInit(ctx context.Context, args []string) error {
 		return err
 	}
 	return nil
+}
+
+// buildToolbox wires the assistant's read-only tools to the capability layer
+// and the live console/metrics hub.
+func buildToolbox(services *capability.Services, console *api.ConsoleHub, db *store.DB) *ai.Toolbox {
+	resolve := func(ctx context.Context, p capability.Principal, ref string) (store.Server, error) {
+		ref = strings.TrimSpace(ref)
+		if strings.HasPrefix(ref, "s_") {
+			return services.Servers.Get(ctx, p, ref)
+		}
+		servers, _, err := services.Servers.List(ctx, p, 200, "")
+		if err != nil {
+			return store.Server{}, err
+		}
+		for _, srv := range servers {
+			if strings.EqualFold(srv.Name, ref) {
+				return services.Servers.Get(ctx, p, srv.ID)
+			}
+		}
+		return store.Server{}, store.ErrNoServer
+	}
+	info := func(srv store.Server) ai.ServerInfo {
+		state := srv.SummaryState
+		if state == "" {
+			state = srv.ObservedState
+		}
+		return ai.ServerInfo{
+			ID: srv.ID, Name: srv.Name, NodeID: srv.NodeID, State: state,
+			Base: srv.Base, TemplateID: srv.TemplateID, Port: srv.Port,
+			LastError: srv.LastError,
+		}
+	}
+	return &ai.Toolbox{
+		SearchDocs: db.SearchDocs,
+		ListServers: func(ctx context.Context, p capability.Principal) ([]ai.ServerInfo, error) {
+			servers, _, err := services.Servers.List(ctx, p, 200, "")
+			if err != nil {
+				return nil, err
+			}
+			out := make([]ai.ServerInfo, 0, len(servers))
+			for _, srv := range servers {
+				out = append(out, info(srv))
+			}
+			return out, nil
+		},
+		GetServer: func(ctx context.Context, p capability.Principal, ref string) (ai.ServerInfo, error) {
+			srv, err := resolve(ctx, p, ref)
+			if err != nil {
+				return ai.ServerInfo{}, err
+			}
+			return info(srv), nil
+		},
+		Health: func(ctx context.Context, p capability.Principal, ref string) (ai.HealthInfo, error) {
+			srv, err := resolve(ctx, p, ref)
+			if err != nil {
+				return ai.HealthInfo{}, err
+			}
+			health := ai.HealthInfo{State: info(srv).State}
+			if point, ok := console.Metrics().Latest(srv.ID); ok {
+				health.HasMetrics = true
+				health.CPUPercent = point.CPUPercent
+				health.MemoryBytes = point.MemoryBytes
+			}
+			if state, ok := console.BridgeState(srv.ID); ok {
+				health.HasBridge = true
+				health.TPS = state.TPS
+				health.Players = len(state.Players)
+			}
+			return health, nil
+		},
+		ConsoleTail: func(ctx context.Context, p capability.Principal, ref string, lines int) ([]string, error) {
+			srv, err := resolve(ctx, p, ref)
+			if err != nil {
+				return nil, err
+			}
+			entries := console.Tail(srv.ID, lines)
+			out := make([]string, len(entries))
+			for i, entry := range entries {
+				out[i] = entry.Text
+			}
+			return out, nil
+		},
+	}
 }
 
 // seedBuiltinTemplates inserts the embedded templates once; existing rows are

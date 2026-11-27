@@ -103,6 +103,61 @@ func (c *Client) EnrollNode(ctx context.Context, body apitypes.EnrollRequest) (*
 	return &out, nil
 }
 
+// POST /api/v1/ai/chat
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ChatWithAI(ctx context.Context, body apitypes.ChatRequestDTO) error {
+	path := "/api" + "/v1" + "/ai" + "/chat"
+	var q url.Values
+
+	return c.do(ctx, "POST", path, q, body, nil)
+}
+
+// GET /api/v1/ai/conversations
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListAIConversations(ctx context.Context, limit *int64) (*apitypes.ConversationListDTO, error) {
+	path := "/api" + "/v1" + "/ai" + "/conversations"
+	q := url.Values{}
+	if limit != nil {
+		q.Set("limit", strconv.FormatInt(int64(*limit), 10))
+	}
+
+	var out apitypes.ConversationListDTO
+	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GET /api/v1/ai/conversations/{id}
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) GetAIConversation(ctx context.Context, id string) (*apitypes.ConversationDetailDTO, error) {
+	path := "/api" + "/v1" + "/ai" + "/conversations" + "/" + url.PathEscape(id)
+	var q url.Values
+
+	var out apitypes.ConversationDetailDTO
+	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GET /api/v1/ai/status
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) GetAIStatus(ctx context.Context) (*apitypes.AIStatusDTO, error) {
+	path := "/api" + "/v1" + "/ai" + "/status"
+	var q url.Values
+
+	var out apitypes.AIStatusDTO
+	if err := c.do(ctx, "GET", path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // POST /api/v1/api-keys
 //
 // Requires a bearer token configured on the Client.

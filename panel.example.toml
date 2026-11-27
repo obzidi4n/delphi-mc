@@ -19,3 +19,10 @@ admin_token = ""
 
 # The agent channel requires the panel's own TLS certificate.
 tls = true
+
+# Optional OpenAI-compatible provider (Ollama, vLLM, LM Studio, OpenAI, OpenRouter, …).
+# Empty base_url or model disables the AI page and returns 503 from /api/v1/ai/*.
+# [ai]
+# base_url = "http://127.0.0.1:11434/v1"
+# model = "qwen2.5:3b"
+# api_key = ""

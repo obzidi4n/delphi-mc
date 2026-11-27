@@ -1,6 +1,7 @@
 # AI tool catalog
 
-**Status:** design · v1.0 subset at M6–M8. This table is the **authorization contract**: every
+**Status:** M6 subset implemented; the rest is the v1.0 target. At M6 every tool is
+read-only and no action tool is registered. This table is the **authorization contract**: every
 tool row names its scope and whether it is read-only. A tool that is not in this table must
 not be registered.
 
@@ -8,18 +9,22 @@ The registry is capability-gated: a tool appears only when every capability it n
 at the panel's and node's versions. Ten tools at v1.0 — nine by M7, `write_file` at M8 — and
 fifteen is the ceiling.
 
-## Read-only (no approval)
+## Read-only (M6, implemented)
 
-| Tool | Purpose | Scope | Unlocks |
+| Tool | Purpose | Scope | Inputs |
 |---|---|---|---|
-| `list_servers(filter)` | Fleet inventory + summary | `org:<id>:read` | M6 |
-| `inspect(target)` | Entity card: state, version, plugins, players, TPS, `last_error` (one derived line, not log content) | `server:<id>:read` | M6 |
-| `diagnose(server)` | Composite: metrics + log excerpts + plugin list + TPS + crash artifacts | `server:<id>:logs` | M6 |
-| `search_logs(server, query, range)` | Agent-side ripgrep over log files | `server:<id>:logs` | M6 |
-| `search_docs(query)` | Postgres FTS over an embedded, attributed Delphi + Paper snapshot | `org:<id>:read` | M6 |
+| `search_docs(query, limit)` | Postgres FTS over the embedded docs corpus; returns ranked sections and paths | authenticated | `query`, `limit` (≤10) |
+| `list_servers()` | Server inventory: name, id, state, port, node, base | `org:<id>:read` | — |
+| `get_server(server)` | One server by name or id: state, template, port, node, last error | `org:<id>:read` + server read | `server` |
+| `get_server_health(server)` | Live TPS, player count, CPU and memory (bridge + metrics) | `org:<id>:read` + server read | `server` |
+| `get_console_tail(server, lines)` | Recent console lines for diagnosis | `org:<id>:read` + server read | `server`, `lines` (≤200) |
 
-`diagnose` exists so the model rarely needs primitives; when it does, they are added on
-evidence, not symmetry.
+Citations come back with each result (`doc` with the path, `server` with the id) and are shown
+next to the answer. The capability layer re-checks scopes on every call; the registry hides
+everything but `search_docs` from a principal without org read.
+
+Planned in later milestones (not registered yet): `inspect`, `diagnose`, `search_logs`
+(M7/M8) and `write_file` (M8, approval-gated).
 
 ## Mutating (always an approval card)
 

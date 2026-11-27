@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"delphi.dev/delphi/internal/ai"
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/config"
 	"delphi.dev/delphi/internal/pki"
@@ -36,6 +37,7 @@ type Options struct {
 	Nodes      NodeStore
 	Services   *capability.Services
 	Console    *ConsoleHub
+	AI         *ai.Service
 	Identity   IdentityStore
 	AdminToken string
 	CA         *pki.CA
@@ -95,6 +97,7 @@ func New(opts Options) (http.Handler, error) {
 	})
 	mux.HandleFunc("POST "+s.base+"login", s.login)
 	mux.HandleFunc("POST "+s.base+"logout", s.logout)
+	mux.HandleFunc("GET "+s.base+"chat", s.renderChat)
 	mux.HandleFunc("GET "+s.base+"team", s.renderTeam)
 	mux.HandleFunc("POST "+s.base+"team", s.createUserForm)
 	mux.HandleFunc("POST "+s.base+"team/{id}/role", s.setUserRoleForm)
@@ -127,6 +130,11 @@ func New(opts Options) (http.Handler, error) {
 
 	mux.HandleFunc("GET /api/v1/audit", s.listAudit)
 	mux.HandleFunc("POST /api/v1/api-keys", s.createAPIKey)
+
+	mux.HandleFunc("GET /api/v1/ai/status", s.aiStatus)
+	mux.HandleFunc("GET /api/v1/ai/conversations", s.listAIConversations)
+	mux.HandleFunc("GET /api/v1/ai/conversations/{id}", s.getAIConversation)
+	mux.HandleFunc("POST /api/v1/ai/chat", s.aiChat)
 
 	mux.HandleFunc("GET /api/v1/servers/{id}/metrics", s.getServerMetrics)
 	mux.HandleFunc("GET /api/v1/servers/{id}/bridge", s.getServerBridge)

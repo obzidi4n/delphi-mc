@@ -58,6 +58,7 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
  <a href="{{$base}}" {{if eq .Page "home"}}class="on"{{end}}>Fleet</a>
  <a href="{{$base}}team" {{if eq .Page "team"}}class="on"{{end}}>Team</a>
  <a href="{{$base}}groups" {{if eq .Page "groups"}}class="on"{{end}}>Groups</a>
+ <a href="{{$base}}chat">AI</a>
 </nav>{{end}}
 {{if .Email}}<form method="post" action="{{$base}}logout"><span class="muted">{{.Email}}</span> <button type="submit">Sign out</button></form>{{end}}
 </header>

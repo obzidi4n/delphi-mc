@@ -106,6 +106,7 @@ var consoleTemplate = template.Must(template.New("console").Parse(`<!doctype htm
 </style></head><body data-id="{{.ID}}" data-base="{{.BasePath}}" data-name="{{.Name}}" data-basekind="{{.Base}}">
 <header>
   <a href="{{.BasePath}}">&larr; Fleet</a>
+  <a href="{{.BasePath}}chat">AI</a>
   <h1>{{.Name}}</h1>
   <span class="pill off" id="status">connecting</span>
   <span class="pill" id="state">{{.State}}</span>

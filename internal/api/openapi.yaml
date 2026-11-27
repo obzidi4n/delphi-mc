@@ -456,6 +456,73 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+  /api/v1/ai/status:
+    get:
+      operationId: getAIStatus
+      summary: Whether the assistant is configured
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AIStatusDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/ai/conversations:
+    get:
+      operationId: listAIConversations
+      summary: List the caller's AI conversations
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Conversations
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /api/v1/ai/conversations/{id}:
+    get:
+      operationId: getAIConversation
+      summary: Fetch one conversation and its messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationDetailDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /api/v1/ai/chat:
+    post:
+      operationId: chatWithAI
+      summary: Ask the assistant (server-sent events)
+      description: |
+        Streams `data: {json}` events: delta, tool, citation, done, error. The
+        assistant only calls read-only tools.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChatRequestDTO" }
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/Problem" }
   /api/v1/templates:
     get:
       operationId: listTemplates
@@ -733,6 +800,49 @@ components:
       properties:
         user: { $ref: "#/components/schemas/UserDTO" }
         password: { type: string }
+    AIStatusDTO:
+      type: object
+      required: [enabled, model]
+      properties:
+        enabled: { type: boolean }
+        model: { type: string }
+    ChatRequestDTO:
+      type: object
+      required: [message]
+      properties:
+        conversation_id: { type: string }
+        message: { type: string }
+    AIMessageDTO:
+      type: object
+      required: [id, role, content, created_at]
+      properties:
+        id: { type: string }
+        role: { type: string }
+        content: { type: string }
+        created_at: { type: string, format: date-time }
+    ConversationDTO:
+      type: object
+      required: [id, title, created_at, updated_at]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ConversationListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ConversationDTO" }
+    ConversationDetailDTO:
+      type: object
+      required: [conversation, messages]
+      properties:
+        conversation: { $ref: "#/components/schemas/ConversationDTO" }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/AIMessageDTO" }
     BridgePlayerDTO:
       type: object
       required: [name, uuid]
