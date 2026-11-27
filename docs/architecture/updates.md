@@ -1,8 +1,8 @@
 # Artifacts and updates
 
 **Status:** M9 implemented. AI tools `plugins` (read) and `update_server` (approval) landed
-here. The node-local CAS, staging-clone boot-check, `auto-*` policies, and Spigot upload are
-deferred; the sections below say what the code does today.
+here. The node-local CAS, staging-clone boot-check, and `auto-*` policies are deferred;
+manual Spigot jar upload is available from the Plugins page.
 
 ## Artifact store
 
@@ -46,6 +46,15 @@ The Plugins page for a server has two jobs:
 scoped and audited (`server.plugin.add`, `server.plugin.update`,
 `server.plugin.remove`). GitHub remains a resolver-only provider because it has
 no public project search API.
+
+SpigotMC has no public API and its downloads normally require an authenticated
+browser session, so DelphiMC does not scrape it. Instead,
+`POST /api/v1/servers/{id}/plugins/upload` accepts a multipart form with a
+`file` jar plus optional `project` and `version`. The jar is validated as a zip,
+stored in the artifact CAS, recorded with provider `spigot` and policy `manual`,
+and excluded from remote update checks. Re-uploading the same project replaces
+the managed entry. This is the manual Spigot path; Modrinth/Hangar projects can
+still be browsed and resolved normally.
 
 The page checks for updates on load and every five minutes while it is open.
 To make updates automatic, create a schedule with action `updates.apply`; the
@@ -96,6 +105,5 @@ cannot drift.
 - Staged boot-checks and `auto-*` policies (gated on reflink/zfs capability).
 - Node-local CAS plus a `pull` delivery mode.
 - Release channels / Paper and Velocity jar update policy. M9 updates managed plugins only.
-- Manual SpigotMC upload.
 - Dev/staging clone and promote flow (planned M17); applying updates still uses the
   in-place guarded restart until the staged clone exists.

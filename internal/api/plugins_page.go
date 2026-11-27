@@ -143,6 +143,16 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
     </div>
     <div id="results" class="meta">Search Modrinth or Hangar for a Paper plugin.</div>
     <p class="hint">Installing resolves the newest build compatible with Minecraft {{.MCVersion}} and downloads it through the panel's artifact store.</p>
+    <details id="uploadbox">
+     <summary>Upload a Spigot jar</summary>
+     <form id="uploadform" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:.35rem;margin-top:.5rem">
+      <input id="upload-project" placeholder="Project name (optional; default: filename)" maxlength="200">
+      <input id="upload-version" placeholder="Version (optional)" maxlength="100">
+      <input id="upload-file" type="file" accept=".jar,application/java-archive" required>
+      <button class="primary" type="submit">Upload and install</button>
+     </form>
+     <p class="hint">For SpigotMC resources without a public API or direct download URL. The jar is stored in the panel's artifact store and pinned as a manual plugin; it is not checked for remote updates.</p>
+    </details>
    </section>
   </div>
  </div>
@@ -167,6 +177,10 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
   var schedulesEl = document.getElementById('schedules');
   var serverName = body.dataset.name || id;
   var searchBtn = document.getElementById('search');
+  var uploadForm = document.getElementById('uploadform');
+  var uploadProject = document.getElementById('upload-project');
+  var uploadVersion = document.getElementById('upload-version');
+  var uploadFile = document.getElementById('upload-file');
   var providerEl = document.getElementById('provider');
   var queryEl = document.getElementById('query');
   var toastEl = document.getElementById('toast');
@@ -409,6 +423,24 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
       resultsEl.textContent = err.message;
     });
   }
+  uploadForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!uploadFile.files.length) { toast('Choose a jar file', true); return; }
+    var form = new FormData();
+    form.append('project', uploadProject.value.trim());
+    form.append('version', uploadVersion.value.trim());
+    form.append('file', uploadFile.files[0]);
+    var submit = uploadForm.querySelector('button[type=submit]');
+    submit.disabled = true;
+    request(api + '/plugins/upload', {method: 'POST', body: form})
+      .then(function (result) {
+        toast('Installed ' + result.plugin.project + ' ' + result.plugin.version);
+        uploadForm.reset();
+        return refreshAll();
+      })
+      .catch(function (err) { toast(err.message, true); })
+      .finally(function () { submit.disabled = false; });
+  });
   autoForm.addEventListener('submit', function (e) {
     e.preventDefault();
     var cron = cronEl.value.trim();

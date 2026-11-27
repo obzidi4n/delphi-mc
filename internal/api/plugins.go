@@ -105,6 +105,41 @@ func (s *server) installServerPlugin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *server) uploadServerPlugin(w http.ResponseWriter, r *http.Request) {
+	principal, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	service := s.updatesService(w)
+	if service == nil {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 101<<20)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid_upload", "expected a multipart form with a jar file")
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeProblem(w, http.StatusBadRequest, "missing_file", "the file field is required")
+		return
+	}
+	defer file.Close()
+	project := strings.TrimSpace(r.FormValue("project"))
+	if project == "" {
+		project = strings.TrimSuffix(header.Filename, ".jar")
+	}
+	result, err := service.Upload(r.Context(), principal, r.PathValue("id"),
+		project, r.FormValue("version"), file)
+	if err != nil {
+		writeCapabilityError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, apitypes.PluginAddResult{
+		Plugin: pluginDTOs([]store.ServerPlugin{result.Plugin})[0], Revision: result.Revision,
+	})
+}
+
 func (s *server) removeServerPlugin(w http.ResponseWriter, r *http.Request) {
 	principal, ok := s.authenticate(w, r)
 	if !ok {

@@ -1,6 +1,7 @@
 package capability
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -221,5 +222,32 @@ func TestScheduledUpdateAppliesPluginUpdates(t *testing.T) {
 	}
 	if fake.updated == nil || fake.updated.Plugins[0].Version != "2.0.0" {
 		t.Fatalf("plugins not updated: %+v", fake.updated)
+	}
+}
+
+func TestUploadSpigotPluginIsManualAndNotRemoteChecked(t *testing.T) {
+	updates, fake, _ := newUpdateFixture(t, "latest", "1.0.0")
+	p := Principal{UserID: "u", OrgID: "default", Via: "ui", Scopes: []string{"server:s_1:read", "server:s_1:update"}}
+	result, err := updates.Upload(context.Background(), p, "s_1", "DelphiVote", "1.6",
+		bytes.NewReader([]byte("PK\x03\x04jar-bytes")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Plugin.Provider != "spigot" || result.Plugin.Policy != "manual" || result.Plugin.Version != "1.6" {
+		t.Fatalf("upload = %+v", result)
+	}
+	if len(fake.updated.Plugins) != 2 || fake.updated.Plugins[1].Project != "DelphiVote" {
+		t.Fatalf("installed = %+v", fake.updated.Plugins)
+	}
+	items, _, err := updates.Detect(context.Background(), p, "s_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].Project == "DelphiVote" {
+		t.Fatalf("manual plugin was remote-checked: %+v", items)
+	}
+	if _, err := updates.Upload(context.Background(), p, "s_1", "not-a-jar", "1",
+		bytes.NewReader([]byte("plain text"))); err == nil {
+		t.Fatal("non-jar upload should fail")
 	}
 }

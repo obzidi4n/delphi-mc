@@ -1387,7 +1387,7 @@ components:
         project: { type: string }
         provider: { type: string }
         version: { type: string }
-        policy: { type: string, enum: [latest, pinned, range] }
+        policy: { type: string, enum: [latest, pinned, range, manual] }
         range: { type: string }
         name: { type: string }
         sha256: { type: string }

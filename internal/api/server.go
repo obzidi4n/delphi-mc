@@ -148,6 +148,7 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("GET "+s.base+"api/v1/plugin-catalog", s.searchPluginCatalog)
 	mux.HandleFunc("GET "+s.base+"api/v1/servers/{id}/plugins", s.listPlugins)
 	mux.HandleFunc("POST "+s.base+"api/v1/servers/{id}/plugins", s.installServerPlugin)
+	mux.HandleFunc("POST "+s.base+"api/v1/servers/{id}/plugins/upload", s.uploadServerPlugin)
 	mux.HandleFunc("DELETE "+s.base+"api/v1/servers/{id}/plugins", s.removeServerPlugin)
 	mux.HandleFunc("GET "+s.base+"api/v1/servers/{id}/updates", s.listUpdates)
 	mux.HandleFunc("POST "+s.base+"api/v1/servers/{id}/updates/apply", s.applyUpdates)

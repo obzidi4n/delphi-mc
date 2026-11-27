@@ -87,8 +87,11 @@ catalog search. Installing resolves the newest Paper-compatible build for the
 server's Minecraft version, downloads it into the artifact store, and syncs the
 node; removing a plugin does the same in reverse. A running server restarts.
 
-The page checks for updates on load and every five minutes, shows current vs
-available versions, and applies all updates through the guarded boot-check path.
+The page also has a manual Spigot jar upload form for resources without a public
+API. Uploaded jars are pinned and marked manual, so they are not checked for
+remote updates. The page checks provider-backed plugins for updates on load and
+every five minutes, shows current vs available versions, and applies all updates
+through the guarded boot-check path.
 For unattended operation, the page's cron form creates a schedule with action
 `updates.apply`; the scheduler performs detection and download on each run.
 

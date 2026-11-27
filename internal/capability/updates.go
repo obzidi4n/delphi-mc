@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -246,6 +247,89 @@ func (u *Updates) Add(ctx context.Context, p Principal, id string, req PluginReq
 	return PluginAddResult{Plugin: plugin, Revision: updated.DesiredRevision}, nil
 }
 
+// Upload installs a manually supplied jar, such as a SpigotMC resource that
+// has no public API. Uploaded plugins are pinned to the supplied version and
+// excluded from remote update detection.
+func (u *Updates) Upload(ctx context.Context, p Principal, id, project, version string, r io.Reader) (PluginAddResult, error) {
+	if !p.Allows(serverScope(id, "update")) {
+		return PluginAddResult{}, forbidden(serverScope(id, "update"))
+	}
+	project = strings.TrimSpace(project)
+	version = strings.TrimSpace(version)
+	if project == "" || len(project) > 200 {
+		return PluginAddResult{}, invalid("project must be 1-200 characters")
+	}
+	if version == "" {
+		version = "uploaded"
+	}
+	if len(version) > 100 {
+		return PluginAddResult{}, invalid("version must be 1-100 characters")
+	}
+	if u.Artifacts == nil || u.Store == nil {
+		return PluginAddResult{}, errors.New("artifact store is not configured")
+	}
+	srv, err := u.Store.GetServer(ctx, id)
+	if err != nil {
+		return PluginAddResult{}, err
+	}
+	sha, size, err := u.Artifacts.Put(r, "", maxArtifactBytes)
+	if err != nil {
+		return PluginAddResult{}, invalid("plugin upload: %v", err)
+	}
+	// A plugin jar is a zip; reject an accidentally uploaded text/config file.
+	path, err := u.Artifacts.Path(sha)
+	if err != nil {
+		return PluginAddResult{}, err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return PluginAddResult{}, err
+	}
+	head := make([]byte, 4)
+	_, readErr := io.ReadFull(file, head)
+	_ = file.Close()
+	if readErr != nil || string(head) != "PK\x03\x04" {
+		return PluginAddResult{}, invalid("uploaded file is not a jar")
+	}
+	art := store.Artifact{
+		SHA256: sha, Filename: plugins.JarName(project), Size: size,
+		Kind: "plugin", Source: "spigot:" + project + "@" + version,
+	}
+	if err := u.Store.RecordArtifact(ctx, art); err != nil {
+		return PluginAddResult{}, err
+	}
+	plugin := store.ServerPlugin{
+		Project: project, Provider: "spigot", Version: version,
+		Policy: "manual", Name: plugins.JarName(project), SHA256: sha, Size: size,
+	}
+	next := append([]store.ServerPlugin(nil), srv.Plugins...)
+	replaced := false
+	for i, installed := range next {
+		if strings.EqualFold(installed.Project, project) {
+			next[i] = plugin
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		next = append(next, plugin)
+	}
+	updated, err := u.Store.SetArtifacts(ctx, srv.ID, srv.MCVersion, srv.JarURL, srv.JarSHA256, next, srv.DesiredState)
+	if err != nil {
+		return PluginAddResult{}, err
+	}
+	u.sync(ctx, srv.NodeID)
+	action := "server.plugin.upload"
+	if replaced {
+		action = "server.plugin.upload_replace"
+	}
+	_ = u.audit(ctx, srv, p, action, map[string]any{
+		"project": plugin.Project, "version": plugin.Version,
+		"sha256": plugin.SHA256, "revision": updated.DesiredRevision,
+	})
+	return PluginAddResult{Plugin: plugin, Revision: updated.DesiredRevision}, nil
+}
+
 // Remove deletes one managed plugin and syncs the server. The server restarts
 // if it is running.
 func (u *Updates) Remove(ctx context.Context, p Principal, id, project string) (int64, error) {
@@ -306,6 +390,9 @@ func (u *Updates) Detect(ctx context.Context, p Principal, id string) ([]PluginU
 	}
 	out := make([]PluginUpdate, 0, len(srv.Plugins))
 	for _, installed := range srv.Plugins {
+		if strings.EqualFold(installed.Provider, "spigot") || strings.EqualFold(installed.Policy, "manual") {
+			continue
+		}
 		res, err := u.resolve(ctx, installed.Provider, installed.Project, srv.MCVersion, "", installed.Range)
 		if err != nil {
 			out = append(out, PluginUpdate{
