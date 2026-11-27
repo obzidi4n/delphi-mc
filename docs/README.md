@@ -3,10 +3,9 @@
 The map. Every page here is versioned with the code and changes in the same PR as the
 behavior it describes.
 
-**Status:** M3a landed — spec-first API (`internal/api/openapi.yaml` → generated DTOs and Go
-client), users/API keys/sessions, role→scope profiles, a Team page (accounts and roles), a
-Groups page (members), audit, cursor-paginated lists, server CRUD, and the first CLI
-commands. See
+**Status:** M3b landed — templates (schema, five built-ins, PaperMC v3 resolution,
+instantiation, JSON/YAML import/export) on top of the M3a spec-first API, identity/RBAC,
+audit, cursor-paginated lists, Team/Groups pages, and the CLI. See
 [`plan/roadmap.md`](plan/roadmap.md).
 
 ## Architecture — what and how
