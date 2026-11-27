@@ -262,3 +262,50 @@ func TestUploadSpigotPluginIsManualAndNotRemoteChecked(t *testing.T) {
 		t.Fatal("non-jar upload should fail")
 	}
 }
+
+func TestAddUsesCustomPluginNameAndSource(t *testing.T) {
+	updates, fake, _ := newUpdateFixture(t, "latest", "1.0.0")
+	p := Principal{UserID: "u", OrgID: "default", Via: "ui", Scopes: []string{"server:s_1:read", "server:s_1:update"}}
+	result, err := updates.Add(context.Background(), p, "s_1", PluginRequest{
+		Provider: "modrinth", Project: "provider-project", Name: "My Plugin",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Plugin.Project != "My Plugin" || result.Plugin.Name != "my-plugin.jar" || result.Plugin.Source != "provider-project" {
+		t.Fatalf("add = %+v", result.Plugin)
+	}
+	fake.srv.Plugins[1].Version = "1.0.0"
+	items, _, err := updates.Detect(context.Background(), p, "s_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range items {
+		if item.Project == "My Plugin" && item.Latest == "2.0.0" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("custom-name update = %+v", items)
+	}
+	if _, err := updates.Apply(context.Background(), p, "s_1"); err != nil {
+		t.Fatal(err)
+	}
+	found = false
+	for _, installed := range fake.updated.Plugins {
+		if installed.Project == "My Plugin" && installed.Name == "my-plugin.jar" &&
+			installed.Source == "provider-project" && installed.Version == "2.0.0" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("updated custom plugin lost identity: %+v", fake.updated.Plugins)
+	}
+	if _, err := updates.Remove(context.Background(), p, "s_1", "My Plugin"); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.updated.Plugins) != 1 || fake.updated.Plugins[0].Project != "p" {
+		t.Fatalf("removed = %+v", fake.updated.Plugins)
+	}
+}

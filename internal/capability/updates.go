@@ -166,6 +166,7 @@ func (u *Updates) Catalog(ctx context.Context, p Principal, provider, query, mcV
 type PluginRequest struct {
 	Provider string `json:"provider"`
 	Project  string `json:"project"`
+	Name     string `json:"name,omitempty"`
 	Version  string `json:"version,omitempty"`
 	Range    string `json:"range,omitempty"`
 }
@@ -221,15 +222,22 @@ func (u *Updates) Add(ctx context.Context, p Principal, id string, req PluginReq
 	case req.Range != "":
 		policy = "range"
 	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = req.Project
+	}
+	if len(name) > 100 {
+		return PluginAddResult{}, invalid("plugin name must be 1-100 characters")
+	}
 	plugin := store.ServerPlugin{
-		Project: req.Project, Provider: req.Provider, Version: res.Version,
-		Policy: policy, Range: req.Range, Name: plugins.JarName(req.Project),
-		SHA256: art.SHA256, Size: art.Size,
+		Project: name, Provider: req.Provider, Version: res.Version,
+		Policy: policy, Range: req.Range, Name: plugins.JarName(name),
+		Source: req.Project, SHA256: art.SHA256, Size: art.Size,
 	}
 	next := append([]store.ServerPlugin(nil), srv.Plugins...)
 	replaced := false
 	for i, installed := range next {
-		if strings.EqualFold(installed.Project, req.Project) {
+		if strings.EqualFold(installed.Project, name) {
 			next[i] = plugin
 			replaced = true
 			break
@@ -400,7 +408,11 @@ func (u *Updates) Detect(ctx context.Context, p Principal, id string) ([]PluginU
 		if strings.EqualFold(installed.Provider, "spigot") || strings.EqualFold(installed.Policy, "manual") {
 			continue
 		}
-		project, normalizeErr := plugins.NormalizeProject(installed.Provider, installed.Project)
+		source := installed.Source
+		if source == "" {
+			source = installed.Project
+		}
+		project, normalizeErr := plugins.NormalizeProject(installed.Provider, source)
 		if normalizeErr != nil {
 			out = append(out, PluginUpdate{
 				Project: installed.Project, Provider: installed.Provider,
@@ -455,7 +467,11 @@ func (u *Updates) Apply(ctx context.Context, p Principal, id string) (ApplyResul
 		if idx < 0 {
 			continue
 		}
-		res, err := u.resolve(ctx, installed.Provider, installed.Project, srv.MCVersion, "", installed.Range)
+		source := installed.Source
+		if source == "" {
+			source = installed.Project
+		}
+		res, err := u.resolve(ctx, installed.Provider, source, srv.MCVersion, "", installed.Range)
 		if err != nil {
 			return ApplyResult{}, err
 		}

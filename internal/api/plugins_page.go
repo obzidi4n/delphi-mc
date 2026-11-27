@@ -146,6 +146,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
     <details id="githubbox">
      <summary>Install from a GitHub repo</summary>
      <div class="row" style="margin-top:.5rem">
+      <input id="github-name" style="flex:0 1 14rem" placeholder="Plugin name (optional)">
       <input id="github-repo" style="flex:1;min-width:14rem" placeholder="https://github.com/owner/repo">
       <button id="github-install" class="primary" type="button">Install latest release</button>
      </div>
@@ -154,6 +155,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
     <details id="jenkinsbox">
      <summary>Install from Jenkins</summary>
      <div class="row" style="margin-top:.5rem">
+      <input id="jenkins-name" style="flex:0 1 14rem" placeholder="Plugin name (optional)">
       <input id="jenkins-url" style="flex:1;min-width:14rem" placeholder="https://jenkins.example.com/job/my-plugin/">
       <button id="jenkins-install" class="primary" type="button">Install last successful build</button>
      </div>
@@ -193,8 +195,10 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
   var schedulesEl = document.getElementById('schedules');
   var serverName = body.dataset.name || id;
   var searchBtn = document.getElementById('search');
+  var githubName = document.getElementById('github-name');
   var githubRepo = document.getElementById('github-repo');
   var githubInstall = document.getElementById('github-install');
+  var jenkinsName = document.getElementById('jenkins-name');
   var jenkinsURL = document.getElementById('jenkins-url');
   var jenkinsInstall = document.getElementById('jenkins-install');
   var uploadForm = document.getElementById('uploadform');
@@ -378,7 +382,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
     return request(api + '/plugins', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({provider: entry.provider, project: entry.project})
+      body: JSON.stringify({provider: entry.provider, project: entry.project, name: entry.name})
     }).then(function (result) {
       toast('Installed ' + result.plugin.project + ' ' + result.plugin.version + ' — restart the server to load it');
       return refreshAll();
@@ -447,7 +451,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
     var job = jenkinsURL.value.trim();
     if (!job) { toast('Enter a Jenkins job URL', true); return; }
     jenkinsInstall.disabled = true;
-    install({provider: 'jenkins', project: job}).finally(function () {
+    install({provider: 'jenkins', project: job, name: jenkinsName.value.trim()}).finally(function () {
       jenkinsInstall.disabled = false;
     });
   });
@@ -455,7 +459,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
     var repo = githubRepo.value.trim();
     if (!repo) { toast('Enter a GitHub repository URL', true); return; }
     githubInstall.disabled = true;
-    install({provider: 'github', project: repo}).finally(function () {
+    install({provider: 'github', project: repo, name: githubName.value.trim()}).finally(function () {
       githubInstall.disabled = false;
     });
   });

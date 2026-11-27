@@ -1390,6 +1390,7 @@ components:
         policy: { type: string, enum: [latest, pinned, range, manual] }
         range: { type: string }
         name: { type: string }
+        source: { type: string }
         sha256: { type: string }
         size: { type: integer, format: int64 }
     PluginCatalogEntry:
@@ -1420,6 +1421,7 @@ components:
       properties:
         provider: { type: string, enum: [modrinth, hangar, github, jenkins] }
         project: { type: string }
+        name: { type: string }
         version: { type: string }
         range: { type: string }
     PluginAddResult:

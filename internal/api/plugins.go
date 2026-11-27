@@ -85,15 +85,18 @@ func (s *server) installServerPlugin(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	version, versionRange := "", ""
+	version, versionRange, name := "", "", ""
 	if body.Version != nil {
 		version = *body.Version
 	}
 	if body.Range != nil {
 		versionRange = *body.Range
 	}
+	if body.Name != nil {
+		name = *body.Name
+	}
 	result, err := service.Add(r.Context(), principal, r.PathValue("id"), capability.PluginRequest{
-		Provider: body.Provider, Project: body.Project,
+		Provider: body.Provider, Project: body.Project, Name: name,
 		Version: version, Range: versionRange,
 	})
 	if err != nil {

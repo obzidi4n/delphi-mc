@@ -43,10 +43,14 @@ The Plugins page for a server has two jobs:
   running; restart it when ready to load or unload the change. Applying updates is an
   explicit restart with the guarded boot check.
 
-`POST /api/v1/servers/{id}/plugins` accepts `{provider, project, version?, range?}`.
-`DELETE /api/v1/servers/{id}/plugins?project=...` removes one project. Both are
-scoped and audited (`server.plugin.add`, `server.plugin.update`,
-`server.plugin.remove`). GitHub remains a resolver-only provider because it has
+`POST /api/v1/servers/{id}/plugins` accepts
+`{provider, project, name?, version?, range?}`. The optional `name` is the
+user-visible plugin name and installed jar stem; `project` remains the provider
+source used for update checks. GitHub and Jenkins installs expose this name in
+the UI so a repository or job URL does not become the plugin's label.
+`DELETE /api/v1/servers/{id}/plugins?project=...` removes one project by its
+visible name. Both are scoped and audited (`server.plugin.add`,
+`server.plugin.update`, `server.plugin.remove`). GitHub remains a resolver-only provider because it has
 no public project search API.
 
 SpigotMC has no public API and its downloads normally require an authenticated

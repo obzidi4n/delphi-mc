@@ -41,6 +41,9 @@ func pluginDTOs(in []store.ServerPlugin) []apitypes.ServerPlugin {
 		if p.Range != "" {
 			item.Range = strPtr(p.Range)
 		}
+		if p.Source != "" {
+			item.Source = strPtr(p.Source)
+		}
 		if p.Size > 0 {
 			item.Size = &p.Size
 		}

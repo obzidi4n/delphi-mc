@@ -508,6 +508,7 @@ type PluginCatalogEntry struct {
 
 // PluginInstallRequest is generated from the spec.
 type PluginInstallRequest struct {
+	Name     *string `json:"name,omitempty"`
 	Project  string  `json:"project"`
 	Provider string  `json:"provider"`
 	Range    *string `json:"range,omitempty"`
@@ -660,6 +661,7 @@ type ServerPlugin struct {
 	Range    *string `json:"range,omitempty"`
 	SHA256   string  `json:"sha256"`
 	Size     *int64  `json:"size,omitempty"`
+	Source   *string `json:"source,omitempty"`
 	Version  string  `json:"version"`
 }
 

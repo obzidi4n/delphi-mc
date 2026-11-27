@@ -91,7 +91,8 @@ change. Applying updates is the explicit restart/boot-check action.
 
 The page also accepts a GitHub repository or release URL and installs the latest
 release asset, and a Jenkins job URL to install the last successful build's jar
-artifact. It has a manual Spigot jar upload form for resources without a public
+artifact. Both forms accept an optional plugin name; the source URL is retained
+for later update checks. It has a manual Spigot jar upload form for resources without a public
 API. Uploaded jars are pinned and marked manual, so they are not checked for
 remote updates. The page checks provider-backed plugins for updates on load and
 every five minutes, shows current vs available versions, and applies all updates
