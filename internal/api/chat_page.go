@@ -70,6 +70,21 @@ var chatTemplate = template.Must(template.New("chat").Parse(`<!doctype html>
  .approval ul{margin:.2rem 0 .5rem;padding-left:1.1rem}
  .approval li{margin:.15rem 0}
  .approval .acts{color:#8b949e;font-size:.8rem}
+ .bubble table{border-collapse:collapse;margin:.55rem 0;font-size:.86rem;max-width:100%}
+ .bubble th,.bubble td{border:1px solid #30363d;padding:.3rem .55rem;text-align:left;vertical-align:top}
+ .bubble th{background:#161b22;color:#e6edf3;font-weight:600}
+ .bubble tr:nth-child(even) td{background:#0f141b}
+ .bubble code{background:#161b22;border:1px solid #21262d;border-radius:.25rem;padding:.05rem .25rem;font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+ .bubble pre{background:#161b22;border:1px solid #21262d;border-radius:.45rem;padding:.6rem .7rem;overflow:auto;white-space:pre;margin:.55rem 0}
+ .bubble pre code{background:none;border:0;padding:0}
+ .bubble h1,.bubble h2,.bubble h3,.bubble h4{color:#e6edf3;margin:.8rem 0 .35rem;line-height:1.3}
+ .bubble h1{font-size:1.15rem}.bubble h2{font-size:1.05rem}.bubble h3{font-size:.95rem}.bubble h4{font-size:.88rem}
+ .bubble ul,.bubble ol{margin:.35rem 0;padding-left:1.35rem}
+ .bubble li{margin:.15rem 0}
+ .bubble blockquote{border-left:3px solid #30363d;margin:.45rem 0;padding:.1rem 0 .1rem .7rem;color:#8b949e}
+ .bubble a{color:#79c0ff}
+ .bubble hr{border:0;border-top:1px solid #30363d;margin:.8rem 0}
+ .tablewrap{overflow-x:auto;max-width:100%}
 </style></head><body data-base="{{.BasePath}}" data-enabled="{{if .Enabled}}1{{else}}0{{end}}">
 <header>
   <a href="{{.BasePath}}">&larr; Fleet</a><h1>AI operator</h1>
@@ -116,6 +131,207 @@ var chatTemplate = template.Must(template.New("chat").Parse(`<!doctype html>
     p.textContent = text;
     log.appendChild(p);
   }
+  var FENCE = /^\s*(\x60{3,})\s*([A-Za-z0-9_+-]*)\s*$/;
+  var FENCE_END = /^\s*\x60{3,}\s*$/;
+
+  function safeHref(raw) {
+    var href = String(raw || '').trim();
+    if (/^https?:\/\//i.test(href) || /^mailto:/i.test(href)) { return href; }
+    return '';
+  }
+  function appendInline(el, text) {
+    var last = 0, m;
+    text = text || '';
+    var re = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*|\x60[^\x60\n]+\x60|\[[^\]\n]+\]\([^)\n]+\))/g;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) { el.appendChild(document.createTextNode(text.slice(last, m.index))); }
+      var tok = m[0];
+      if (tok.slice(0, 2) === '**' && tok.slice(-2) === '**') {
+        var strong = document.createElement('strong');
+        appendInline(strong, tok.slice(2, -2));
+        el.appendChild(strong);
+      } else if (tok.charAt(0) === '*' && tok.slice(-1) === '*') {
+        var em = document.createElement('em');
+        appendInline(em, tok.slice(1, -1));
+        el.appendChild(em);
+      } else if (tok.charAt(0) === '\x60' && tok.slice(-1) === '\x60') {
+        var code = document.createElement('code');
+        code.textContent = tok.slice(1, -1);
+        el.appendChild(code);
+      } else {
+        var lm = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok);
+        if (lm) {
+          var href = safeHref(lm[2]);
+          if (href) {
+            var a = document.createElement('a');
+            a.href = href;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.textContent = lm[1];
+            el.appendChild(a);
+          } else {
+            el.appendChild(document.createTextNode(lm[1] + ' (' + lm[2] + ')'));
+          }
+        } else {
+          el.appendChild(document.createTextNode(tok));
+        }
+      }
+      last = m.index + tok.length;
+    }
+    if (last < text.length) { el.appendChild(document.createTextNode(text.slice(last))); }
+  }
+  function splitRow(line) {
+    var s = line.trim();
+    if (s.charAt(0) === '|') { s = s.slice(1); }
+    if (s.slice(-1) === '|') { s = s.slice(0, -1); }
+    var out = [], cur = '';
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (ch === '\\' && s.charAt(i + 1) === '|') { cur += '|'; i++; }
+      else if (ch === '|') { out.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    out.push(cur.trim());
+    return out;
+  }
+  function isTableSep(line) {
+    if (line.indexOf('|') < 0) { return false; }
+    var cells = splitRow(line);
+    return cells.length > 0 && cells.every(function (c) { return /^:?-{3,}:?$/.test(c); });
+  }
+  function isHR(line) { return /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line); }
+  function isListStart(line) { return /^\s*(?:[-*+]|\d+\.)\s+/.test(line); }
+  function isTableStart(lines, i) {
+    return i + 1 < lines.length && lines[i].indexOf('|') >= 0 && isTableSep(lines[i + 1]);
+  }
+  function startsBlock(lines, i) {
+    var l = lines[i];
+    return /^\s*$/.test(l) || FENCE.test(l) || /^\s{0,3}#{1,6}\s+/.test(l) ||
+      /^\s*>/.test(l) || isListStart(l) || isHR(l) || isTableStart(lines, i);
+  }
+  function tableBlock(lines, start) {
+    var head = splitRow(lines[start]);
+    var align = splitRow(lines[start + 1]).map(function (c) {
+      var left = c.charAt(0) === ':', right = c.slice(-1) === ':';
+      return left && right ? 'center' : right ? 'right' : left ? 'left' : '';
+    });
+    var wrap = document.createElement('div');
+    wrap.className = 'tablewrap';
+    var table = document.createElement('table');
+    var thead = document.createElement('thead');
+    var hr = document.createElement('tr');
+    head.forEach(function (cell, idx) {
+      var th = document.createElement('th');
+      if (align[idx]) { th.style.textAlign = align[idx]; }
+      appendInline(th, cell);
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    var i = start + 2;
+    while (i < lines.length && lines[i].trim() !== '' && lines[i].indexOf('|') >= 0) {
+      var cells = splitRow(lines[i]);
+      var tr = document.createElement('tr');
+      for (var c = 0; c < head.length; c++) {
+        var td = document.createElement('td');
+        if (align[c]) { td.style.textAlign = align[c]; }
+        appendInline(td, cells[c] || '');
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+      i++;
+    }
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    return { el: wrap, next: i };
+  }
+  function renderMarkdown(text) {
+    var frag = document.createDocumentFragment();
+    var lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+    var i = 0;
+    while (i < lines.length) {
+      var line = lines[i];
+      if (/^\s*$/.test(line)) { i++; continue; }
+
+      var fm = FENCE.exec(line);
+      if (fm) {
+        var code = [];
+        var j = i + 1;
+        while (j < lines.length && !FENCE_END.test(lines[j])) { code.push(lines[j]); j++; }
+        if (j < lines.length) { j++; }
+        var pre = document.createElement('pre');
+        var codeEl = document.createElement('code');
+        if (fm[2]) { codeEl.className = 'language-' + fm[2]; }
+        codeEl.textContent = code.join('\n');
+        pre.appendChild(codeEl);
+        frag.appendChild(pre);
+        i = j;
+        continue;
+      }
+
+      var hm = /^\s{0,3}(#{1,6})\s+(.*)$/.exec(line);
+      if (hm) {
+        var h = document.createElement('h' + hm[1].length);
+        appendInline(h, hm[2].replace(/\s+#+\s*$/, ''));
+        frag.appendChild(h);
+        i++;
+        continue;
+      }
+
+      if (isHR(line)) {
+        frag.appendChild(document.createElement('hr'));
+        i++;
+        continue;
+      }
+
+      if (isTableStart(lines, i)) {
+        var tb = tableBlock(lines, i);
+        frag.appendChild(tb.el);
+        i = tb.next;
+        continue;
+      }
+
+      if (/^\s*>/.test(line)) {
+        var quote = document.createElement('blockquote');
+        while (i < lines.length && /^\s*>/.test(lines[i])) {
+          if (quote.childNodes.length) { quote.appendChild(document.createElement('br')); }
+          appendInline(quote, lines[i].replace(/^\s*>\s?/, ''));
+          i++;
+        }
+        frag.appendChild(quote);
+        continue;
+      }
+
+      if (isListStart(line)) {
+        var ordered = /^\s*\d+\.\s+/.test(line);
+        var list = document.createElement(ordered ? 'ol' : 'ul');
+        while (i < lines.length) {
+          var lm = /^\s*(?:[-*+]|\d+\.)\s+(.*)$/.exec(lines[i]);
+          if (!lm || /^\s*\d+\.\s+/.test(lines[i]) !== ordered) { break; }
+          var li = document.createElement('li');
+          appendInline(li, lm[1]);
+          list.appendChild(li);
+          i++;
+        }
+        frag.appendChild(list);
+        continue;
+      }
+
+      var p = document.createElement('p');
+      while (i < lines.length && !startsBlock(lines, i)) {
+        if (p.childNodes.length) { p.appendChild(document.createElement('br')); }
+        appendInline(p, lines[i]);
+        i++;
+      }
+      frag.appendChild(p);
+    }
+    return frag;
+  }
+  function renderInto(el, text) {
+    el.textContent = '';
+    el.appendChild(renderMarkdown(text));
+  }
   function addMessage(role, text) {
     var wrap = document.createElement('div');
     wrap.className = 'msg ' + role;
@@ -124,7 +340,8 @@ var chatTemplate = template.Must(template.New("chat").Parse(`<!doctype html>
     label.textContent = role === 'user' ? 'You' : 'Assistant';
     var bubble = document.createElement('div');
     bubble.className = 'bubble';
-    bubble.textContent = text || '';
+    if (role === 'user') { bubble.textContent = text || ''; }
+    else { renderInto(bubble, text || ''); }
     wrap.appendChild(label);
     wrap.appendChild(bubble);
     log.appendChild(wrap);
@@ -156,7 +373,7 @@ var chatTemplate = template.Must(template.New("chat").Parse(`<!doctype html>
     cites.className = 'cites';
     wrap.insertBefore(tools, wrap.firstChild.nextSibling);
     wrap.appendChild(cites);
-    pending = { wrap: wrap, bubble: wrap.querySelector('.bubble'), tools: tools, cites: cites, chatOnly: false };
+    pending = { wrap: wrap, bubble: wrap.querySelector('.bubble'), raw: '', tools: tools, cites: cites, chatOnly: false };
     citesSeen = {};
     return pending;
   }
@@ -168,7 +385,8 @@ var chatTemplate = template.Must(template.New("chat").Parse(`<!doctype html>
   function handleEvent(ev) {
     if (ev.type === 'delta') {
       if (!pending) { beginPending(); }
-      pending.bubble.textContent += ev.text;
+      pending.raw += ev.text;
+      renderInto(pending.bubble, pending.raw);
       log.scrollTop = log.scrollHeight;
     } else if (ev.type === 'tool') {
       if (!pending) { beginPending(); }
@@ -177,6 +395,10 @@ var chatTemplate = template.Must(template.New("chat").Parse(`<!doctype html>
       addCitation(ev.citation);
     } else if (ev.type === 'done') {
       if (ev.conversation_id) { currentId = ev.conversation_id; }
+      if (pending && ev.text && !pending.raw) {
+        pending.raw = ev.text;
+        renderInto(pending.bubble, pending.raw);
+      }
       if (ev.chat_only && pending) {
         var badge = document.createElement('span');
         badge.className = 'chatonly';
