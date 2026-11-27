@@ -120,11 +120,15 @@ func TestCatalogSearchesModrinthAndHangar(t *testing.T) {
 		if r.URL.Path != "/search" {
 			t.Errorf("unexpected modrinth path %s", r.URL.Path)
 		}
-		if !strings.Contains(r.URL.Query().Get("facets"), "1.21.11") {
-			t.Errorf("facets missing game version: %s", r.URL.Query().Get("facets"))
+		if !strings.Contains(r.URL.Query().Get("facets"), "project_type:mod") {
+			t.Errorf("facets must accept mod-typed Paper plugins: %s", r.URL.Query().Get("facets"))
 		}
-		fmt.Fprint(w, `{"hits":[{"slug":"luckperms","title":"LuckPerms","description":"Permissions",
-		 "author":"lucko","icon_url":"https://cdn/icon.png","downloads":10,"versions":["5.5"]}]}`)
+		fmt.Fprint(w, `{"hits":[
+		 {"slug":"delphivote","title":"DelphiVote","description":"Voting with rewards",
+		  "author":"delphi","icon_url":"https://cdn/vote.png","downloads":10,"versions":["1.21.4"]},
+		 {"slug":"unrelated","title":"Unrelated","description":"Wrong version",
+		  "author":"x","downloads":1,"versions":["1.20.1"]}
+		]}`)
 	}))
 	defer modrinth.Close()
 	hangar := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -143,7 +147,7 @@ func TestCatalogSearchesModrinthAndHangar(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Project != "luckperms" || got[0].Downloads != 10 {
+	if len(got) != 1 || got[0].Project != "delphivote" || got[0].Downloads != 10 {
 		t.Fatalf("modrinth = %+v", got)
 	}
 	got, err = r.Search(context.Background(), "hangar", "via", "", 10)

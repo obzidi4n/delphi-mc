@@ -110,21 +110,35 @@ type modrinthSearch struct {
 
 func (r *Resolver) searchModrinth(ctx context.Context, query, mcVersion string, limit int) ([]CatalogEntry, error) {
 	base := strings.TrimRight(r.ModrinthBase, "/")
-	facets := `[["project_type:plugin"],["categories:paper"]]`
-	if mcVersion != "" {
-		facets = fmt.Sprintf(`[["project_type:plugin"],["categories:paper"],["versions:%s"]]`, mcVersion)
+	// Modrinth classifies some Paper plugins as project_type "mod" (for
+	// example DelphiVote), so project_type is not a reliable filter. Paper
+	// category plus the local version check is.
+	// Version matching is intentionally local: Modrinth's versions facet only
+	// matches exact game versions and would hide plugins that lag one patch
+	// but are still compatible with the server's major family.
+	facets := `[["project_type:plugin","project_type:mod"],["categories:paper"]]`
+	fetchLimit := limit * 3
+	if fetchLimit < 50 {
+		fetchLimit = 50
+	}
+	if fetchLimit > 100 {
+		fetchLimit = 100
 	}
 	q := url.Values{}
 	q.Set("query", query)
-	q.Set("limit", strconv.Itoa(limit))
+	q.Set("limit", strconv.Itoa(fetchLimit))
 	q.Set("facets", facets)
 	var body modrinthSearch
 	if err := r.get(ctx, base+"/search?"+q.Encode(), &body); err != nil {
 		return nil, err
 	}
-	out := make([]CatalogEntry, 0, len(body.Hits))
+	out := make([]CatalogEntry, 0, limit)
 	for _, hit := range body.Hits {
 		if hit.Slug == "" {
+			continue
+		}
+		if mcVersion != "" && len(hit.Versions) > 0 &&
+			!contains(hit.Versions, mcVersion) && !sameMajor(hit.Versions, mcVersion) {
 			continue
 		}
 		out = append(out, CatalogEntry{
@@ -133,6 +147,9 @@ func (r *Resolver) searchModrinth(ctx context.Context, query, mcVersion string, 
 			IconURL: hit.IconURL, PageURL: "https://modrinth.com/plugin/" + hit.Slug,
 			Downloads: hit.Downloads, Versions: hit.Versions,
 		})
+		if len(out) == limit {
+			break
+		}
 	}
 	return out, nil
 }
