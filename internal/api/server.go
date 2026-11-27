@@ -144,6 +144,9 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("POST "+s.base+"api/v1/backups/{id}/restore", s.restoreBackup)
 	mux.HandleFunc("DELETE "+s.base+"api/v1/backups/{id}", s.deleteBackup)
 
+	mux.HandleFunc("GET "+s.base+"api/v1/networks", s.listNetworks)
+	mux.HandleFunc("POST "+s.base+"api/v1/networks", s.createNetwork)
+	mux.HandleFunc("GET "+s.base+"api/v1/networks/{id}", s.getNetwork)
 	mux.HandleFunc("GET "+s.base+"api/v1/schedules", s.listSchedules)
 	mux.HandleFunc("POST "+s.base+"api/v1/schedules", s.createSchedule)
 	mux.HandleFunc("DELETE "+s.base+"api/v1/schedules/{id}", s.deleteSchedule)

@@ -117,6 +117,13 @@ func (r *execRuntime) run(ctx context.Context, args ...string) (string, error) {
 }
 
 func (r *execRuntime) Ensure(ctx context.Context, spec wire.ServerSpec, dir string) error {
+	if spec.NetworkName != "" {
+		if _, err := r.run(ctx, "network", "inspect", spec.NetworkName); err != nil {
+			if _, err := r.run(ctx, "network", "create", spec.NetworkName); err != nil {
+				return fmt.Errorf("create network %s: %w", spec.NetworkName, err)
+			}
+		}
+	}
 	_, err := r.run(ctx, runArgs(r, spec, dir)...)
 	return err
 }
@@ -207,7 +214,6 @@ func runArgs(r *execRuntime, spec wire.ServerSpec, dir string) []string {
 		"--label", fmt.Sprintf("delphi.revision=%d", spec.Revision),
 		"-v", dir + ":/data",
 		"-w", "/data",
-		"-p", fmt.Sprintf("%d:%d", spec.Port, spec.Port),
 		"--memory", fmt.Sprintf("%dm", spec.MemoryMB),
 		"--cpus", strconv.FormatFloat(cores, 'f', -1, 64),
 		"--shm-size", "512m",
@@ -215,6 +221,17 @@ func runArgs(r *execRuntime, spec wire.ServerSpec, dir string) []string {
 		"--cap-drop", "ALL",
 		"--security-opt", "no-new-privileges",
 		"-e", "HOME=/data",
+	}
+	if spec.NetworkName != "" {
+		args = append(args, "--network", spec.NetworkName)
+		if spec.NetworkAlias != "" {
+			args = append(args, "--network-alias", spec.NetworkAlias)
+		}
+		if spec.NetworkRole == "proxy" {
+			args = append(args, "-p", fmt.Sprintf("%d:%d", spec.Port, spec.Port))
+		}
+	} else {
+		args = append(args, "-p", fmt.Sprintf("%d:%d", spec.Port, spec.Port))
 	}
 
 	// On Linux, keep host files owned by the invoking user. On macOS the

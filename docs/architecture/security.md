@@ -38,6 +38,12 @@ node identity and downloads a decrypted stream only after ownership is checked; 
 re-hashes the archive. Restore is destructive and requires `server:<id>:update`; it replaces
 the server directory, so the previous tree is kept only until extraction succeeds.
 
+**Networks:** one container network per Velocity network. Only the proxy publishes a host
+port; backends have no published ports and are reachable by alias only from that network.
+Aliases are hostname-safe (`delphi-s-…`) because Velocity rejects underscores in server
+addresses. Legacy forwarding trusts the proxy to assert player identity, so the isolation is
+the security boundary; modern forwarding (shared secret) is deferred.
+
 **Artifacts:** `GET /agent/blobs/{sha256}` requires a verified node certificate whose serial is
 enrolled and not revoked. The response is immutable, content-addressed content; the node
 re-hashes before installing. GC requires org admin and skips anything referenced by a live

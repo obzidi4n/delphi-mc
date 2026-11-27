@@ -29,6 +29,9 @@ panel over a single mTLS WebSocket, and keeps serving when the panel is unreacha
   socket proxy — it cannot restrict `exec`, so it adds a component and no security.
 - Server data is a **bind mount** at `/var/lib/delphi/servers/<uuid>`, never a named volume:
   host-side access is required for reflink snapshots, CAS linking and backups.
+- Networked servers join `delphi-net-<network-id>` with a hostname-safe alias;
+  only the proxy publishes a host port, backends publish none. The agent creates the network
+  on first use (`podman network create`) and passes `--network-alias`.
 - Each server directory is its **own subvolume/dataset** at create time — btrfs snapshots and
   `zfs clone` require it (`cp --reflink` does not). Retrofitting is a migration.
 - UID mapping: `--userns=keep-id` (or explicit `--uidmap`) so host files stay owned by

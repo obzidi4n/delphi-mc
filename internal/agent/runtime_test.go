@@ -65,3 +65,31 @@ func TestContainerName(t *testing.T) {
 		t.Fatalf("containerName = %q", got)
 	}
 }
+
+func TestNetworkRunArgsPublishOnlyProxy(t *testing.T) {
+	r := &execRuntime{bin: "podman", podman: true}
+	backend := runArgs(r, wire.ServerSpec{
+		ID: "s_1", Port: 25566, MemoryMB: 1024, CPUCores: 1,
+		Image: "img", JarURL: "x", JarSHA256: "y", NetworkName: "delphi-net-n_1", NetworkRole: "backend",
+	}, "/tmp/s_1")
+	joined := strings.Join(backend, " ")
+	if !strings.Contains(joined, "--network delphi-net-n_1") {
+		t.Fatalf("backend lacks network: %v", backend)
+	}
+	if strings.Contains(joined, "-p ") {
+		t.Fatalf("backend publishes a host port: %v", backend)
+	}
+
+	proxy := runArgs(r, wire.ServerSpec{
+		ID: "s_2", Port: 25565, MemoryMB: 1024, CPUCores: 1,
+		Image: "img", JarURL: "x", JarSHA256: "y", Base: "velocity",
+		NetworkName: "delphi-net-n_1", NetworkRole: "proxy",
+	}, "/tmp/s_2")
+	joined = strings.Join(proxy, " ")
+	if !strings.Contains(joined, "--network delphi-net-n_1") || !strings.Contains(joined, "-p 25565:25565") {
+		t.Fatalf("proxy args = %v", proxy)
+	}
+	if strings.Contains(joined, "--nogui") {
+		t.Fatalf("velocity should not get --nogui: %v", proxy)
+	}
+}

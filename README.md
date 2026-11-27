@@ -5,7 +5,7 @@ automated updates, templates, backups, scheduled automation, a first-party Paper
 plugin, and an AI operator — behind a web UI and a scriptable CLI, in one binary plus
 Postgres.
 
-**Status: M13 (TUI).** One binary with `panel`, `agent`, `nodes`, `init`, and `version`.
+**Status: M14 (Velocity networks).** One binary with `panel`, `agent`, `nodes`, `init`, and `version`.
 Servers come from templates, boot in hardened containers, stream console/metrics, and run a
 self-installed bridge plugin. Modrinth/Hangar/GitHub plugins are resolved into a sha256
 artifact store, installed on create, updated with a guarded restart and rollback, and
@@ -18,7 +18,9 @@ actions, and a scriptable API/CLI. It runs behind a reverse proxy at a configura
 uses one binary with `upgrade`/`rollback` slots, and explains degraded operation instead of
 hiding it: servers and agent-local restarts continue while the panel is down. `delphi tui`
 offers the fleet, live console, power/backups/plugins, and the AI operator with inline
-approvals from a terminal.
+approvals from a terminal. Velocity networks put a proxy and backends on one container
+network: the proxy owns the public port, backends publish nothing, and forwarding configs are
+generated.
 
 ## Try it
 

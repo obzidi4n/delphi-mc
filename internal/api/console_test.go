@@ -90,6 +90,9 @@ func TestConsoleSlowSubscriberIsDroppedNotBlocking(t *testing.T) {
 	}()
 	for i := 0; i < 200; i++ {
 		h.Ingest("s_1", uint64(i*10+1), []byte("line"))
+		// Let the fast reader drain; the slow one holds its buffer and is
+		// dropped deterministically without racing the scheduler.
+		time.Sleep(100 * time.Microsecond)
 	}
 	select {
 	case n := <-got:

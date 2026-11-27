@@ -260,7 +260,11 @@ func (s *Supervisor) prepare(ctx context.Context, spec wire.ServerSpec, dir stri
 	if err := writeTemplateFiles(dir, spec.Files); err != nil {
 		return err
 	}
-	if err := InstallBridge(dir); err != nil {
+	if spec.Base == "velocity" {
+		// The Paper bridge does not load on Velocity; remove a stale copy from
+		// before a server was attached to a network.
+		_ = os.Remove(filepath.Join(dir, "plugins", "DelphiBridge.jar"))
+	} else if err := InstallBridge(dir); err != nil {
 		return err
 	}
 	if spec.Base != "velocity" {

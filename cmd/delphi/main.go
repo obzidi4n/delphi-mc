@@ -275,20 +275,22 @@ func runPanel(ctx context.Context, args []string) error {
 			Store: db, Resolver: plugins.NewResolver(nil), Artifacts: artifacts,
 			HTTP: &http.Client{Timeout: 5 * time.Minute}, Notify: hub, Log: log,
 		}
+		templates := &capability.Templates{
+			Store: db, Servers: servers, Ports: db, Resolver: mc.NewClient(nil), Plugins: updates,
+		}
 		services = &capability.Services{
-			Servers: servers,
-			Fleet:   &capability.Fleet{Store: db},
-			Groups:  &capability.Groups{Store: db},
-			Audit:   &capability.Audit{Store: db},
-			Keys:    &capability.Keys{Store: db},
-			Users:   &capability.Users{Store: db},
-			Templates: &capability.Templates{
-				Store: db, Servers: servers, Ports: db, Resolver: mc.NewClient(nil), Plugins: updates,
-			},
+			Servers:   servers,
+			Fleet:     &capability.Fleet{Store: db},
+			Groups:    &capability.Groups{Store: db},
+			Audit:     &capability.Audit{Store: db},
+			Keys:      &capability.Keys{Store: db},
+			Users:     &capability.Users{Store: db},
+			Templates: templates,
 			Updates:   updates,
 			Backups:   backups,
 			Schedules: schedules,
 			Alerts:    alerts,
+			Networks:  &capability.Networks{Store: db, Templates: templates, Servers: servers},
 		}
 		go runSchedules(ctx, schedules, log)
 		if err := seedBuiltinTemplates(ctx, db); err != nil {

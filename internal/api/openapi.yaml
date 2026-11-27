@@ -164,6 +164,51 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/networks:
+    get:
+      operationId: listNetworks
+      summary: List Velocity networks
+      responses:
+        "200":
+          description: Networks
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NetworkListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: createNetwork
+      summary: Create a proxy and backends on one container network
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NetworkCreateRequest" }
+      responses:
+        "201":
+          description: Network
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NetworkDetailDTO" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /api/v1/networks/{id}:
+    get:
+      operationId: getNetwork
+      summary: Get a network with its servers
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Network
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NetworkDetailDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
   /api/v1/schedules:
     get:
       operationId: listSchedules
@@ -1175,6 +1220,8 @@ components:
         deleted_at: { type: string, format: date-time, nullable: true }
         purge_after: { type: string, format: date-time, nullable: true }
         mc_version: { type: string }
+        network_id: { type: string }
+        network_role: { type: string }
         plugins:
           type: array
           items: { $ref: "#/components/schemas/ServerPlugin" }
@@ -1223,6 +1270,45 @@ components:
           items: { $ref: "#/components/schemas/PluginUpdate" }
         revision: { type: integer, format: int64 }
         boot_check: { type: string, enum: [pending, skipped] }
+    NetworkDTO:
+      type: object
+      required: [id, name, proxy_server_id, mode, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        proxy_server_id: { type: string }
+        mode: { type: string }
+        created_at: { type: string, format: date-time }
+    NetworkCreateRequest:
+      type: object
+      required: [name, node_id, accept_eula]
+      properties:
+        name: { type: string }
+        node_id: { type: string }
+        proxy_template: { type: string }
+        backend_template: { type: string }
+        backends: { type: integer }
+        accept_eula: { type: boolean }
+        mode: { type: string, enum: [legacy, modern] }
+    NetworkDetailDTO:
+      type: object
+      required: [id, name, proxy_server_id, mode, created_at, servers]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        proxy_server_id: { type: string }
+        mode: { type: string }
+        created_at: { type: string, format: date-time }
+        servers:
+          type: array
+          items: { $ref: "#/components/schemas/ServerDTO" }
+    NetworkListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/NetworkDTO" }
     ScheduleDTO:
       type: object
       required: [id, name, server_id, action, cron, timezone, enabled, created_at]

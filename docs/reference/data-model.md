@@ -9,7 +9,7 @@ nodes            (id, org_id, labels, capacity, agent_version, status, last_seen
                   fs_capability: reflink|zfs|copy,
                   cert_serial, cert_expires_at, revoked_at)
 servers          (id, org_id, node_id, name, image, java_version, memory_mb, cpu_cores,
-                  restart_policy,
+                  restart_policy, network_id, network_role,
                   port, desired_state, desired_revision, observed_state, applied_revision,
                   kill_requested, accept_eula, jar_url, jar_sha256, last_error,
                   base, template_id, template_version, variables jsonb, files jsonb,
@@ -21,7 +21,7 @@ role_bindings    (user_id, org_id, scope_kind: org|group|server, scope_id,
 server_group_members (group_id, server_id)
 server_summary   (server_id, state, updated_at)            # per-server state rollup
 templates        (id, org_id nullable=built-in, name, revision, body jsonb, builtin)
-networks         (id, org_id, name, proxy_server_id, mode)
+networks         (id pk, org_id, name, proxy_server_id, mode legacy|modern, created_at)
 players          (server_id, uuid, name, first_seen, last_seen)
 schedules        (id, org_id, cron, tz, target_kind, target_id, actions[], enabled, next_run)
 alert_rules      (id, org_id, scope, kind, metric, comparator, threshold, duration, severity)

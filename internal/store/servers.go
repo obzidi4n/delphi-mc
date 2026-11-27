@@ -52,6 +52,8 @@ type Server struct {
 	MCVersion       string
 	Plugins         []ServerPlugin
 	RestartPolicy   string
+	NetworkID       string
+	NetworkRole     string
 }
 
 // ServerPlugin is a managed plugin resolved for a server.
@@ -72,7 +74,7 @@ const serverColumns = `s.id, s.org_id, s.node_id, s.name, s.desired_state, s.des
 	s.deleted_at, s.purge_after,
 	coalesce((select state from server_summary where server_id = s.id), s.observed_state),
 	s.base, s.template_id, s.template_version, s.variables, s.files, s.mc_version, s.plugins,
-	s.restart_policy`
+	s.restart_policy, s.network_id, s.network_role`
 
 func scanServer(row pgx.Row) (Server, error) {
 	var s Server
@@ -81,7 +83,7 @@ func scanServer(row pgx.Row) (Server, error) {
 		&s.JavaVersion, &s.MemoryMB, &s.CPUCores, &s.Port, &s.JarURL, &s.JarSHA256,
 		&s.LastError, &s.CreatedAt, &s.DeletedAt, &s.PurgeAfter, &s.SummaryState,
 		&s.Base, &s.TemplateID, &s.TemplateVersion, &s.Variables, &s.Files,
-		&s.MCVersion, &s.Plugins, &s.RestartPolicy)
+		&s.MCVersion, &s.Plugins, &s.RestartPolicy, &s.NetworkID, &s.NetworkRole)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Server{}, ErrNoServer
 	}

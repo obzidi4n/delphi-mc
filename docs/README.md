@@ -3,12 +3,13 @@
 The map. Every page here is versioned with the code and changes in the same PR as the
 behavior it describes.
 
-**Status:** M13 landed — a native terminal UI with live console, power/backups/plugins, and a
-streaming AI pane with inline approvals, on top of v1.0/M12, M11 automation, M10 backups, M9
-plugins/artifacts, M8 files, M7 approvals, M6 assistant, M5 bridge, M4 console, M3b templates,
-the M3a spec-first API, identity/RBAC, paginated lists, Team/Groups pages, and the CLI. See
-[`plan/roadmap.md`](plan/roadmap.md). TUI keys are in
-[`reference/tui-keybindings.md`](reference/tui-keybindings.md).
+**Status:** M14 landed — Velocity networks with legacy forwarding, container-network isolation,
+generated proxy/backend configs, and a working proxy status endpoint, on top of M13 TUI,
+v1.0/M12, M11 automation, M10 backups, M9 plugins/artifacts, M8 files, M7 approvals, M6
+assistant, M5 bridge, M4 console, M3b templates, the M3a spec-first API, identity/RBAC,
+paginated lists, Team/Groups pages, and the CLI. See
+[`plan/roadmap.md`](plan/roadmap.md); network limits are in
+[`architecture/networks.md`](architecture/networks.md).
 
 ## Architecture — what and how
 

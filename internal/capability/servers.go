@@ -313,11 +313,25 @@ func (c *Servers) SpecsForNode(ctx context.Context, nodeID string) ([]wire.Serve
 			Files:         s.Files,
 			MCVersion:     s.MCVersion,
 			RestartPolicy: s.RestartPolicy,
+			NetworkName:   networkName(s.NetworkID),
+			NetworkRole:   s.NetworkRole,
+			NetworkAlias:  networkAlias(s.ID),
 			Plugins:       pluginSpecs(s.Plugins),
 			Deleted:       s.DeletedAt != nil,
 		})
 	}
 	return out, nil
+}
+
+func networkName(id string) string {
+	if id == "" {
+		return ""
+	}
+	return "delphi-net-" + id
+}
+
+func networkAlias(id string) string {
+	return "delphi-" + strings.ReplaceAll(id, "_", "-")
 }
 
 func pluginSpecs(in []store.ServerPlugin) []wire.PluginSpec {

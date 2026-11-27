@@ -383,6 +383,41 @@ type ModerationRequest struct {
 	Reason *string `json:"reason,omitempty"`
 }
 
+// NetworkCreateRequest is generated from the spec.
+type NetworkCreateRequest struct {
+	AcceptEULA      bool    `json:"accept_eula"`
+	BackendTemplate *string `json:"backend_template,omitempty"`
+	Backends        *int    `json:"backends,omitempty"`
+	Mode            *string `json:"mode,omitempty"`
+	Name            string  `json:"name"`
+	NodeID          string  `json:"node_id"`
+	ProxyTemplate   *string `json:"proxy_template,omitempty"`
+}
+
+// NetworkDTO is generated from the spec.
+type NetworkDTO struct {
+	CreatedAt     time.Time `json:"created_at"`
+	ID            string    `json:"id"`
+	Mode          string    `json:"mode"`
+	Name          string    `json:"name"`
+	ProxyServerID string    `json:"proxy_server_id"`
+}
+
+// NetworkDetailDTO is generated from the spec.
+type NetworkDetailDTO struct {
+	CreatedAt     time.Time   `json:"created_at"`
+	ID            string      `json:"id"`
+	Mode          string      `json:"mode"`
+	Name          string      `json:"name"`
+	ProxyServerID string      `json:"proxy_server_id"`
+	Servers       []ServerDTO `json:"servers"`
+}
+
+// NetworkListDTO is generated from the spec.
+type NetworkListDTO struct {
+	Items []NetworkDTO `json:"items"`
+}
+
 // NodeDTO is generated from the spec.
 type NodeDTO struct {
 	AgentVersion  string          `json:"agent_version"`
@@ -515,6 +550,8 @@ type ServerDTO struct {
 	MCVersion       *string        `json:"mc_version,omitempty"`
 	MemoryMB        int            `json:"memory_mb"`
 	Name            string         `json:"name"`
+	NetworkID       *string        `json:"network_id,omitempty"`
+	NetworkRole     *string        `json:"network_role,omitempty"`
 	NodeID          string         `json:"node_id"`
 	ObservedState   string         `json:"observed_state"`
 	Plugins         []ServerPlugin `json:"plugins,omitempty"`

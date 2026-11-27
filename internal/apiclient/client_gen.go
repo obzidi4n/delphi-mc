@@ -487,6 +487,48 @@ func (c *Client) DeleteMaintenanceWindow(ctx context.Context, id string) error {
 	return c.do(ctx, "DELETE", reqPath, q, nil, nil)
 }
 
+// GET /api/v1/networks
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListNetworks(ctx context.Context) (*apitypes.NetworkListDTO, error) {
+	reqPath := "/api" + "/v1" + "/networks"
+	var q url.Values
+
+	var out apitypes.NetworkListDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/networks
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) CreateNetwork(ctx context.Context, body apitypes.NetworkCreateRequest) (*apitypes.NetworkDetailDTO, error) {
+	reqPath := "/api" + "/v1" + "/networks"
+	var q url.Values
+
+	var out apitypes.NetworkDetailDTO
+	if err := c.do(ctx, "POST", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GET /api/v1/networks/{id}
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) GetNetwork(ctx context.Context, id string) (*apitypes.NetworkDetailDTO, error) {
+	reqPath := "/api" + "/v1" + "/networks" + "/" + url.PathEscape(fmt.Sprint(id))
+	var q url.Values
+
+	var out apitypes.NetworkDetailDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GET /api/v1/nodes
 //
 // Requires a bearer token configured on the Client.

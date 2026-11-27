@@ -26,6 +26,11 @@ type ServerSpec struct {
 	MCVersion string `json:"mc_version,omitempty"`
 	// RestartPolicy controls agent-local recovery: on-failure | never.
 	RestartPolicy string `json:"restart_policy,omitempty"`
+	// NetworkName is the per-network container network; Role selects whether
+	// the host port is published (proxy) or not (backend).
+	NetworkName  string `json:"network_name,omitempty"`
+	NetworkRole  string `json:"network_role,omitempty"`
+	NetworkAlias string `json:"network_alias,omitempty"`
 	// Plugins are managed plugin jars downloaded from the panel's artifact
 	// store, named stably per project.
 	Plugins []PluginSpec `json:"plugins,omitempty"`

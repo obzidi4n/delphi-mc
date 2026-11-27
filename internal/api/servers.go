@@ -26,6 +26,7 @@ func toServerDTO(sv store.Server) apitypes.ServerDTO {
 		LastError: lastErr, CreatedAt: sv.CreatedAt,
 		DeletedAt: sv.DeletedAt, PurgeAfter: sv.PurgeAfter,
 		MCVersion: strPtr(sv.MCVersion), Plugins: pluginDTOs(sv.Plugins),
+		NetworkID: strPtr(sv.NetworkID), NetworkRole: strPtr(sv.NetworkRole),
 	}
 }
 
