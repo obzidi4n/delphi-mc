@@ -11,7 +11,7 @@ the alpha's exit criteria are otherwise unfalsifiable.
 | Contract | `openapi.yaml` ↔ handlers ↔ generated Go/TS clients; agent frames against the wire spec | Every PR |
 | Integration | Panel with a fake agent; agent against a fake panel; Postgres via testcontainers | Every PR |
 | End-to-end | Real Linux host, rootless Podman, real Paper jar, real WebSocket clients | Every merge to main |
-| AI evals | Golden prompts against a recorded provider; safety suite | Every PR (recorded), nightly (live) |
+| AI evals | Golden prompts against a recorded provider; safety suite. Manual live suite: [`ai-evals.md`](ai-evals.md) | Every PR (recorded), nightly (live) |
 
 ## End-to-end host
 
@@ -48,3 +48,6 @@ them proves nothing about installation, which is alpha criterion 1.
 - Do not test wiring, echoed defaults, or framework behavior; do test what a user can observe.
 - The AI safety suite is a release gate: prompt injection, privilege escalation, mutation
   without approval, and a redaction leak all fail the build.
+- The manual live prompt suite is in [`ai-evals.md`](ai-evals.md). Run it after changes to the
+  AI loop, system prompt, tools, context assembly, or provider. It includes the
+  unavailable-data regression that used to end in “the model exceeded the tool-step limit.”

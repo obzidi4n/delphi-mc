@@ -69,6 +69,7 @@ The roadmap and the decision log are the only pages expected to churn.
 | [`contributing/dev-setup.md`](contributing/dev-setup.md) | Toolchain, build, run, test |
 | [`contributing/conventions.md`](contributing/conventions.md) | Repo layout, code and doc rules |
 | [`contributing/testing.md`](contributing/testing.md) | Test layers, e2e host, AI evals |
+| [`contributing/ai-evals.md`](contributing/ai-evals.md) | Manual live AI prompt suite and pass criteria |
 
 ## Deliberately not written yet
 

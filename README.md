@@ -324,6 +324,7 @@ Report security issues as described in [SECURITY.md](SECURITY.md).
 - [How the pieces fit together](docs/architecture/overview.md)
 - [Incident runbook](docs/operations/incident-runbook.md)
 - [TUI keybindings](docs/reference/tui-keybindings.md)
+- [AI evaluation prompts](docs/contributing/ai-evals.md)
 - [All documentation](docs/README.md)
 
 ## License
