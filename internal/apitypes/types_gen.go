@@ -91,6 +91,25 @@ type AuditListDTO struct {
 	NextCursor *string         `json:"next_cursor"`
 }
 
+// BackupDTO is generated from the spec.
+type BackupDTO struct {
+	CreatedAt time.Time  `json:"created_at"`
+	Encrypted bool       `json:"encrypted"`
+	Error     *string    `json:"error,omitempty"`
+	Format    string     `json:"format"`
+	ID        string     `json:"id"`
+	ReadyAt   *time.Time `json:"ready_at,omitempty"`
+	ServerID  string     `json:"server_id"`
+	SHA256    string     `json:"sha256"`
+	SizeBytes int64      `json:"size_bytes"`
+	State     string     `json:"state"`
+}
+
+// BackupListDTO is generated from the spec.
+type BackupListDTO struct {
+	Items []BackupDTO `json:"items"`
+}
+
 // BridgeDTO is generated from the spec.
 type BridgeDTO struct {
 	Commands []string          `json:"commands"`

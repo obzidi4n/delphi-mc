@@ -164,6 +164,71 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
+  /api/v1/servers/{id}/backups:
+    get:
+      operationId: listServerBackups
+      summary: List snapshots
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Backups, newest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BackupListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+    post:
+      operationId: createServerBackup
+      summary: Snapshot a server (quiesced, encrypted at rest)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "201":
+          description: Ready backup
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BackupDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /api/v1/backups/{id}/restore:
+    post:
+      operationId: restoreBackup
+      summary: Restore a snapshot into its server and reconcile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Restored backup
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BackupDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /api/v1/backups/{id}:
+    delete:
+      operationId: deleteBackup
+      summary: Delete a snapshot
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
   /api/v1/servers/{id}/plugins:
     get:
       operationId: listServerPlugins
@@ -985,6 +1050,27 @@ components:
           items: { $ref: "#/components/schemas/PluginUpdate" }
         revision: { type: integer, format: int64 }
         boot_check: { type: string, enum: [pending, skipped] }
+    BackupDTO:
+      type: object
+      required: [id, server_id, state, size_bytes, sha256, format, encrypted, created_at]
+      properties:
+        id: { type: string }
+        server_id: { type: string }
+        state: { type: string, enum: [creating, ready, failed] }
+        size_bytes: { type: integer, format: int64 }
+        sha256: { type: string }
+        format: { type: string }
+        encrypted: { type: boolean }
+        error: { type: string }
+        created_at: { type: string, format: date-time }
+        ready_at: { type: string, format: date-time, nullable: true }
+    BackupListDTO:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/BackupDTO" }
     GCResultDTO:
       type: object
       required: [removed, freed_bytes]

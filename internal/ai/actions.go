@@ -76,6 +76,7 @@ var (
 	moderateSchema  = json.RawMessage(`{"type":"object","properties":{"action":{"type":"string","enum":["kick","ban"]},"server":{"type":"string"},"player":{"type":"string"},"reason":{"type":"string"}},"required":["action","server","player"]}`)
 	writeFileSchema = json.RawMessage(`{"type":"object","properties":{"server":{"type":"string"},"path":{"type":"string"},"content":{"type":"string"}},"required":["server","path","content"]}`)
 	updateSchema    = json.RawMessage(`{"type":"object","properties":{"server":{"type":"string"}},"required":["server"]}`)
+	backupSchema    = json.RawMessage(`{"type":"object","properties":{"server":{"type":"string"}},"required":["server"]}`)
 )
 
 // writeTools are proposed to the model; the service pauses for approval
@@ -95,6 +96,10 @@ func writeTools() []Tool {
 				return ToolResult{}, fmt.Errorf("approval required")
 			}},
 		{Name: "write_file", Write: true, Description: "Propose writing a text file under the server directory. Requires approval.", Parameters: writeFileSchema,
+			Run: func(context.Context, capability.Principal, json.RawMessage) (ToolResult, error) {
+				return ToolResult{}, fmt.Errorf("approval required")
+			}},
+		{Name: "backup", Write: true, Description: "Propose snapshotting a server (quiesced and encrypted). Requires approval.", Parameters: backupSchema,
 			Run: func(context.Context, capability.Principal, json.RawMessage) (ToolResult, error) {
 				return ToolResult{}, fmt.Errorf("approval required")
 			}},

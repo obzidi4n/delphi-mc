@@ -35,6 +35,8 @@ docs_meta        (id=1, hash)
 ai_approvals     (id, org_id, user_id, conversation_id, status, plan jsonb, results jsonb,
                   created_at, decided_at, executed_at)
 file_revisions   (id, org_id, server_id, path, revision, content, sha256, author, created_at)
+backups          (id, org_id, server_id, node_id, state, size_bytes, sha256, format,
+                  encrypted, error, created_at, ready_at)
 file_revisions   (server_id, path, revision, sha256, author, via, created_at)
 snapshots, backups          # storage location, size, encryption key ref, retention
 jobs             (kind, target, state, priority, idempotency_key, attempts,
@@ -72,6 +74,8 @@ FK. The rule is enforced with composite FKs where it matters, not by discipline.
   `servers.plugins`, so no refcount can drift. Unreferenced blobs older than the cutoff are
   deleted from disk and the table.
 - **`file_revisions`** backs diff, rollback, and the audit of who wrote what.
+- **`backups`** stores plaintext sha256/size and the encrypted-file state; the archive lives at
+  `<data_dir>/backups/<id>.enc`. Retention keeps the newest seven rows/files per server.
 - **`alert_rules.kind`** exists because "server down", "crash loop" and "update available" are
   not metric comparisons; a generic comparator column alone cannot express them.
 - **`docs_chunks`** is FTS (`tsvector` + GIN), not embeddings. No pgvector in v1.0. Each row

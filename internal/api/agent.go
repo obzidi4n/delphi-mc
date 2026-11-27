@@ -256,6 +256,13 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 			if json.Unmarshal(data, &frame) == nil && frame.ServerID != "" && s.opts.Console != nil {
 				s.opts.Console.PublishStats(frame)
 			}
+		case wire.TypeBackupResult:
+			var frame struct {
+				RequestID string `json:"request_id"`
+			}
+			if json.Unmarshal(data, &frame) == nil && frame.RequestID != "" && s.opts.Hub != nil {
+				s.opts.Hub.Resolve(frame.RequestID, data)
+			}
 		case wire.TypeServerState:
 			var frame wire.ServerStateFrame
 			if json.Unmarshal(data, &frame) == nil && frame.ServerID != "" &&

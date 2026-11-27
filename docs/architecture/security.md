@@ -26,6 +26,12 @@ WebSocket channel (console, metrics, claims) and the blob download endpoint. Rot
 days; revocation records `revoked_at` and is checked on every reconnect. Details in
 [node enrollment](../operations/node-enrollment.md).
 
+**Backups:** the panel encrypts archives with AES-256-GCM using a 32-byte key at
+`<data_dir>/backup.key` (mode 0600, generated once). The node uploads plaintext over its mTLS
+node identity and downloads a decrypted stream only after ownership is checked; the node
+re-hashes the archive. Restore is destructive and requires `server:<id>:update`; it replaces
+the server directory, so the previous tree is kept only until extraction succeeds.
+
 **Artifacts:** `GET /agent/blobs/{sha256}` requires a verified node certificate whose serial is
 enrolled and not revoked. The response is immutable, content-addressed content; the node
 re-hashes before installing. GC requires org admin and skips anything referenced by a live

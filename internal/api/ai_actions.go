@@ -181,6 +181,24 @@ func (e *actionExecutor) Preview(ctx context.Context, p capability.Principal, to
 			Tool: "write_file", Summary: fmt.Sprintf("write %s on %s (%d bytes)", path, srv.Name, len(in.Content)),
 			ServerID: srv.ID, ServerName: srv.Name, Path: path, Content: in.Content,
 		}}, nil
+	case "backup":
+		var in struct {
+			Server string `json:"server"`
+		}
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, fmt.Errorf("invalid arguments: %w", err)
+		}
+		if e.services.Backups == nil {
+			return nil, fmt.Errorf("the backup service is not configured")
+		}
+		srv, err := e.resolve(ctx, p, in.Server)
+		if err != nil {
+			return nil, err
+		}
+		return []ai.Action{{
+			Tool: "backup", Summary: fmt.Sprintf("snapshot %s (quiesced, encrypted)", srv.Name),
+			ServerID: srv.ID, ServerName: srv.Name,
+		}}, nil
 	case "update_server":
 		var in struct {
 			Server string `json:"server"`
@@ -300,6 +318,19 @@ func (e *actionExecutor) Execute(ctx context.Context, p capability.Principal, ac
 			return "", err
 		}
 		out = fmt.Sprintf("wrote %s (revision %d)", action.Path, revision)
+	case "backup":
+		if e.services.Backups == nil {
+			return "", fmt.Errorf("the backup service is not configured")
+		}
+		srv, err := e.resolve(ctx, p, action.ServerID)
+		if err != nil {
+			return "", err
+		}
+		row, err := e.services.Backups.Create(ctx, p, srv.ID)
+		if err != nil {
+			return "", err
+		}
+		out = fmt.Sprintf("backup %s ready (%d bytes)", row.ID, row.Size)
 	case "update_server":
 		if e.services.Updates == nil {
 			return "", fmt.Errorf("the update service is not configured")

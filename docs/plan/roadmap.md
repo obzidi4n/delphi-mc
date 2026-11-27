@@ -54,6 +54,12 @@ criteria can be demonstrated on a clean host.
   Chunky and ViaVersion; two pinned builds updated to current with the server still running;
   unreferenced old artifacts were collected. Staging-clone boot-checks and `auto-*` policies
   remain deferred.
+- **M10** — backups: quiesced `tar.gz` snapshots (bridge `save-off`/`save-all flush`/
+  `save-on`, stop/start fallback), upload over node mTLS, AES-256-GCM at rest with
+  `<data_dir>/backup.key`, keep-last-7 retention, restore with directory replacement and a
+  desired-revision bump, and AI `backups`/`backup`. Live: Plugins-Demo snapshot (184 MB) while
+  running, motd mutated, restore reverted it and the server returned to running. Reflink/zfs
+  snapshot acceleration and age-based retention remain deferred.
 - **M7** — AI actions: create_server, power, run_command, moderate_player as two-phase
   tools; durable approval plans, approval cards in the chat UI, approve/reject that executes
   as the user and resumes the model, and audit entries. Live: a group restart plan approved

@@ -41,6 +41,7 @@ type Options struct {
 	AI         *ai.Service
 	Files      *FileService
 	Artifacts  *artifact.Store
+	Backups    *capability.Backups
 	Identity   IdentityStore
 	AdminToken string
 	CA         *pki.CA
@@ -114,6 +115,8 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("POST /agent/enroll", s.enroll)
 	mux.HandleFunc("GET /agent/ws", s.agentSocket)
 	mux.HandleFunc("GET /agent/blobs/{sha}", s.agentBlob)
+	mux.HandleFunc("POST /agent/backups/{id}", s.uploadBackup)
+	mux.HandleFunc("GET /agent/backups/{id}", s.downloadBackup)
 	mux.HandleFunc("GET "+s.base+"ws/servers/{id}", s.consoleSocket)
 
 	mux.HandleFunc("GET /api/v1/nodes", s.listNodes)
@@ -130,6 +133,10 @@ func New(opts Options) (http.Handler, error) {
 	mux.HandleFunc("GET /api/v1/servers/{id}/updates", s.listUpdates)
 	mux.HandleFunc("POST /api/v1/servers/{id}/updates/apply", s.applyUpdates)
 	mux.HandleFunc("POST /api/v1/artifacts/gc", s.gcArtifacts)
+	mux.HandleFunc("GET /api/v1/servers/{id}/backups", s.listBackups)
+	mux.HandleFunc("POST /api/v1/servers/{id}/backups", s.createBackup)
+	mux.HandleFunc("POST /api/v1/backups/{id}/restore", s.restoreBackup)
+	mux.HandleFunc("DELETE /api/v1/backups/{id}", s.deleteBackup)
 
 	mux.HandleFunc("GET /api/v1/groups", s.listGroups)
 	mux.HandleFunc("POST /api/v1/groups", s.createGroup)

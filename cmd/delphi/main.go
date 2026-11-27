@@ -35,6 +35,7 @@ import (
 	"delphi.dev/delphi/internal/apitypes"
 	"delphi.dev/delphi/internal/artifact"
 	"delphi.dev/delphi/internal/auth"
+	"delphi.dev/delphi/internal/backup"
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/config"
 	"delphi.dev/delphi/internal/mc"
@@ -162,6 +163,7 @@ func runPanel(ctx context.Context, args []string) error {
 	var aiService *ai.Service
 	var files *api.FileService
 	var artifacts *artifact.Store
+	var backups *capability.Backups
 	var identity api.IdentityStore
 	if db != nil {
 		identity = db
@@ -171,6 +173,11 @@ func runPanel(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
+		backupFiles, err := backup.New(filepath.Join(cfg.DataDir, "backups"), filepath.Join(cfg.DataDir, "backup.key"))
+		if err != nil {
+			return err
+		}
+		backups = &capability.Backups{Store: db, Files: backupFiles, Hub: hub, Notify: hub, Log: log}
 		updates := &capability.Updates{
 			Store: db, Resolver: plugins.NewResolver(nil), Artifacts: artifacts,
 			HTTP: &http.Client{Timeout: 5 * time.Minute}, Notify: hub, Log: log,
@@ -186,6 +193,7 @@ func runPanel(ctx context.Context, args []string) error {
 				Store: db, Servers: servers, Ports: db, Resolver: mc.NewClient(nil), Plugins: updates,
 			},
 			Updates: updates,
+			Backups: backups,
 		}
 		if err := seedBuiltinTemplates(ctx, db); err != nil {
 			log.Warn("could not seed built-in templates", "err", err)
@@ -246,6 +254,7 @@ func runPanel(ctx context.Context, args []string) error {
 		AI:         aiService,
 		Files:      files,
 		Artifacts:  artifacts,
+		Backups:    backups,
 		CA:         ca,
 		Hub:        hub,
 		BridgeSender: func(ctx context.Context, nodeID string, frame wire.BridgeCommandFrame) error {
@@ -959,6 +968,13 @@ func buildToolbox(services *capability.Services, console *api.ConsoleHub, db *st
 			}
 			updates, _, err := services.Updates.Detect(ctx, p, srv.ID)
 			return updates, err
+		},
+		Backups: func(ctx context.Context, p capability.Principal, ref string) ([]store.Backup, error) {
+			srv, err := resolve(ctx, p, ref)
+			if err != nil {
+				return nil, err
+			}
+			return services.Backups.List(ctx, p, srv.ID)
 		},
 	}
 }

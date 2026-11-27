@@ -143,15 +143,24 @@ The panel sends the node's full desired server set; the agent converges it
 
 ## Snapshots and backups
 
-- Filesystem capability is probed at handshake and reported per node:
-  `reflink` (btrfs / XFS with `reflink=1`), `zfs`, or `copy` (ext4).
-- `cp --reflink` / `zfs clone` when available; `tar` fallback otherwise. The installer offers a
-  dedicated btrfs volume so ext4 hosts can still get fast snapshots.
-- Order: `save-off` → `save-all flush` → snapshot → `save-on`.
-- Backups are encrypted at rest with a key separate from Postgres; retention is a per-target
-  policy (count + age) enforced by a GC job.
-- Reflink-dependent features (dev environments, staging boot-checks) are **gated in the UI**,
-  not silently slow.
+- M10 creates a `tar.gz` of the server directory (world, configs, plugins, jar) excluding
+  `logs/`, `cache/`, `crash/`, `backups/`, `.delphi-state.json`, `plugins/.paper-remapped`,
+  and every `session.lock`.
+- Quiesce: a running server gets `save-off` → `save-all flush` through the bridge, a 1.5 s
+  drain, snapshot, then `save-on`. If the bridge is not live the agent stops the container,
+  snapshots, and starts it again. Autosave is resumed before the upload, not after.
+- The archive uploads over the node's mTLS identity to `POST /agent/backups/{id}`; the panel
+  encrypts it (AES-256-GCM, chunked) into `<data_dir>/backups/<id>.enc` and records plaintext
+  sha256/size. No plaintext backup touches disk.
+- Restore downloads the decrypted archive from the panel, stops the container, renames the
+  directory aside, extracts into a fresh directory (rejecting traversal/symlinks), swaps it in,
+  and leaves the container stopped. The panel bumps the desired revision; reconciliation
+  re-installs the jar/bridge/plugins and starts a running server. A failed restore restarts the
+  previous data.
+- Filesystem capability is probed at handshake (`reflink`, `zfs`, `copy`). M10 always uses the
+  tar path; reflink/zfs snapshot acceleration and age-based retention are deferred.
+- Retention keeps the newest 7 backups per server; older files and rows are pruned after each
+  successful create.
 
 ## Dev environments (v1.1)
 

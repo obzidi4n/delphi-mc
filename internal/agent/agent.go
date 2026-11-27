@@ -163,6 +163,19 @@ func session(ctx context.Context, client *http.Client, endpoint string, opts Con
 				if json.Unmarshal(data, &req) == nil {
 					_ = writer.write(sctx, HandleFileRequest(opts.Supervisor, req))
 				}
+			case wire.TypeBackupCreate, wire.TypeBackupRestore:
+				var req wire.BackupRequest
+				if json.Unmarshal(data, &req) == nil && req.RequestID != "" && req.BackupID != "" && req.ServerID != "" {
+					go func(req wire.BackupRequest) {
+						var res wire.BackupResult
+						if req.Type == wire.TypeBackupRestore {
+							res = HandleBackupRestore(sctx, opts.Supervisor, client, opts.PanelURL, req)
+						} else {
+							res = HandleBackupCreate(sctx, opts.Supervisor, bridge, client, opts.PanelURL, req)
+						}
+						_ = writer.write(sctx, res)
+					}(req)
+				}
 			case wire.TypeBridgeCommand:
 				var frame wire.BridgeCommandFrame
 				if json.Unmarshal(data, &frame) == nil {

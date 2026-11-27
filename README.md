@@ -5,12 +5,14 @@ automated updates, templates, backups, scheduled automation, a first-party Paper
 plugin, and an AI operator — behind a web UI and a scriptable CLI, in one binary plus
 Postgres.
 
-**Status: M9 artifacts and plugins.** One binary with `panel`, `agent`, `nodes`, `init`, and
-`version`. Servers come from templates, boot in hardened containers, stream console/metrics,
-and run a self-installed bridge plugin. Modrinth/Hangar/GitHub plugins are resolved into a
-sha256 artifact store, installed on create, updated with a guarded restart and rollback, and
-garbage-collected. The panel has a file manager with revisions/diff/restore, an AI operator
-with read tools and approval-gated actions, and a scriptable API/CLI.
+**Status: M10 backups.** One binary with `panel`, `agent`, `nodes`, `init`, and `version`.
+Servers come from templates, boot in hardened containers, stream console/metrics, and run a
+self-installed bridge plugin. Modrinth/Hangar/GitHub plugins are resolved into a sha256
+artifact store, installed on create, updated with a guarded restart and rollback, and
+garbage-collected. Quiesced snapshots are encrypted at rest with a per-install key, retained
+per server, and restorable with reconcile. The panel has a file manager with
+revisions/diff/restore, an AI operator with read tools and approval-gated actions, and a
+scriptable API/CLI.
 
 ## Try it
 

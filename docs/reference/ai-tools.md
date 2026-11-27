@@ -5,7 +5,7 @@ tool row names its scope and whether it is read-only. A tool that is not in this
 not be registered.
 
 The registry is capability-gated: a tool appears only when every capability it needs exists
-at the panel's and node's versions. Twelve tools at M9 (seven read, five approval-gated);
+at the panel's and node's versions. Fourteen tools at M10 (eight read, six approval-gated);
 fifteen is the ceiling.
 
 ## Read-only (M6, implemented)
@@ -18,6 +18,7 @@ fifteen is the ceiling.
 | `get_server_health(server)` | Live TPS, player count, CPU and memory (bridge + metrics) | `org:<id>:read` + server read | `server` |
 | `get_console_tail(server, lines)` | Recent console lines for diagnosis | `org:<id>:read` + server read | `server`, `lines` (≤200) |
 | `plugins(server)` | Managed plugins with versions and available updates | `org:<id>:read` + server read | `server` |
+| `backups(server)` | Snapshots with id, state, size, creation time | `org:<id>:read` + server read | `server` |
 
 Citations come back with each result (`doc` with the path, `server` with the id) and are shown
 next to the answer. The capability layer re-checks scopes on every call; the registry hides
@@ -33,8 +34,9 @@ everything but `search_docs` from a principal without org read.
 | `moderate_player(action, server, player, reason)` | Propose kick/ban through the bridge | `server:<id>:moderate` | action, server, player, reason |
 | `write_file(server, path, content)` | Propose writing a text file; records a revision | `server:<id>:update` | server, path, content (≤1 MiB) |
 | `update_server(server)` | Propose installing available plugin updates, restarting, and boot-checking with rollback | `server:<id>:update` | server |
+| `backup(server)` | Propose a quiesced, encrypted snapshot | `server:<id>:update` | server |
 
-Twelve registered tools in total (seven read, five approval-gated).
+Fourteen registered tools in total (eight read, six approval-gated).
 
 Calling a write tool creates a pending approval, not a mutation. The user approves or rejects
 the card; approval executes as that user with their current scopes, then the model resumes
@@ -63,11 +65,10 @@ for.
 | `plugins(server)` | M9 (plugin manager) |
 | `get_metrics(server, range)` | series demand beyond `diagnose` |
 | `update_server(server, set)` | M9 (update policies + boot-check) |
-| `backup(server, action)` | M10 (backups) |
 | `create_schedule(spec)` | M11 (automation) |
 
-When `backup` unlocks: creating takes `server:<id>:backup`; restoring takes
-`server:<id>:restore` **and** typed confirmation, because it is destructive.
+`backup` landed at M10 as a create-only approval tool on `server:<id>:update`. Restore stays
+API/CLI-only for now: it needs a typed confirmation and dedicated backup/restore scopes.
 
 Not tools, deliberately: audit viewing is the M12 audit viewer, maintenance windows are
 managed in the UI, and database provisioning waits for v1.1 — each would need a new tool

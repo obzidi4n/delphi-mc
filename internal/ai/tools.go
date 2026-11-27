@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"delphi.dev/delphi/internal/capability"
 	"delphi.dev/delphi/internal/store"
@@ -56,6 +57,7 @@ type Toolbox struct {
 	ConsoleTail func(ctx context.Context, p capability.Principal, ref string, lines int) ([]string, error)
 	Plugins     func(ctx context.Context, p capability.Principal, ref string) ([]store.ServerPlugin, error)
 	Updates     func(ctx context.Context, p capability.Principal, ref string) ([]capability.PluginUpdate, error)
+	Backups     func(ctx context.Context, p capability.Principal, ref string) ([]store.Backup, error)
 }
 
 // Tool is one executable tool.
@@ -93,6 +95,7 @@ func (tb *Toolbox) Tools(p capability.Principal) []Tool {
 		Tool{Name: "get_server_health", Description: "Get live TPS, player count, CPU and memory for one server.", Parameters: serverSchema, Run: tb.runHealth},
 		Tool{Name: "get_console_tail", Description: "Read the most recent console lines of one server (for diagnosing lag or crashes).", Parameters: consoleSchema, Run: tb.runConsoleTail},
 		Tool{Name: "plugins", Description: "List managed plugins for one server and any available updates.", Parameters: serverSchema, Run: tb.runPlugins},
+		Tool{Name: "backups", Description: "List a server's snapshots with size, state, and creation time.", Parameters: serverSchema, Run: tb.runBackups},
 	)
 }
 
@@ -220,6 +223,28 @@ func (tb *Toolbox) runConsoleTail(ctx context.Context, p capability.Principal, a
 		Text:      strings.Join(lines, "\n"),
 		Citations: []Citation{{Kind: "server", Ref: in.Server, Title: in.Server + " console"}},
 	}, nil
+}
+
+func (tb *Toolbox) runBackups(ctx context.Context, p capability.Principal, args json.RawMessage) (ToolResult, error) {
+	if tb.Backups == nil {
+		return ToolResult{}, fmt.Errorf("backup data is unavailable")
+	}
+	ref, err := serverRef(args)
+	if err != nil {
+		return ToolResult{}, err
+	}
+	items, err := tb.Backups(ctx, p, ref)
+	if err != nil {
+		return ToolResult{}, err
+	}
+	if len(items) == 0 {
+		return ToolResult{Text: "No backups for that server."}, nil
+	}
+	var b strings.Builder
+	for _, item := range items {
+		fmt.Fprintf(&b, "- %s: %s, %d bytes, %s\n", item.ID, item.State, item.Size, item.CreatedAt.UTC().Format(time.RFC3339))
+	}
+	return ToolResult{Text: b.String(), Citations: []Citation{{Kind: "server", Ref: ref, Title: ref + " backups"}}}, nil
 }
 
 func (tb *Toolbox) runPlugins(ctx context.Context, p capability.Principal, args json.RawMessage) (ToolResult, error) {

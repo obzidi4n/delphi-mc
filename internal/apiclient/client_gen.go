@@ -244,6 +244,30 @@ func (c *Client) ListAudit(ctx context.Context, limit *int64, after *string) (*a
 	return &out, nil
 }
 
+// DELETE /api/v1/backups/{id}
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) DeleteBackup(ctx context.Context, id string) error {
+	reqPath := "/api" + "/v1" + "/backups" + "/" + url.PathEscape(fmt.Sprint(id))
+	var q url.Values
+
+	return c.do(ctx, "DELETE", reqPath, q, nil, nil)
+}
+
+// POST /api/v1/backups/{id}/restore
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) RestoreBackup(ctx context.Context, id string) (*apitypes.BackupDTO, error) {
+	reqPath := "/api" + "/v1" + "/backups" + "/" + url.PathEscape(fmt.Sprint(id)) + "/restore"
+	var q url.Values
+
+	var out apitypes.BackupDTO
+	if err := c.do(ctx, "POST", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // POST /api/v1/enrollment-tokens
 //
 // Requires a bearer token configured on the Client.
@@ -434,6 +458,34 @@ func (c *Client) RenameServer(ctx context.Context, id string, body apitypes.Rena
 
 	var out apitypes.ServerDTO
 	if err := c.do(ctx, "PATCH", reqPath, q, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GET /api/v1/servers/{id}/backups
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) ListServerBackups(ctx context.Context, id string) (*apitypes.BackupListDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/backups"
+	var q url.Values
+
+	var out apitypes.BackupListDTO
+	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// POST /api/v1/servers/{id}/backups
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) CreateServerBackup(ctx context.Context, id string) (*apitypes.BackupDTO, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/backups"
+	var q url.Values
+
+	var out apitypes.BackupDTO
+	if err := c.do(ctx, "POST", reqPath, q, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
