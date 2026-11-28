@@ -48,10 +48,21 @@ The Plugins page for a server has two jobs:
 user-visible plugin name and installed jar stem; `project` remains the provider
 source used for update checks. GitHub and Jenkins installs expose this name in
 the UI so a repository or job URL does not become the plugin's label.
-`DELETE /api/v1/servers/{id}/plugins?project=...` removes one project by its
-visible name. Both are scoped and audited (`server.plugin.add`,
+`PATCH /api/v1/servers/{id}/plugins` accepts `{project, disabled}` to
+activate/deactivate a managed plugin. `/DELETE /api/v1/servers/{id}/plugins`
+requires both `project` and `confirm=project`, because removal also deletes the
+plugin's config folder. Deactivation renames the jar to `.jar.d` and preserves
+that folder. Both are scoped and audited (`server.plugin.add`,
 `server.plugin.update`, `server.plugin.remove`). GitHub remains a resolver-only provider because it has
 no public project search API.
+
+Managed plugins can be deactivated or removed independently. Deactivation
+renames `<name>.jar` to `<name>.jar.d`; the agent leaves the plugin's config
+folder in place. Removal deletes the active or disabled jar and the inferred
+plugin config folder, then removes the managed entry. Both actions stage files
+without restarting a running server and set the pending state. Config folders
+are inferred from `plugin.yml` name metadata, falling back to the jar stem, and
+are validated under `plugins/` before deletion.
 
 Plugin staging sets a pending flag on the production server. It clears when the
 owner starts or restarts the server (or when the agent reports a non-running to

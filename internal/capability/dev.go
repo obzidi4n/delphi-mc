@@ -42,7 +42,7 @@ type PromotionPluginChange struct {
 	Provider string `json:"provider"`
 	Current  string `json:"current,omitempty"`
 	Next     string `json:"next,omitempty"`
-	Change   string `json:"change"` // added | removed | changed
+	Change   string `json:"change"` // added | removed | changed | activated | deactivated
 }
 
 // PromotionFileChange is one settings/config difference.
@@ -295,6 +295,12 @@ func pluginDiff(dev, target []store.ServerPlugin) []PromotionPluginChange {
 			out = append(out, PromotionPluginChange{Project: p.Project, Provider: p.Provider, Next: p.Version, Change: "added"})
 		case old.Version != p.Version || old.SHA256 != p.SHA256 || old.Provider != p.Provider:
 			out = append(out, PromotionPluginChange{Project: p.Project, Provider: p.Provider, Current: old.Version, Next: p.Version, Change: "changed"})
+		case old.Disabled != p.Disabled:
+			change := "activated"
+			if p.Disabled {
+				change = "deactivated"
+			}
+			out = append(out, PromotionPluginChange{Project: p.Project, Provider: p.Provider, Current: old.Version, Next: p.Version, Change: change})
 		}
 	}
 	for _, p := range target {

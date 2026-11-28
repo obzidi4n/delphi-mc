@@ -73,9 +73,11 @@ type ServerPlugin struct {
 	Name     string `json:"name"`
 	// Source is the provider reference used for update checks. It is separate
 	// from Project so a user can name a GitHub/Jenkins plugin meaningfully.
-	Source string `json:"source,omitempty"`
-	SHA256 string `json:"sha256"`
-	Size   int64  `json:"size,omitempty"`
+	Source    string `json:"source,omitempty"`
+	ConfigDir string `json:"config_dir,omitempty"`
+	Disabled  bool   `json:"disabled,omitempty"`
+	SHA256    string `json:"sha256"`
+	Size      int64  `json:"size,omitempty"`
 }
 
 const serverColumns = `s.id, s.org_id, s.node_id, s.name, s.desired_state, s.desired_revision,

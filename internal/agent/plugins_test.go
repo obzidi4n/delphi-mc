@@ -147,3 +147,65 @@ func TestHandleDevCloneCopiesAndRewritesSettings(t *testing.T) {
 		t.Fatalf("whitelist = %s (%v)", whitelist, err)
 	}
 }
+
+func TestEnsurePluginsTogglesDisabledAndRemovesConfigs(t *testing.T) {
+	body := "plugin-toggle"
+	sum := sha256.Sum256([]byte(body))
+	sha := hex.EncodeToString(sum[:])
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, body)
+	}))
+	defer srv.Close()
+	dir := t.TempDir()
+	sup := &Supervisor{DataDir: dir, HTTP: srv.Client(), BlobHTTP: srv.Client(), BlobBase: srv.URL,
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	spec := wire.ServerSpec{ID: "s_1", Plugins: []wire.PluginSpec{{
+		Name: "luckperms.jar", SHA256: sha, ConfigDir: "LuckPerms",
+	}}}
+	if err := sup.ensurePlugins(context.Background(), spec, dir); err != nil {
+		t.Fatal(err)
+	}
+	configDir := filepath.Join(dir, "plugins", "LuckPerms")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.yml"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	spec.Plugins[0].Disabled = true
+	if err := sup.ensurePlugins(context.Background(), spec, dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "plugins", "luckperms.jar")); !os.IsNotExist(err) {
+		t.Fatal("active jar still exists after deactivate")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "plugins", "luckperms.jar.d")); err != nil {
+		t.Fatal("disabled jar missing")
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "config.yml")); err != nil {
+		t.Fatal("config was removed on deactivate")
+	}
+
+	spec.Plugins[0].Disabled = false
+	if err := sup.ensurePlugins(context.Background(), spec, dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "plugins", "luckperms.jar")); err != nil {
+		t.Fatal("active jar missing after activate")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "plugins", "luckperms.jar.d")); !os.IsNotExist(err) {
+		t.Fatal("disabled jar still exists after activate")
+	}
+
+	spec.Plugins = nil
+	if err := sup.ensurePlugins(context.Background(), spec, dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "plugins", "luckperms.jar")); !os.IsNotExist(err) {
+		t.Fatal("jar not removed")
+	}
+	if _, err := os.Stat(configDir); !os.IsNotExist(err) {
+		t.Fatal("config folder not removed")
+	}
+}

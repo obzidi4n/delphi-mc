@@ -394,7 +394,13 @@ func pluginSpecs(in []store.ServerPlugin) []wire.PluginSpec {
 	}
 	out := make([]wire.PluginSpec, 0, len(in))
 	for _, p := range in {
-		out = append(out, wire.PluginSpec{Name: p.Name, SHA256: p.SHA256})
+		configDir := p.ConfigDir
+		if configDir == "" {
+			configDir = strings.TrimSuffix(p.Name, ".jar")
+		}
+		out = append(out, wire.PluginSpec{
+			Name: p.Name, SHA256: p.SHA256, Disabled: p.Disabled, ConfigDir: configDir,
+		})
 	}
 	return out
 }

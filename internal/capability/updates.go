@@ -1,6 +1,7 @@
 package capability
 
 import (
+	"archive/zip"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -99,10 +101,63 @@ func (u *Updates) Install(ctx context.Context, mcVersion string, wanted []templa
 		out = append(out, store.ServerPlugin{
 			Project: want.Project, Provider: want.Provider, Version: res.Version,
 			Policy: policy, Range: want.Range, Name: name,
-			SHA256: art.SHA256, Size: art.Size,
+			ConfigDir: u.configDir(art.SHA256, strings.TrimSuffix(name, ".jar")),
+			SHA256:    art.SHA256, Size: art.Size,
 		})
 	}
 	return out, nil
+}
+
+func (u *Updates) configDir(sha, fallback string) string {
+	if u.Artifacts == nil {
+		return fallback
+	}
+	file, err := u.Artifacts.Path(sha)
+	if err != nil {
+		return fallback
+	}
+	zr, err := zip.OpenReader(file)
+	if err != nil {
+		return fallback
+	}
+	defer zr.Close()
+	for _, f := range zr.File {
+		if f.Name != "plugin.yml" && f.Name != "paper-plugin.yml" {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		data, readErr := io.ReadAll(io.LimitReader(rc, 64<<10))
+		_ = rc.Close()
+		if readErr != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			key, value, ok := strings.Cut(strings.TrimSpace(line), ":")
+			if !ok || strings.TrimSpace(key) != "name" {
+				continue
+			}
+			dir := safePluginConfigDir(strings.Trim(strings.TrimSpace(value), `"'`))
+			if dir != "" {
+				return dir
+			}
+		}
+	}
+	return fallback
+}
+
+func safePluginConfigDir(dir string) string {
+	dir = strings.TrimSpace(dir)
+	if dir == "" || strings.ContainsRune(dir, '\x00') || strings.Contains(dir, "\\") || strings.HasPrefix(dir, "/") {
+		return ""
+	}
+	dir = path.Clean(dir)
+	if dir == "." || dir == ".." || strings.HasPrefix(dir, "../") || strings.Contains(dir, "/../") {
+		return ""
+	}
+	return dir
 }
 
 func (u *Updates) resolve(ctx context.Context, provider, project, mcVersion, pin, rng string) (plugins.Resolved, error) {
@@ -234,10 +289,15 @@ func (u *Updates) Add(ctx context.Context, p Principal, id string, req PluginReq
 		Policy: policy, Range: req.Range, Name: plugins.JarName(name),
 		Source: req.Project, SHA256: art.SHA256, Size: art.Size,
 	}
+	plugin.ConfigDir = u.configDir(art.SHA256, strings.TrimSuffix(plugin.Name, ".jar"))
 	next := append([]store.ServerPlugin(nil), srv.Plugins...)
 	replaced := false
 	for i, installed := range next {
 		if strings.EqualFold(installed.Project, name) {
+			plugin.Disabled = installed.Disabled
+			if plugin.ConfigDir == "" {
+				plugin.ConfigDir = installed.ConfigDir
+			}
 			next[i] = plugin
 			replaced = true
 			break
@@ -317,10 +377,15 @@ func (u *Updates) Upload(ctx context.Context, p Principal, id, project, version 
 		Project: project, Provider: "spigot", Version: version,
 		Policy: "manual", Name: plugins.JarName(project), SHA256: sha, Size: size,
 	}
+	plugin.ConfigDir = u.configDir(sha, strings.TrimSuffix(plugin.Name, ".jar"))
 	next := append([]store.ServerPlugin(nil), srv.Plugins...)
 	replaced := false
 	for i, installed := range next {
 		if strings.EqualFold(installed.Project, project) {
+			plugin.Disabled = installed.Disabled
+			if plugin.ConfigDir == "" {
+				plugin.ConfigDir = installed.ConfigDir
+			}
 			next[i] = plugin
 			replaced = true
 			break
@@ -364,6 +429,47 @@ func (u *Updates) PromotePlugins(ctx context.Context, p Principal, targetID stri
 		"plugins": len(plugins), "revision": updated.DesiredRevision,
 	})
 	return updated, nil
+}
+
+// SetDisabled activates or deactivates one managed plugin. The jar is renamed
+// by the agent; configs are preserved. A restart is required to unload it.
+func (u *Updates) SetDisabled(ctx context.Context, p Principal, id, project string, disabled bool) (PluginAddResult, error) {
+	if !p.Allows(serverScope(id, "update")) {
+		return PluginAddResult{}, forbidden(serverScope(id, "update"))
+	}
+	project = strings.TrimSpace(project)
+	if project == "" || len(project) > 200 {
+		return PluginAddResult{}, invalid("project must be 1-200 characters")
+	}
+	srv, err := u.Store.GetServer(ctx, id)
+	if err != nil {
+		return PluginAddResult{}, err
+	}
+	next := append([]store.ServerPlugin(nil), srv.Plugins...)
+	var found *store.ServerPlugin
+	for i := range next {
+		if strings.EqualFold(next[i].Project, project) {
+			next[i].Disabled = disabled
+			found = &next[i]
+			break
+		}
+	}
+	if found == nil {
+		return PluginAddResult{}, invalid("plugin %q is not installed", project)
+	}
+	updated, err := u.Store.SetPlugins(ctx, srv.ID, next)
+	if err != nil {
+		return PluginAddResult{}, err
+	}
+	u.sync(ctx, srv.NodeID)
+	action := "server.plugin.deactivate"
+	if !disabled {
+		action = "server.plugin.activate"
+	}
+	_ = u.audit(ctx, srv, p, action, map[string]any{
+		"project": project, "revision": updated.DesiredRevision,
+	})
+	return PluginAddResult{Plugin: *found, Revision: updated.DesiredRevision}, nil
 }
 
 // Remove deletes one managed plugin and syncs the server. A running server is
@@ -426,7 +532,7 @@ func (u *Updates) Detect(ctx context.Context, p Principal, id string) ([]PluginU
 	}
 	out := make([]PluginUpdate, 0, len(srv.Plugins))
 	for _, installed := range srv.Plugins {
-		if strings.EqualFold(installed.Provider, "spigot") || strings.EqualFold(installed.Policy, "manual") {
+		if installed.Disabled || strings.EqualFold(installed.Provider, "spigot") || strings.EqualFold(installed.Policy, "manual") {
 			continue
 		}
 		source := installed.Source
@@ -610,7 +716,9 @@ func (u *Updates) audit(ctx context.Context, srv store.Server, p Principal, acti
 
 func (u *Updates) sync(ctx context.Context, nodeID string) {
 	if u.Notify != nil {
-		_ = u.Notify.Sync(ctx, nodeID)
+		if err := u.Notify.Sync(ctx, nodeID); err != nil {
+			u.log().Warn("plugin sync failed", "node", nodeID, "err", err)
+		}
 	}
 }
 

@@ -138,6 +138,9 @@ The panel sends the node's full desired server set; the agent converges it
 - Paths are flat filenames ending in `.jar`; slashes, traversal and dotfiles are refused.
 - A plain jar fetch from upstream is still used for the server jar itself; plugins always come
   through the panel so an egress-restricted node can install them.
+- Disabled plugins are managed as `<name>.jar.d`; the config folder stays. On
+  removal the agent deletes the active/disabled jar and the recorded config
+  directory, with path containment checks.
 - Plugin staging does not bump the desired revision. A running container gets the new/removed
   jars on disk without restarting; the next manual restart loads the change. The agent keeps a
   `.delphi-managed.json` manifest (and falls back to the previous desired plugin list) so a

@@ -309,3 +309,31 @@ func TestAddUsesCustomPluginNameAndSource(t *testing.T) {
 		t.Fatalf("removed = %+v", fake.updated.Plugins)
 	}
 }
+
+func TestSetDisabledKeepsPluginAndSkipsUpdates(t *testing.T) {
+	updates, fake, _ := newUpdateFixture(t, "latest", "1.0.0")
+	p := Principal{UserID: "u", OrgID: "default", Via: "ui", Scopes: []string{"server:s_1:read", "server:s_1:update"}}
+	result, err := updates.SetDisabled(context.Background(), p, "s_1", "p", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Plugin.Disabled {
+		t.Fatal("plugin was not disabled")
+	}
+	if fake.srv.DesiredRevision != 3 {
+		t.Fatalf("toggle bumped revision to %d", fake.srv.DesiredRevision)
+	}
+	items, _, err := updates.Detect(context.Background(), p, "s_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("disabled plugin was update-checked: %+v", items)
+	}
+	if _, err := updates.SetDisabled(context.Background(), p, "s_1", "p", false); err != nil {
+		t.Fatal(err)
+	}
+	if fake.srv.Plugins[0].Disabled {
+		t.Fatal("plugin was not reactivated")
+	}
+}

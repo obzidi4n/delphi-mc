@@ -45,8 +45,10 @@ type ServerSpec struct {
 
 // PluginSpec is one managed plugin jar.
 type PluginSpec struct {
-	Name   string `json:"name"`
-	SHA256 string `json:"sha256"`
+	Name      string `json:"name"`
+	SHA256    string `json:"sha256"`
+	Disabled  bool   `json:"disabled,omitempty"`
+	ConfigDir string `json:"config_dir,omitempty"`
 }
 
 // ServersFrame replaces the node's full desired set. Reconciliation is

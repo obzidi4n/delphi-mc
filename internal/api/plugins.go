@@ -145,6 +145,30 @@ func (s *server) uploadServerPlugin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *server) setServerPluginDisabled(w http.ResponseWriter, r *http.Request) {
+	principal, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	service := s.updatesService(w)
+	if service == nil {
+		return
+	}
+	var body apitypes.PluginToggleRequest
+	if err := decodeJSON(w, r, &body); err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	result, err := service.SetDisabled(r.Context(), principal, r.PathValue("id"), body.Project, body.Disabled)
+	if err != nil {
+		writeCapabilityError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, apitypes.PluginAddResult{
+		Plugin: pluginDTOs([]store.ServerPlugin{result.Plugin})[0], Revision: result.Revision,
+	})
+}
+
 func (s *server) removeServerPlugin(w http.ResponseWriter, r *http.Request) {
 	principal, ok := s.authenticate(w, r)
 	if !ok {
@@ -154,7 +178,12 @@ func (s *server) removeServerPlugin(w http.ResponseWriter, r *http.Request) {
 	if service == nil {
 		return
 	}
-	if _, err := service.Remove(r.Context(), principal, r.PathValue("id"), r.URL.Query().Get("project")); err != nil {
+	project := r.URL.Query().Get("project")
+	if project == "" || r.URL.Query().Get("confirm") != project {
+		writeProblem(w, http.StatusBadRequest, "confirm_required", "removing a plugin also wipes its config folder; add ?confirm=<project>")
+		return
+	}
+	if _, err := service.Remove(r.Context(), principal, r.PathValue("id"), project); err != nil {
 		writeCapabilityError(w, err)
 		return
 	}

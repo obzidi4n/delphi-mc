@@ -40,12 +40,16 @@ func pluginDTOs(in []store.ServerPlugin) []apitypes.ServerPlugin {
 		item := apitypes.ServerPlugin{
 			Project: p.Project, Provider: p.Provider, Version: p.Version,
 			Policy: p.Policy, Name: p.Name, SHA256: p.SHA256,
+			Disabled: boolPtr(p.Disabled),
 		}
 		if p.Range != "" {
 			item.Range = strPtr(p.Range)
 		}
 		if p.Source != "" {
 			item.Source = strPtr(p.Source)
+		}
+		if p.ConfigDir != "" {
+			item.ConfigDir = strPtr(p.ConfigDir)
 		}
 		if p.Size > 0 {
 			item.Size = &p.Size

@@ -389,10 +389,12 @@ func (s *Supervisor) ensurePlugins(ctx context.Context, spec wire.ServerSpec, di
 	if err != nil {
 		return fmt.Errorf("read plugin manifest: %w", err)
 	}
-	if len(managed) == 0 && len(spec.PreviousPlugins) > 0 {
-		managed = append(managed, spec.PreviousPlugins...)
+	if len(managed) == 0 {
+		for _, name := range spec.PreviousPlugins {
+			managed = append(managed, managedPlugin{Name: name})
+		}
 	}
-	current := make([]string, 0, len(spec.Plugins))
+	current := make([]managedPlugin, 0, len(spec.Plugins))
 	seen := make(map[string]bool, len(spec.Plugins))
 	for _, p := range spec.Plugins {
 		if !safePluginName(p.Name) || len(p.SHA256) != 64 {
@@ -402,74 +404,121 @@ func (s *Supervisor) ensurePlugins(ctx context.Context, spec wire.ServerSpec, di
 			continue
 		}
 		seen[p.Name] = true
-		current = append(current, p.Name)
-		target := filepath.Join(pluginDir, p.Name)
-		if sum, err := fileSHA256(target); err == nil && sum == p.SHA256 {
-			continue
+		current = append(current, managedPlugin{Name: p.Name, ConfigDir: p.ConfigDir})
+		active := filepath.Join(pluginDir, p.Name)
+		disabled := active + ".d"
+		target, other := active, disabled
+		if p.Disabled {
+			target, other = disabled, active
 		}
-		url := strings.TrimRight(s.BlobBase, "/") + "/agent/blobs/" + p.SHA256
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if err != nil {
-			return fmt.Errorf("plugin request: %w", err)
+		if !fileMatches(target, p.SHA256) {
+			if fileMatches(other, p.SHA256) {
+				if err := os.Rename(other, target); err != nil {
+					return fmt.Errorf("toggle plugin %s: %w", p.Name, err)
+				}
+			} else if err := s.installPlugin(ctx, p, target); err != nil {
+				return err
+			}
 		}
-		client := s.BlobHTTP
-		if client == nil {
-			client = s.HTTP
+		if err := os.Remove(other); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove alternate plugin %s: %w", p.Name, err)
 		}
-		resp, err := client.Do(req)
-		if err != nil {
-			return fmt.Errorf("download plugin %s: %w", p.Name, err)
-		}
-		tmp := target + ".tmp"
-		file, createErr := os.Create(tmp)
-		if createErr != nil {
-			resp.Body.Close()
-			return fmt.Errorf("create %s: %w", tmp, createErr)
-		}
-		hasher := sha256.New()
-		_, copyErr := io.Copy(io.MultiWriter(file, hasher), resp.Body)
-		closeErr := file.Close()
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			os.Remove(tmp)
-			return fmt.Errorf("download plugin %s: %s", p.Name, resp.Status)
-		}
-		if copyErr != nil {
-			os.Remove(tmp)
-			return fmt.Errorf("download plugin %s: %w", p.Name, copyErr)
-		}
-		if closeErr != nil {
-			os.Remove(tmp)
-			return fmt.Errorf("close %s: %w", tmp, closeErr)
-		}
-		if got := hex.EncodeToString(hasher.Sum(nil)); got != p.SHA256 {
-			os.Remove(tmp)
-			return fmt.Errorf("plugin %s sha256 mismatch: got %s, want %s", p.Name, got, p.SHA256)
-		}
-		if err := os.Rename(tmp, target); err != nil {
-			os.Remove(tmp)
-			return fmt.Errorf("install plugin %s: %w", p.Name, err)
-		}
-		s.Log.Info("plugin installed", "server", spec.ID, "name", p.Name, "sha256", p.SHA256)
+		s.Log.Info("plugin staged", "server", spec.ID, "name", p.Name, "disabled", p.Disabled)
 	}
 	if err := writeManagedPlugins(pluginDir, current); err != nil {
 		return fmt.Errorf("write plugin manifest: %w", err)
 	}
-	for _, name := range managed {
-		if seen[name] || !safePluginName(name) {
+	for _, old := range managed {
+		if seen[old.Name] || !safePluginName(old.Name) {
 			continue
 		}
-		if err := os.Remove(filepath.Join(pluginDir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("remove old plugin %s: %w", name, err)
+		for _, name := range []string{old.Name, old.Name + ".d"} {
+			if err := os.Remove(filepath.Join(pluginDir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("remove old plugin %s: %w", name, err)
+			}
 		}
-		s.Log.Info("plugin removed", "server", spec.ID, "name", name)
+		configName := old.ConfigDir
+		if configName == "" {
+			configName = strings.TrimSuffix(old.Name, ".jar")
+		}
+		if configName != "" {
+			configDir, err := safePath(pluginDir, configName)
+			if err != nil {
+				return fmt.Errorf("remove configs for %s: %w", old.Name, err)
+			}
+			if err := os.RemoveAll(configDir); err != nil {
+				return fmt.Errorf("remove configs for %s: %w", old.Name, err)
+			}
+			s.Log.Info("plugin configs removed", "server", spec.ID, "plugin", old.Name, "dir", configName)
+		}
+		s.Log.Info("plugin removed", "server", spec.ID, "name", old.Name)
 	}
 	return nil
 }
 
+func safePluginName(name string) bool {
+	return name != "" && len(name) <= 128 && strings.HasSuffix(name, ".jar") &&
+		!strings.ContainsAny(name, "/\\") && !strings.HasPrefix(name, ".")
+}
+
+func (s *Supervisor) installPlugin(ctx context.Context, p wire.PluginSpec, target string) error {
+	url := strings.TrimRight(s.BlobBase, "/") + "/agent/blobs/" + p.SHA256
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("plugin request: %w", err)
+	}
+	client := s.BlobHTTP
+	if client == nil {
+		client = s.HTTP
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("download plugin %s: %w", p.Name, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download plugin %s: %s", p.Name, resp.Status)
+	}
+	tmp := target + ".tmp"
+	file, createErr := os.Create(tmp)
+	if createErr != nil {
+		return fmt.Errorf("create %s: %w", tmp, createErr)
+	}
+	hasher := sha256.New()
+	_, copyErr := io.Copy(io.MultiWriter(file, hasher), resp.Body)
+	closeErr := file.Close()
+	if copyErr != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("download plugin %s: %w", p.Name, copyErr)
+	}
+	if closeErr != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("close %s: %w", tmp, closeErr)
+	}
+	if got := hex.EncodeToString(hasher.Sum(nil)); got != p.SHA256 {
+		os.Remove(tmp)
+		return fmt.Errorf("plugin %s sha256 mismatch: got %s, want %s", p.Name, got, p.SHA256)
+	}
+	if err := os.Rename(tmp, target); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("install plugin %s: %w", p.Name, err)
+	}
+	return nil
+}
+
+func fileMatches(path, want string) bool {
+	sum, err := fileSHA256(path)
+	return err == nil && sum == want
+}
+
 const managedPluginsFile = ".delphi-managed.json"
 
-func readManagedPlugins(dir string) ([]string, error) {
+type managedPlugin struct {
+	Name      string `json:"name"`
+	ConfigDir string `json:"config_dir,omitempty"`
+}
+
+func readManagedPlugins(dir string) ([]managedPlugin, error) {
 	data, err := os.ReadFile(filepath.Join(dir, managedPluginsFile))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -477,15 +526,23 @@ func readManagedPlugins(dir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var names []string
-	if err := json.Unmarshal(data, &names); err != nil {
+	var current []managedPlugin
+	if err := json.Unmarshal(data, &current); err == nil {
+		return current, nil
+	}
+	var legacy []string
+	if err := json.Unmarshal(data, &legacy); err != nil {
 		return nil, err
 	}
-	return names, nil
+	out := make([]managedPlugin, 0, len(legacy))
+	for _, name := range legacy {
+		out = append(out, managedPlugin{Name: name})
+	}
+	return out, nil
 }
 
-func writeManagedPlugins(dir string, names []string) error {
-	data, err := json.Marshal(names)
+func writeManagedPlugins(dir string, plugins []managedPlugin) error {
+	data, err := json.Marshal(plugins)
 	if err != nil {
 		return err
 	}
@@ -496,13 +553,6 @@ func writeManagedPlugins(dir string, names []string) error {
 	return os.Rename(tmp, filepath.Join(dir, managedPluginsFile))
 }
 
-func safePluginName(name string) bool {
-	return name != "" && len(name) <= 128 && strings.HasSuffix(name, ".jar") &&
-		!strings.ContainsAny(name, "/\\") && !strings.HasPrefix(name, ".")
-}
-
-// captureCrash keeps the container log and any JVM crash file once per
-// revision, so a crash loop cannot fill the disk.
 func (s *Supervisor) captureCrash(ctx context.Context, spec wire.ServerSpec, dir string) {
 	crashDir := filepath.Join(dir, "crash", fmt.Sprintf("rev-%d", spec.Revision))
 	if _, err := os.Stat(crashDir); err == nil {

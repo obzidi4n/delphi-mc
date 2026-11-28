@@ -594,15 +594,41 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/Problem" }
+    patch:
+      operationId: setServerPluginDisabled
+      summary: Activate or deactivate one managed plugin
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PluginToggleRequest" }
+      responses:
+        "200":
+          description: Updated plugin
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PluginAddResult" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
     delete:
       operationId: removeServerPlugin
-      summary: Remove one managed plugin from a server
+      summary: Remove one managed plugin and its configs from a server
       parameters:
         - name: id
           in: path
           required: true
           schema: { type: string }
         - name: project
+          in: query
+          required: true
+          schema: { type: string }
+        - name: confirm
           in: query
           required: true
           schema: { type: string }
@@ -1432,7 +1458,7 @@ components:
         provider: { type: string }
         current: { type: string }
         next: { type: string }
-        change: { type: string, enum: [added, removed, changed] }
+        change: { type: string, enum: [added, removed, changed, activated, deactivated] }
     PromotionFileChange:
       type: object
       required: [path, status]
@@ -1533,6 +1559,8 @@ components:
         range: { type: string }
         name: { type: string }
         source: { type: string }
+        config_dir: { type: string }
+        disabled: { type: boolean }
         sha256: { type: string }
         size: { type: integer, format: int64 }
     PluginCatalogEntry:
@@ -1566,6 +1594,12 @@ components:
         name: { type: string }
         version: { type: string }
         range: { type: string }
+    PluginToggleRequest:
+      type: object
+      required: [project, disabled]
+      properties:
+        project: { type: string }
+        disabled: { type: boolean }
     PluginAddResult:
       type: object
       required: [plugin, revision]

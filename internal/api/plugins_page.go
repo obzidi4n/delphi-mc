@@ -325,7 +325,7 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
     }
     var table = document.createElement('table');
     var head = document.createElement('tr');
-    ['Plugin', 'Provider', 'Version', 'Policy', ''].forEach(function (label) {
+    ['Plugin', 'Provider', 'Version', 'Policy', 'Status', ''].forEach(function (label) {
       var th = document.createElement('th');
       th.textContent = label;
       head.appendChild(th);
@@ -337,12 +337,25 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
       tr.appendChild(cell(item.provider));
       tr.appendChild(cell(item.version));
       tr.appendChild(cell(item.policy));
+      tr.appendChild(cell(item.disabled ? 'disabled' : 'active'));
       var actions = document.createElement('td');
       actions.className = 'actions';
+      var toggle = item.disabled ? 'Activate' : 'Deactivate';
+      actions.appendChild(button(toggle, '', function () {
+        request(api + '/plugins', {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({project: item.project, disabled: !item.disabled})
+        }).then(function () {
+          markStaged();
+          toast(toggle + 'd ' + item.project + ' — restart the server to apply');
+          return refreshAll();
+        }).catch(function (err) { toast(err.message, true); });
+      }));
       actions.appendChild(button('Remove', 'danger', function () {
-        if (!window.confirm('Remove ' + item.project + ' from this server?')) { return; }
-        request(api + '/plugins?project=' + encodeURIComponent(item.project), {method: 'DELETE'})
-          .then(function () { markStaged(); toast('Removed ' + item.project + ' — restart the server to unload it'); return refreshAll(); })
+        if (!window.confirm('Remove ' + item.project + ' and its config folder from this server? The jar and configs will be deleted.')) { return; }
+        request(api + '/plugins?project=' + encodeURIComponent(item.project) + '&confirm=' + encodeURIComponent(item.project), {method: 'DELETE'})
+          .then(function () { markStaged(); toast('Removed ' + item.project + ' and its configs — restart the server to unload it'); return refreshAll(); })
           .catch(function (err) { toast(err.message, true); });
       }));
       tr.appendChild(actions);

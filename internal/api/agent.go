@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -190,7 +191,9 @@ func (s *server) agentSocket(w http.ResponseWriter, r *http.Request) {
 		live = s.opts.Hub.Register(node.ID, conn)
 		defer s.opts.Hub.Unregister(node.ID, live)
 		// A failed initial sync is not fatal: the next mutation re-syncs.
-		_ = s.opts.Hub.Sync(r.Context(), node.ID)
+		if err := s.opts.Hub.Sync(r.Context(), node.ID); err != nil {
+			slog.Warn("initial node sync failed", "node", node.ID, "err", err)
+		}
 	}
 
 	revoked := false

@@ -103,3 +103,16 @@ func TestPromotionDiffShowsChangedLines(t *testing.T) {
 		}
 	}
 }
+
+func TestPluginDiffReportsDisableAndEnable(t *testing.T) {
+	active := []store.ServerPlugin{{Project: "p", Provider: "modrinth", Version: "1", SHA256: "a"}}
+	disabled := []store.ServerPlugin{{Project: "p", Provider: "modrinth", Version: "1", SHA256: "a", Disabled: true}}
+	got := pluginDiff(disabled, active)
+	if len(got) != 1 || got[0].Change != "deactivated" {
+		t.Fatalf("deactivate diff = %+v", got)
+	}
+	got = pluginDiff(active, disabled)
+	if len(got) != 1 || got[0].Change != "activated" {
+		t.Fatalf("activate diff = %+v", got)
+	}
+}

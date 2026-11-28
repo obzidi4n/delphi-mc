@@ -955,10 +955,11 @@ func (c *Client) ModeratePlayer(ctx context.Context, id string, body apitypes.Mo
 // DELETE /api/v1/servers/{id}/plugins
 //
 // Requires a bearer token configured on the Client.
-func (c *Client) RemoveServerPlugin(ctx context.Context, id string, project string) error {
+func (c *Client) RemoveServerPlugin(ctx context.Context, id string, project string, confirm string) error {
 	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/plugins"
 	q := url.Values{}
 	q.Set("project", project)
+	q.Set("confirm", confirm)
 
 	return c.do(ctx, "DELETE", reqPath, q, nil, nil)
 }
@@ -972,6 +973,20 @@ func (c *Client) ListServerPlugins(ctx context.Context, id string) (*apitypes.Pl
 
 	var out apitypes.PluginListDTO
 	if err := c.do(ctx, "GET", reqPath, q, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PATCH /api/v1/servers/{id}/plugins
+//
+// Requires a bearer token configured on the Client.
+func (c *Client) SetServerPluginDisabled(ctx context.Context, id string, body apitypes.PluginToggleRequest) (*apitypes.PluginAddResult, error) {
+	reqPath := "/api" + "/v1" + "/servers" + "/" + url.PathEscape(fmt.Sprint(id)) + "/plugins"
+	var q url.Values
+
+	var out apitypes.PluginAddResult
+	if err := c.do(ctx, "PATCH", reqPath, q, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

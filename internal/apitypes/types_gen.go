@@ -526,6 +526,12 @@ type PluginListDTO struct {
 	Items []ServerPlugin `json:"items"`
 }
 
+// PluginToggleRequest is generated from the spec.
+type PluginToggleRequest struct {
+	Disabled bool   `json:"disabled"`
+	Project  string `json:"project"`
+}
+
 // PluginUpdate is generated from the spec.
 type PluginUpdate struct {
 	Current  string  `json:"current"`
@@ -707,15 +713,17 @@ type ServerMetricsDTO struct {
 
 // ServerPlugin is generated from the spec.
 type ServerPlugin struct {
-	Name     string  `json:"name"`
-	Policy   string  `json:"policy"`
-	Project  string  `json:"project"`
-	Provider string  `json:"provider"`
-	Range    *string `json:"range,omitempty"`
-	SHA256   string  `json:"sha256"`
-	Size     *int64  `json:"size,omitempty"`
-	Source   *string `json:"source,omitempty"`
-	Version  string  `json:"version"`
+	ConfigDir *string `json:"config_dir,omitempty"`
+	Disabled  *bool   `json:"disabled,omitempty"`
+	Name      string  `json:"name"`
+	Policy    string  `json:"policy"`
+	Project   string  `json:"project"`
+	Provider  string  `json:"provider"`
+	Range     *string `json:"range,omitempty"`
+	SHA256    string  `json:"sha256"`
+	Size      *int64  `json:"size,omitempty"`
+	Source    *string `json:"source,omitempty"`
+	Version   string  `json:"version"`
 }
 
 // TemplateDTO is generated from the spec.
