@@ -372,7 +372,7 @@ func (d *DB) SoftDeleteServer(ctx context.Context, id string) (Server, error) {
 	if tag.RowsAffected() == 0 {
 		return Server{}, ErrNoServer
 	}
-	return d.GetServer(ctx, id)
+	return scanServer(d.pool.QueryRow(ctx, `select `+serverColumns+` from servers s where s.id = $1`, id))
 }
 
 // ReportServerState records what the node observed. The report is scoped to the
