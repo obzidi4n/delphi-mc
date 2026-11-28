@@ -565,6 +565,7 @@ type Problem struct {
 // PromotionFileChange is generated from the spec.
 type PromotionFileChange struct {
 	DevSha        *string `json:"dev_sha,omitempty"`
+	Diff          *string `json:"diff,omitempty"`
 	Path          string  `json:"path"`
 	ProductionSha *string `json:"production_sha,omitempty"`
 	Size          *int64  `json:"size,omitempty"`

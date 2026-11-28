@@ -94,3 +94,12 @@ func TestPluginDiffReportsAddedRemovedChanged(t *testing.T) {
 		t.Fatalf("diff = %+v", got)
 	}
 }
+
+func TestPromotionDiffShowsChangedLines(t *testing.T) {
+	got := promotionDiff("server.properties", "motd=Production\nserver-port=25565\n", "motd=Dev\nserver-port=25567\n")
+	for _, want := range []string{"-motd=Production", "+motd=Dev", "-server-port=25565", "+server-port=25567"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("diff missing %q:\n%s", want, got)
+		}
+	}
+}

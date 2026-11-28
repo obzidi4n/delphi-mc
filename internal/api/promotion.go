@@ -41,7 +41,7 @@ func (s *server) previewPromotion(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, f := range preview.Files {
 		out.Files = append(out.Files, apitypes.PromotionFileChange{
-			Path: f.Path, Status: f.Status, ProductionSha: strPtr(f.ProductionSHA), DevSha: strPtr(f.DevSHA), Size: &f.Size,
+			Path: f.Path, Status: f.Status, ProductionSha: strPtr(f.ProductionSHA), DevSha: strPtr(f.DevSHA), Size: &f.Size, Diff: strPtr(f.Diff),
 		})
 	}
 	writeJSON(w, http.StatusOK, out)

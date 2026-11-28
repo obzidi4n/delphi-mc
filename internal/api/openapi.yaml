@@ -1426,6 +1426,7 @@ components:
         production_sha: { type: string }
         dev_sha: { type: string }
         size: { type: integer, format: int64 }
+        diff: { type: string }
     PromotionPreviewDTO:
       type: object
       required: [dev_id, target_id, target_name, plugins, files]

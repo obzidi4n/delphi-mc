@@ -491,6 +491,23 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
         status.textContent = ' ' + file.status;
         label.appendChild(status);
         fileBox.appendChild(label);
+        if (file.diff) {
+          var details = document.createElement('details');
+          details.style.margin = '0 0 .35rem 1.3rem';
+          var summary = document.createElement('summary');
+          summary.className = 'meta';
+          summary.textContent = 'View diff';
+          details.appendChild(summary);
+          var pre = document.createElement('pre');
+          pre.textContent = file.diff;
+          pre.style.whiteSpace = 'pre-wrap';
+          pre.style.maxHeight = '18rem';
+          pre.style.overflow = 'auto';
+          pre.style.fontSize = '.72rem';
+          pre.style.margin = '.25rem 0 0';
+          details.appendChild(pre);
+          fileBox.appendChild(details);
+        }
       });
       promoDiff.appendChild(fileBox);
     }

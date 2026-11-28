@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pmezard/go-difflib/difflib"
+
 	"delphi.dev/delphi/internal/store"
 	"delphi.dev/delphi/internal/wire"
 )
@@ -49,6 +51,7 @@ type PromotionFileChange struct {
 	ProductionSHA string `json:"production_sha,omitempty"`
 	DevSHA        string `json:"dev_sha,omitempty"`
 	Size          int64  `json:"size,omitempty"`
+	Diff          string `json:"diff,omitempty"`
 }
 
 // PromotionPreview is a safe review of dev changes before promotion.
@@ -346,6 +349,7 @@ func (d *Dev) promotionFiles(ctx context.Context, dev, target store.Server) ([]P
 		}
 		out = append(out, PromotionFileChange{
 			Path: p, Status: status, ProductionSHA: productionSHA, DevSHA: devSHA, Size: size,
+			Diff: promotionDiff(p, production, devContent),
 		})
 	}
 	return out, nil
@@ -437,6 +441,24 @@ func setProperty(content, key, value string) string {
 		lines = append(lines, key+"="+value)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func promotionDiff(path, before, after string) string {
+	diff, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+		A:        difflib.SplitLines(before),
+		B:        difflib.SplitLines(after),
+		FromFile: "production/" + path,
+		ToFile:   "dev/" + path,
+		Context:  3,
+	})
+	if err != nil {
+		return ""
+	}
+	const max = 64 << 10
+	if len(diff) > max {
+		diff = diff[:max] + "\n... diff truncated ...\n"
+	}
+	return diff
 }
 
 func contentSHA(content string) string {
