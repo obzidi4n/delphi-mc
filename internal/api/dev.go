@@ -15,6 +15,27 @@ func (s *server) devService(w http.ResponseWriter) *capability.Dev {
 	return s.opts.Services.Dev
 }
 
+func (s *server) listDevServers(w http.ResponseWriter, r *http.Request) {
+	principal, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	service := s.devService(w)
+	if service == nil {
+		return
+	}
+	items, err := service.List(r.Context(), principal, r.PathValue("id"))
+	if err != nil {
+		writeCapabilityError(w, err)
+		return
+	}
+	out := make([]apitypes.ServerDTO, 0, len(items))
+	for _, item := range items {
+		out = append(out, toServerDTO(item))
+	}
+	writeJSON(w, http.StatusOK, apitypes.ServerListDTO{Items: out, NextCursor: nil})
+}
+
 func (s *server) createDevServer(w http.ResponseWriter, r *http.Request) {
 	principal, ok := s.authenticate(w, r)
 	if !ok {

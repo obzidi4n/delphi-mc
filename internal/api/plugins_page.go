@@ -4,6 +4,8 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
+
+	"delphi.dev/delphi/internal/store"
 )
 
 type pluginsPage struct {
@@ -17,6 +19,7 @@ type pluginsPage struct {
 	PendingPlugins bool
 	PendingFiles   []string
 	DevOf          string
+	DevClones      []store.Server
 }
 
 func (s *server) renderPluginsPage(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +45,9 @@ func (s *server) renderPluginsPage(w http.ResponseWriter, r *http.Request) {
 		Base: srv.Base, State: srv.SummaryState, MCVersion: srv.MCVersion,
 		PendingPlugins: srv.PendingPlugins, PendingFiles: srv.PendingFiles,
 		DevOf: srv.DevOf,
+	}
+	if srv.DevOf == "" && s.opts.Services.Dev != nil {
+		data.DevClones, _ = s.opts.Services.Dev.List(r.Context(), principal, srv.ID)
 	}
 	if data.State == "" {
 		data.State = srv.ObservedState
@@ -130,6 +136,19 @@ var pluginsTemplate = template.Must(template.New("plugins").Parse(`<!doctype htm
   <div class="row" style="margin-top:.5rem">
    <button id="promo-apply" class="primary" type="button" disabled>Promote selected</button>
   </div>
+ </section>
+ {{end}}
+ {{if not .DevOf}}
+ <section class="devbox">
+  <h2>Dev clones</h2>
+  {{if .DevClones}}
+  <table>
+   <tr><th>Name</th><th>Status</th><th>Port</th><th>Expires</th></tr>
+   {{range .DevClones}}
+   <tr><td><a href="{{$.BasePath}}servers/{{.ID}}/plugins">{{.Name}}</a></td><td>{{.ObservedState}}</td><td>{{.Port}}</td><td>{{if .DevExpiresAt}}{{.DevExpiresAt.Format "2006-01-02 15:04"}}{{else}}—{{end}}</td></tr>
+   {{end}}
+  </table>
+  {{else}}<p class="meta">No active dev clone.</p>{{end}}
  </section>
  {{end}}
  <section id="devbox" class="devbox{{if or .PendingPlugins .PendingFiles}} pending{{end}}">

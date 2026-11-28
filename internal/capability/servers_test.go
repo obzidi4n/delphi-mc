@@ -31,6 +31,10 @@ func (f *fakeStore) CreateServer(_ context.Context, s store.Server) (store.Serve
 	return s, nil
 }
 
+func (f *fakeStore) ListDevServers(context.Context, string) ([]store.Server, error) {
+	return nil, nil
+}
+
 func (f *fakeStore) ExpiredDevServers(context.Context, time.Time) ([]store.Server, error) {
 	return nil, nil
 }

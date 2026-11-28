@@ -89,6 +89,8 @@ on the node; removing a plugin does the same in reverse. A running server does
 not restart automatically; the owner restarts when ready to load or unload the
 change. Applying updates is the explicit restart/boot-check action.
 
+A production server also lists its active dev clones with status, port, and
+expiry, and links each clone to its Plugins page (`GET /servers/{id}/dev`).
 The page also accepts a GitHub repository or release URL and installs the latest
 release asset, and a Jenkins job URL to install the last successful build's jar
 artifact. Both forms accept an optional plugin name; the source URL is retained

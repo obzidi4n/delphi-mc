@@ -477,6 +477,22 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
   /api/v1/servers/{id}/dev:
+    get:
+      operationId: listDevServers
+      summary: List active dev clones of a server
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Dev clones
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ServerListDTO" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Problem" }
     post:
       operationId: createDevServer
       summary: Clone a server into a temporary whitelisted dev server

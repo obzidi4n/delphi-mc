@@ -24,6 +24,7 @@ import (
 // DevStore is the persistence the dev-server capability reads.
 type DevStore interface {
 	GetServer(ctx context.Context, id string) (store.Server, error)
+	ListDevServers(ctx context.Context, sourceID string) ([]store.Server, error)
 	ExpiredDevServers(ctx context.Context, now time.Time) ([]store.Server, error)
 }
 
@@ -174,6 +175,17 @@ func (d *Dev) Create(ctx context.Context, p Principal, sourceID, ownerName strin
 	target = started
 	d.log().Info("dev server created", "source", source.ID, "target", target.ID, "bytes", result.Bytes, "method", result.Method)
 	return DevCreateResult{Server: target, Owner: ownerName, UUID: uuid}, nil
+}
+
+// List returns active dev clones for a production server.
+func (d *Dev) List(ctx context.Context, p Principal, sourceID string) ([]store.Server, error) {
+	if !p.Allows(serverScope(sourceID, "read")) {
+		return nil, forbidden(serverScope(sourceID, "read"))
+	}
+	if d.Store == nil {
+		return nil, errors.New("dev environments are not configured")
+	}
+	return d.Store.ListDevServers(ctx, sourceID)
 }
 
 // Preview compares a dev clone with its production source.

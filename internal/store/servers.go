@@ -263,6 +263,13 @@ func (d *DB) SetArtifacts(ctx context.Context, id, mcVersion, jarURL, jarSHA str
 	return d.GetServer(ctx, id)
 }
 
+// ListDevServers returns active temporary clones of a source server.
+func (d *DB) ListDevServers(ctx context.Context, sourceID string) ([]Server, error) {
+	return d.queryServers(ctx, `select `+serverColumns+` from servers s
+		where s.deleted_at is null and s.dev_of = $1
+		order by s.created_at, s.id`, sourceID)
+}
+
 // ExpiredDevServers returns temporary clones past their expiry time.
 func (d *DB) ExpiredDevServers(ctx context.Context, now time.Time) ([]Server, error) {
 	return d.queryServers(ctx, `select `+serverColumns+` from servers s
